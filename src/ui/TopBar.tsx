@@ -1,3 +1,4 @@
+import { ALL_COMPONENTS } from '../content/registry.js';
 import {
   AVAILABLE_MISSIONS,
   useSimStore,
@@ -21,10 +22,14 @@ export function TopBar() {
   const cameraMode = useSimStore((s) => s.cameraMode);
   const focusStage = useSimStore((s) => s.focusStage);
   const showEngineerPanel = useSimStore((s) => s.showEngineerPanel);
+  const showHotspots = useSimStore((s) => s.showHotspots);
+  const selectedComponent = useSimStore((s) => s.selectedComponent);
   const runMission = useSimStore((s) => s.runMission);
   const setCameraMode = useSimStore((s) => s.setCameraMode);
   const setFocusStage = useSimStore((s) => s.setFocusStage);
   const toggleEngineerPanel = useSimStore((s) => s.toggleEngineerPanel);
+  const toggleHotspots = useSimStore((s) => s.toggleHotspots);
+  const selectComponent = useSimStore((s) => s.selectComponent);
 
   return (
     <header className="top-bar">
@@ -79,6 +84,35 @@ export function TopBar() {
             S2
           </button>
         </div>
+        <select
+          className="mission-select inspect-select"
+          aria-label="Inspect component"
+          value={selectedComponent?.componentId ?? ''}
+          onChange={(e) => {
+            const val = e.target.value;
+            selectComponent(
+              val
+                ? {
+                    componentId: val,
+                    engineIndex: val === 'merlin-1d' ? 0 : undefined,
+                  }
+                : null
+            );
+          }}
+        >
+          <option value="">Inspect component…</option>
+          {ALL_COMPONENTS.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <button
+          className={`pill-btn ${showHotspots ? 'active' : ''}`}
+          onClick={toggleHotspots}
+        >
+          Hotspots
+        </button>
         <button
           className={`pill-btn ${showEngineerPanel ? 'active' : ''}`}
           onClick={toggleEngineerPanel}

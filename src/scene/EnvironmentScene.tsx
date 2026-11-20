@@ -1,6 +1,9 @@
 import { useMemo } from 'react';
 import { Stars } from '@react-three/drei';
 import * as THREE from 'three';
+import { InteractableHitbox } from './InteractableHitbox.js';
+
+const NO_RAYCAST = () => null;
 
 const EARTH_RADIUS_M = 6_371_000;
 
@@ -70,10 +73,18 @@ export function LaunchPadMesh({ siteId }: { readonly siteId: string }) {
         </mesh>
       ))}
       {/* Subtle site marker */}
-      <mesh position={[0, 0.55, 18]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, 0.55, 18]} rotation={[-Math.PI / 2, 0, 0]} raycast={NO_RAYCAST}>
         <ringGeometry args={[1.2, 1.8, 24]} />
         <meshBasicMaterial color={siteId === 'LC-39A' ? '#4ea1ff' : '#ffd166'} />
       </mesh>
+      <InteractableHitbox
+        componentId="launch-pad"
+        label={`Launch Pad (${siteId})`}
+        position={[-7.5, 32, 0]}
+        shape="box"
+        args={[7, 65, 7]}
+        labelOffset={[-6, 12, 0]}
+      />
     </group>
   );
 }
@@ -89,28 +100,36 @@ export function LandingPadMesh({
   if (mode === 'RTLS') {
     return (
       <group position={[0, 0, 0]}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]} receiveShadow>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.35, 0]} receiveShadow raycast={NO_RAYCAST}>
           <circleGeometry args={[1500, 48]} />
           <meshStandardMaterial color="#2a352c" roughness={0.95} />
         </mesh>
-        {/* 86 m diameter concrete LZ-1 pad */}
-        <mesh position={[0, 0.15, 0]} receiveShadow>
+        {/* 86 m diameter concrete LZ-1 pad (top surface flush at y=0.00 m) */}
+        <mesh position={[0, -0.15, 0]} receiveShadow raycast={NO_RAYCAST}>
           <cylinderGeometry args={[43, 44, 0.3, 48]} />
           <meshStandardMaterial color="#676d75" roughness={0.9} />
         </mesh>
         {/* Target X ring */}
-        <mesh position={[0, 0.35, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={NO_RAYCAST}>
           <ringGeometry args={[14, 15.8, 40]} />
           <meshBasicMaterial color="#e8eef5" />
         </mesh>
-        <mesh position={[0, 0.36, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 4]}>
+        <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 4]} raycast={NO_RAYCAST}>
           <planeGeometry args={[22, 1.8]} />
           <meshBasicMaterial color="#e8eef5" />
         </mesh>
-        <mesh position={[0, 0.36, 0]} rotation={[-Math.PI / 2, 0, -Math.PI / 4]}>
+        <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, -Math.PI / 4]} raycast={NO_RAYCAST}>
           <planeGeometry args={[22, 1.8]} />
           <meshBasicMaterial color="#e8eef5" />
         </mesh>
+        <InteractableHitbox
+          componentId="droneship"
+          label="Landing Zone (LZ-1)"
+          position={[18, -0.2, 0]}
+          shape="cylinder"
+          args={[24, 24, 1.4]}
+          labelOffset={[12, 4, 0]}
+        />
       </group>
     );
   }
@@ -118,28 +137,36 @@ export function LandingPadMesh({
   return (
     <group position={[0, 0, 0]}>
       {/* Atlantic Ocean plane */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.8, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.0, 0]} receiveShadow raycast={NO_RAYCAST}>
         <circleGeometry args={[3500, 64]} />
         <meshStandardMaterial color="#0b2844" roughness={0.35} metalness={0.2} />
       </mesh>
-      {/* ASDS Barge hull (91 m x 52 m) */}
-      <mesh position={[0, -0.9, 0]} receiveShadow>
+      {/* ASDS Barge hull (91 m x 52 m, top deck surface flush at y=0.00 m) */}
+      <mesh position={[0, -1.1, 0]} receiveShadow raycast={NO_RAYCAST}>
         <boxGeometry args={[91, 2.2, 52]} />
         <meshStandardMaterial color="#20252d" roughness={0.7} metalness={0.35} />
       </mesh>
       {/* Yellow X-circle deck target */}
-      <mesh position={[0, 0.25, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={NO_RAYCAST}>
         <ringGeometry args={[15, 16.5, 48]} />
         <meshBasicMaterial color="#f5c542" />
       </mesh>
-      <mesh position={[0, 0.26, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 4]}>
+      <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 4]} raycast={NO_RAYCAST}>
         <planeGeometry args={[24, 1.8]} />
         <meshBasicMaterial color="#f5c542" />
       </mesh>
-      <mesh position={[0, 0.26, 0]} rotation={[-Math.PI / 2, 0, -Math.PI / 4]}>
+      <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, -Math.PI / 4]} raycast={NO_RAYCAST}>
         <planeGeometry args={[24, 1.8]} />
         <meshBasicMaterial color="#f5c542" />
       </mesh>
+      <InteractableHitbox
+        componentId="droneship"
+        label="ASDS Droneship"
+        position={[24, -0.2, 0]}
+        shape="box"
+        args={[38, 2.2, 44]}
+        labelOffset={[8, 4, 0]}
+      />
     </group>
   );
 }
@@ -199,7 +226,7 @@ export function EarthAndSky({ altitudeM }: { readonly altitudeM: number }) {
 
       {showCurvedEarth && (
         <group position={[0, earthCenterY, 0]}>
-          <mesh>
+          <mesh raycast={NO_RAYCAST}>
             <sphereGeometry args={[earthVisualR, 72, 48]} />
             <meshStandardMaterial
               color="#153e73"
@@ -207,7 +234,7 @@ export function EarthAndSky({ altitudeM }: { readonly altitudeM: number }) {
               metalness={0.05}
             />
           </mesh>
-          <mesh material={atmoMat}>
+          <mesh material={atmoMat} raycast={NO_RAYCAST}>
             <sphereGeometry args={[earthVisualR * 1.018, 64, 40]} />
           </mesh>
         </group>

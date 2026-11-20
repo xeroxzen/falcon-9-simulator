@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { MissionCanvas } from './scene/MissionCanvas.js';
 import { useSimStore } from './store/simStore.js';
 import { EngineerPanel } from './ui/EngineerPanel.js';
+import { InspectorPanel } from './ui/InspectorPanel.js';
 import { TimelineBar } from './ui/TimelineBar.js';
 import { TopBar } from './ui/TopBar.js';
 import { WebcastHud } from './ui/WebcastHud.js';
@@ -23,6 +24,7 @@ export function App() {
     <div className="app-shell">
       <MissionCanvas />
       <TopBar />
+      <InspectorPanel />
       <EngineerPanel />
       <WebcastHud />
       <TimelineBar />

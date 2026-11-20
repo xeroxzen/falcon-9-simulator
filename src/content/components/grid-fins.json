@@ -1,0 +1,18 @@
+{
+  "id": "grid-fins",
+  "name": "Hypersonic Titanium Grid Fins",
+  "summary": "Four lattice aerodynamic control surfaces mounted around the upper Stage 1 interstage.",
+  "function": "Steer the descending first-stage booster across supersonic, transonic, and subsonic regimes by generating lateral lift and aerodynamic roll/pitch/yaw authority toward the landing pad.",
+  "materials": "Single-piece forged and machined titanium alloy (uncoated), able to survive hypersonic reentry heating without ablative thermal paint.",
+  "specs": [
+    { "label": "Count", "value": "4", "unit": "fins", "source": "SpaceX Falcon 9 Block 5", "status": "SOURCED" },
+    { "label": "Fin Span (each)", "value": "1.5 × 1.2", "unit": "m", "source": "Public Block 5 titanium grid fin geometry", "status": "ASSUMED" },
+    { "label": "Max Commanded Deflection", "value": "±20", "unit": "deg", "source": "Public Falcon 9 grid fin deflection estimate", "status": "ASSUMED" },
+    { "label": "Sim Lateral Lift Slope", "value": "0.8", "unit": "rad⁻¹", "source": "Simplified 3-DOF aero model (docs/ASSUMPTIONS.md)", "status": "ASSUMED" }
+  ],
+  "history": "Early reusable Falcon 9 boosters used coated aluminum grid fins that melted or charred on high-energy GTO entries. SpaceX introduced single-piece cast/forged titanium grid fins in 2017 (Iridium-2) and standardized them on Block 5.",
+  "sources": [
+    "SpaceX Falcon 9 Block 5 Technical Overview",
+    "NASA / Public Aerospace Grid Fin Aerodynamics Literature"
+  ]
+}

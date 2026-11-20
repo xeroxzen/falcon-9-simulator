@@ -1,0 +1,18 @@
+{
+  "id": "landing-legs",
+  "name": "Carbon-Fiber Landing Legs",
+  "summary": "Four telescoping deployable legs stowed flush against the lower Stage 1 fuselage during ascent.",
+  "function": "Deploy pneumatically ~5 seconds before touchdown (~120 m AGL) to absorb residual vertical/lateral landing loads via internal crush-core dampers and stabilize the booster on the deck.",
+  "materials": "Carbon-fiber composite skin with aluminum honeycomb core and replaceable aluminum honeycomb crush cores inside the telescoping pistons.",
+  "specs": [
+    { "label": "Count", "value": "4", "unit": "legs", "source": "SpaceX Falcon 9 Spec Page", "status": "SOURCED" },
+    { "label": "Deployed Span", "value": "18", "unit": "m", "source": "Public Falcon 9 landing leg span", "status": "SOURCED" },
+    { "label": "Deploy Altitude (Sim)", "value": "120", "unit": "m AGL", "source": "Approximated from webcast landing timing", "status": "ASSUMED" },
+    { "label": "Actuation", "value": "High-pressure helium", "unit": "", "source": "SpaceX technical disclosures", "status": "SOURCED" }
+  ],
+  "history": "Block 5 redesigned the landing legs from bolted single-use struts to black-finished retractable legs that can be folded back up on the droneship/pad for rapid turnaround.",
+  "sources": [
+    "SpaceX Falcon 9 Spec Page",
+    "SpaceX Falcon User's Guide"
+  ]
+}

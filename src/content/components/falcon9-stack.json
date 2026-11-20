@@ -1,0 +1,19 @@
+{
+  "id": "falcon9-stack",
+  "name": "Falcon 9 Block 5 Vehicle",
+  "summary": "Two-stage, partially reusable medium-lift orbital launch vehicle developed by SpaceX.",
+  "function": "Delivers payloads and crew to LEO, GTO, and interplanetary trajectories while recovering its first-stage booster propulsively.",
+  "materials": "Aluminum-lithium (Al-Li 2195) alloy tank walls and domes, carbon-fiber composite interstage, landing legs, and fairing.",
+  "specs": [
+    { "label": "Total Height", "value": "70.0", "unit": "m", "source": "SpaceX Falcon User's Guide", "status": "SOURCED" },
+    { "label": "Core Diameter", "value": "3.7", "unit": "m", "source": "SpaceX Falcon User's Guide", "status": "SOURCED" },
+    { "label": "Headline Liftoff Mass", "value": "549,054", "unit": "kg", "source": "SpaceX Falcon 9 Spec Page", "status": "SOURCED" },
+    { "label": "Sim Vehicle Subtotal (no payload)", "value": "556,100", "unit": "kg", "source": "Block 5 subcooled mass budget (docs/ASSUMPTIONS.md)", "status": "ASSUMED" },
+    { "label": "Payload to LEO (Expendable)", "value": "22,800", "unit": "kg", "source": "SpaceX Falcon 9 Spec Page", "status": "SOURCED" }
+  ],
+  "history": "Evolved from Falcon 9 v1.0 (2010) through v1.1 (2013) and Full Thrust (2015) to Block 5 (first flight May 2018, Bangabandhu-1), engineered for rapid booster reuse with 20+ flights per core.",
+  "sources": [
+    "SpaceX Falcon User's Guide (Rev. Sept 2021)",
+    "SpaceX Falcon 9 Capabilities & Services (spacex.com/vehicles/falcon-9)"
+  ]
+}

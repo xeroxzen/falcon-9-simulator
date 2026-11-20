@@ -87,7 +87,7 @@ export function PlumeEffect({
     <group>
       {isFiring && (
         <>
-          <mesh ref={innerRef} rotation={[Math.PI, 0, 0]}>
+          <mesh ref={innerRef} rotation={[Math.PI, 0, 0]} raycast={() => null}>
             <coneGeometry args={[1, 1, 16, 1, true]} />
             <meshBasicMaterial
               color={innerColor}
@@ -99,7 +99,7 @@ export function PlumeEffect({
               toneMapped={false}
             />
           </mesh>
-          <mesh ref={outerRef} rotation={[Math.PI, 0, 0]}>
+          <mesh ref={outerRef} rotation={[Math.PI, 0, 0]} raycast={() => null}>
             <coneGeometry args={[1, 1, 20, 1, true]} />
             <meshBasicMaterial
               color={outerColor}
@@ -122,7 +122,7 @@ export function PlumeEffect({
       )}
 
       {reentryIntensity > 0.02 && (
-        <mesh ref={glowRef} position={[0, -0.4, 0]}>
+        <mesh ref={glowRef} position={[0, -0.4, 0]} raycast={() => null}>
           <sphereGeometry args={[2.55, 20, 14, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.55]} />
           <meshBasicMaterial
             color="#ff551a"

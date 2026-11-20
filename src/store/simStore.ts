@@ -26,6 +26,12 @@ export type CameraMode =
 
 export type FocusStage = 'stage1' | 'stage2';
 
+export interface ComponentSelection {
+  readonly componentId: string;
+  /** Optional 0-based engine index for Merlin 1D (#1..#9) */
+  readonly engineIndex?: number;
+}
+
 export const AVAILABLE_MISSIONS: readonly MissionConfig[] = [
   DEFAULT_LEO_ASDS_MISSION,
   DEFAULT_LEO_RTLS_MISSION,
@@ -125,6 +131,9 @@ interface SimStoreState {
   cameraMode: CameraMode;
   focusStage: FocusStage;
   showEngineerPanel: boolean;
+  showHotspots: boolean;
+  selectedComponent: ComponentSelection | null;
+  hoveredComponent: ComponentSelection | null;
   runMission: (mission: MissionConfig) => void;
   setTimeS: (t: number) => void;
   advanceTime: (dtRealS: number) => void;
@@ -134,6 +143,9 @@ interface SimStoreState {
   setCameraMode: (mode: CameraMode) => void;
   setFocusStage: (stage: FocusStage) => void;
   toggleEngineerPanel: () => void;
+  toggleHotspots: () => void;
+  selectComponent: (sel: ComponentSelection | null) => void;
+  hoverComponent: (sel: ComponentSelection | null) => void;
 }
 
 let workerInstance: Worker | null = null;
@@ -160,6 +172,9 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   cameraMode: 'chase',
   focusStage: 'stage1',
   showEngineerPanel: true,
+  showHotspots: false,
+  selectedComponent: null,
+  hoveredComponent: null,
 
   runMission: (mission) => {
     const requestId = ++latestRequestId;
@@ -218,4 +233,7 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   setFocusStage: (focusStage) => set({ focusStage }),
   toggleEngineerPanel: () =>
     set((s) => ({ showEngineerPanel: !s.showEngineerPanel })),
+  toggleHotspots: () => set((s) => ({ showHotspots: !s.showHotspots })),
+  selectComponent: (selectedComponent) => set({ selectedComponent }),
+  hoverComponent: (hoveredComponent) => set({ hoveredComponent }),
 }));

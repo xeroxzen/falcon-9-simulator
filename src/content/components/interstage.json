@@ -1,0 +1,16 @@
+{
+  "id": "interstage",
+  "name": "Carbon-Fiber Interstage",
+  "summary": "Composite cylindrical structure connecting Stage 1 and Stage 2 and housing the MVac nozzle during ascent.",
+  "function": "Transfers axial and bending loads between stages, houses the pneumatic stage-separation pusher system, and mounts the four titanium grid fins and nitrogen cold-gas thrusters.",
+  "materials": "Carbon-fiber reinforced polymer (CFRP) facesheets bonded over an aluminum honeycomb core, finished unpainted black on Block 5 to resist reentry thermal loads.",
+  "specs": [
+    { "label": "Length", "value": "6.6", "unit": "m", "source": "Public Falcon 9 Block 5 geometry estimate", "status": "ASSUMED" },
+    { "label": "Diameter", "value": "3.7", "unit": "m", "source": "SpaceX Falcon User's Guide", "status": "SOURCED" },
+    { "label": "Separation Mechanism", "value": "Pneumatic pusher", "unit": "", "source": "SpaceX Falcon User's Guide", "status": "SOURCED" }
+  ],
+  "history": "SpaceX replaced pyrotechnic stage separation with all-pneumatic collets and a central pusher rod so separation hardware can be tested before flight and reused without refurbishment.",
+  "sources": [
+    "SpaceX Falcon User's Guide"
+  ]
+}

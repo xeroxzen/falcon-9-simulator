@@ -1,0 +1,18 @@
+{
+  "id": "fairing",
+  "name": "Payload Fairing Halves",
+  "summary": "Reusable two-piece 5.2 m composite clamshell enclosing the satellite payload during atmospheric ascent.",
+  "function": "Protects payloads from aerodynamic pressure, acoustic vibration, and aero-heating through the dense atmosphere, then separates pneumatically above ~115 km for recovery at sea.",
+  "materials": "Carbon-fiber composite skins bonded over an aluminum honeycomb core with internal acoustic foam blankets.",
+  "specs": [
+    { "label": "Diameter", "value": "5.2", "unit": "m", "source": "SpaceX Falcon User's Guide", "status": "SOURCED" },
+    { "label": "Length", "value": "13.1", "unit": "m", "source": "SpaceX Falcon User's Guide", "status": "SOURCED" },
+    { "label": "Total Mass (Both Halves)", "value": "1,900", "unit": "kg", "source": "Public SpaceX / Wikipedia F9 specs", "status": "SOURCED" },
+    { "label": "Separation Altitude (Sim)", "value": "115", "unit": "km", "source": "Typical LEO fairing jettison altitude", "status": "ASSUMED" }
+  ],
+  "history": "Valued at roughly $6M per pair, SpaceX developed cold-gas steering and steerable parafoils to recover and re-fly fairing halves from the ocean surface.",
+  "sources": [
+    "SpaceX Falcon User's Guide",
+    "SpaceX Falcon 9 Spec Page"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "mvac",
+  "name": "Merlin 1D Vacuum (MVac)",
+  "summary": "Vacuum-optimized variant of the Merlin 1D powering the Falcon 9 second stage.",
+  "function": "Delivers high-efficiency orbital insertion delta-v in near-vacuum with a large expansion-ratio nozzle extension and dual-redundant TEA-TEB restart capability.",
+  "materials": "Regeneratively cooled chamber mated to a thin-walled radiatively cooled niobium alloy (C-103) nozzle extension that glows bright orange during burns.",
+  "specs": [
+    { "label": "Vacuum Thrust", "value": "981", "unit": "kN", "source": "SpaceX Falcon 9 Spec Page", "status": "SOURCED" },
+    { "label": "Vacuum Specific Impulse", "value": "348", "unit": "s", "source": "SpaceX Falcon 9 Spec Page", "status": "SOURCED" },
+    { "label": "Nozzle Exit Diameter", "value": "3.3", "unit": "m", "source": "Public MVac geometry estimate", "status": "ASSUMED" },
+    { "label": "Throttle Range", "value": "39–100", "unit": "%", "source": "Public MVac throttle capability estimate", "status": "ASSUMED" }
+  ],
+  "history": "Upgraded alongside Merlin 1D Block 5 to 981 kN (220,500 lbf), enabling heavy GTO and direct-GEO insertions and reliable multi-restart orbital maneuvering.",
+  "sources": [
+    "SpaceX Falcon 9 Spec Page",
+    "SpaceX Falcon User's Guide"
+  ]
+}

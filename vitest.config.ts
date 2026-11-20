@@ -4,5 +4,12 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'node',
+    testTimeout: 30_000,
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        maxForks: 2,
+      },
+    },
   },
 });

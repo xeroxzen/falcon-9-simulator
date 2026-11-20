@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
@@ -10,6 +10,7 @@ import {
   type FocusStage,
 } from '../store/simStore.js';
 import type { Vec3 } from '../sim/types.js';
+import { installDebugHook, updateDebugFrame } from './debugBridge.js';
 import { Stage1Mesh, Stage2Mesh } from './Falcon9Vehicle.js';
 import {
   EarthAndSky,
@@ -47,7 +48,7 @@ function SceneContent({
   cameraMode,
   isPrimaryTicker,
 }: SceneContentProps) {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const trajectory = useSimStore((s) => s.trajectory);
   const timeS = useSimStore((s) => s.timeS);
   const advanceTime = useSimStore((s) => s.advanceTime);
@@ -55,6 +56,10 @@ function SceneContent({
   const s1GroupRef = useRef<THREE.Group>(null);
   const s2GroupRef = useRef<THREE.Group>(null);
   const camTargetRef = useRef(new THREE.Vector3(0, 35, 0));
+
+  useEffect(() => {
+    installDebugHook();
+  }, []);
 
   const frame = useMemo(
     () => sampleFrameAt(trajectory, timeS),
@@ -120,8 +125,22 @@ function SceneContent({
     const q2 = dirToQuat(s2Att);
 
     if (s1GroupRef.current) {
-      s1GroupRef.current.position.copy(s1Pos);
+      // Clamp visual touchdown floor to deck datum y=0 when landed so leg feet rest flush
+      const clampedS1Pos =
+        nearLanding && frame.stage1.phase === 'LANDED'
+          ? new THREE.Vector3(s1Pos.x, Math.max(0, s1Pos.y), s1Pos.z)
+          : s1Pos;
+      s1GroupRef.current.position.copy(clampedS1Pos);
       s1GroupRef.current.quaternion.copy(q1);
+    }
+
+    if (isPrimaryTicker) {
+      // Deployed landing leg foot sits at local y=+0.03 m; deck top surface is at y=0.00 m
+      const footHeightAboveDeck = nearLanding
+        ? (s1GroupRef.current?.position.y ?? s1Pos.y) +
+          (frame.stage1.landingLegsDeployed ? 0.03 : 0.3)
+        : null;
+      updateDebugFrame(camera, gl.domElement, footHeightAboveDeck);
     }
 
     if (s2GroupRef.current) {
@@ -136,28 +155,29 @@ function SceneContent({
       }
     }
 
-    // Camera positioning
-    const centerOffset = new THREE.Vector3(0, frame.separated ? 18 : 34, 0);
+    // Camera positioning:
+    // Directly track lookTarget in chase/split modes so the vehicle stays
+    // rock-solid in frame across floating-origin switches and at 100x playback.
+    const centerOffset = new THREE.Vector3(0, frame.separated ? 18 : 28, 0);
     const activeQuat = viewStage === 'stage1' ? q1 : q2;
     const lookTarget = focusPos
       .clone()
       .add(centerOffset.clone().applyQuaternion(activeQuat));
-    camTargetRef.current.lerp(lookTarget, 0.2);
+    camTargetRef.current.copy(lookTarget);
 
     if (cameraMode === 'chase' || cameraMode === 'split') {
-      const dist = frame.separated ? 85 : 120;
+      const dist = frame.separated ? 82 : 142;
       const desired = lookTarget
         .clone()
-        .add(new THREE.Vector3(dist * 0.72, dist * 0.22, dist * 0.72));
-      camera.position.lerp(desired, 0.12);
+        .add(new THREE.Vector3(dist * 0.72, dist * 0.16, dist * 0.72));
+      camera.position.copy(desired);
       camera.lookAt(camTargetRef.current);
     } else if (cameraMode === 'pad') {
       if (nearPad) {
         camera.position.set(95, 18, 125);
         camera.lookAt(camTargetRef.current);
       } else {
-        const desired = lookTarget.clone().add(new THREE.Vector3(90, 20, 110));
-        camera.position.lerp(desired, 0.1);
+        camera.position.copy(lookTarget).add(new THREE.Vector3(90, 20, 110));
         camera.lookAt(camTargetRef.current);
       }
     } else if (cameraMode === 'droneship') {
@@ -165,8 +185,7 @@ function SceneContent({
         camera.position.set(78, 16, 85);
         camera.lookAt(camTargetRef.current);
       } else {
-        const desired = lookTarget.clone().add(new THREE.Vector3(75, 18, 85));
-        camera.position.lerp(desired, 0.1);
+        camera.position.copy(lookTarget).add(new THREE.Vector3(75, 18, 85));
         camera.lookAt(camTargetRef.current);
       }
     } else if (cameraMode === 'onboard-s1') {
@@ -266,6 +285,7 @@ export function MissionCanvas() {
         <div className="viewport-pane">
           <div className="pane-badge">STAGE 2 — ORBITAL ASCENT</div>
           <Canvas
+            gl={{ preserveDrawingBuffer: true }}
             camera={{ fov: 48, near: 0.5, far: 45_000, position: [80, 40, 80] }}
             dpr={[1, 2]}
           >
@@ -279,6 +299,7 @@ export function MissionCanvas() {
         <div className="viewport-pane">
           <div className="pane-badge">STAGE 1 — BOOSTER RECOVERY</div>
           <Canvas
+            gl={{ preserveDrawingBuffer: true }}
             camera={{ fov: 48, near: 0.5, far: 45_000, position: [80, 40, 80] }}
             dpr={[1, 2]}
           >
@@ -303,6 +324,7 @@ export function MissionCanvas() {
   return (
     <div className="single-viewport">
       <Canvas
+        gl={{ preserveDrawingBuffer: true }}
         camera={{ fov: 48, near: 0.5, far: 45_000, position: [100, 45, 115] }}
         dpr={[1, 2]}
       >

@@ -1,0 +1,19 @@
+{
+  "id": "stage1",
+  "name": "First Stage Booster (Core)",
+  "summary": "Reusable liquid-propellant first stage powered by nine Merlin 1D engines in an Octaweb cluster.",
+  "function": "Accelerates the upper stack through the dense atmosphere to MECO (~65–85 km, ~1.8–2.2 km/s), then flips, reenters, and lands propulsively on an ASDS droneship or RTLS landing zone.",
+  "materials": "Friction-stir-welded aluminum-lithium (Al-Li) propellant tanks with a common bulkhead separating subcooled LOX (upper) and RP-1 (lower), plus thermal protection around the Octaweb.",
+  "specs": [
+    { "label": "Height (incl. Interstage)", "value": "42.6", "unit": "m", "source": "Public Falcon 9 Block 5 geometry", "status": "SOURCED" },
+    { "label": "Diameter", "value": "3.7", "unit": "m", "source": "SpaceX Falcon User's Guide", "status": "SOURCED" },
+    { "label": "Propellant Mass (LOX / RP-1)", "value": "411,000", "unit": "kg", "source": "Public Block 5 subcooled propellant estimate", "status": "ASSUMED" },
+    { "label": "Reusable Dry Mass", "value": "27,200", "unit": "kg", "source": "Public Block 5 reusable dry mass estimate (22.2–27.2 t)", "status": "ASSUMED" },
+    { "label": "Sea-Level Thrust (9× Merlin 1D)", "value": "7,607", "unit": "kN", "source": "SpaceX Falcon User's Guide", "status": "SOURCED" }
+  ],
+  "history": "Block 5 introduced a bolted titanium Octaweb thermal shield, upgraded heat-resistant raceway covers, and reinforced landing hardware, enabling single boosters to exceed 20 orbital flights.",
+  "sources": [
+    "SpaceX Falcon User's Guide",
+    "SpaceX Falcon 9 Spec Page"
+  ]
+}

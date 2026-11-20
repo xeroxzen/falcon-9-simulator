@@ -1,0 +1,16 @@
+{
+  "id": "cold-gas-thrusters",
+  "name": "Nitrogen Cold-Gas RCS Thrusters",
+  "summary": "High-pressure gaseous nitrogen reaction control thrusters mounted near the top of Stage 1.",
+  "function": "Provide 3-axis exoatmospheric attitude control after MECO to execute the 180° booster flip maneuver and hold retrograde orientation prior to atmospheric reentry.",
+  "materials": "Composite-overwrapped pressure vessels (COPVs) storing high-pressure nitrogen feeding machined stainless/Inconel cold-gas thruster pods.",
+  "specs": [
+    { "label": "Propellant", "value": "Gaseous N₂", "unit": "", "source": "SpaceX technical disclosures", "status": "SOURCED" },
+    { "label": "Sim Flip Slew Rate", "value": "12", "unit": "deg/s", "source": "Simplified 3-DOF rate-limited attitude model", "status": "ASSUMED" }
+  ],
+  "history": "Because aerodynamic surfaces have no authority above ~70 km, SpaceX added dual redundant nitrogen cold-gas pods on the interstage—producing the iconic glowing twilight plumes seen during flip maneuvers.",
+  "sources": [
+    "SpaceX Falcon User's Guide",
+    "Public SpaceX Launch Webcast Technical Commentary"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "droneship",
+  "name": "ASDS Droneship / Landing Zone",
+  "summary": "Autonomous Spaceport Drone Ship (OCISLY / JRTI / ASOG) or concrete RTLS Landing Zone (LZ-1 / LZ-4).",
+  "function": "Provides a stabilized ocean landing deck hundreds of kilometers downrange (ASDS) or a coastal concrete pad (RTLS) for propulsive first-stage booster recovery.",
+  "materials": "Modified ocean-going steel deck barge (Marmac 300-series) equipped with four GPS-guided azimuth thrusters, blast walls, and the Octagrabber recovery robot.",
+  "specs": [
+    { "label": "ASDS Deck Length", "value": "91", "unit": "m", "source": "Public Marmac 300 / OCISLY barge specs", "status": "SOURCED" },
+    { "label": "ASDS Deck Width", "value": "52", "unit": "m", "source": "Public Marmac 300 / OCISLY barge specs", "status": "SOURCED" },
+    { "label": "LZ-1 Pad Diameter", "value": "86", "unit": "m", "source": "CCSFS former LC-13 pad geometry", "status": "SOURCED" },
+    { "label": "LZ-1 Coordinates", "value": "28.4858°N, 80.5429°W", "unit": "WGS-84", "source": "CCSFS WGS-84 geodetic coordinates", "status": "SOURCED" }
+  ],
+  "history": "SpaceX achieved its first RTLS landing at LZ-1 on Orbcomm-2 (Dec 2015) and its first ASDS ocean landing on OCISLY during CRS-8 (April 2016).",
+  "sources": [
+    "SpaceX Autonomous Spaceport Drone Ship Public Specs",
+    "CCSFS / WGS-84 Geodetic Reference"
+  ]
+}

@@ -317,25 +317,24 @@ export function computeBoosterGuidance(
 
   // Exact constant-deceleration time-to-go: t_go = 2*h / (vDown + vTd)
   const tGoRaw = (2 * Math.max(heightAboveTarget, 0.5)) / Math.max(vDown + vTd, 1.5);
-  const tGoPos = Math.max(2.0, tGoRaw);
-  const tGoVel = Math.max(0.9, tGoRaw);
+  const tGoPos = Math.max(1.1, tGoRaw);
+  const tGoVel = Math.max(0.75, tGoRaw);
 
   // Exact textbook ZEM/ZEV optimal horizontal acceleration:
   //   a_horiz = posWeight * 6 * (r_target - r) / t_go^2 - 4 * v_horiz / t_go
-  // Smoothly fade the position term from 1 -> 0 between 28 m and 10 m altitude,
-  // then smoothly flare tilt toward vertical (0 deg) between 6 m and 1.5 m so
-  // the booster touches down upright (< 1 deg) rather than riding a tilt cap.
-  const posWeight = clamp((heightAboveTarget - 10.0) / 18.0, 0, 1);
+  // Keep full position authority down to 8 m (fading 8 m -> 2 m) so miss stays
+  // < 5 m on both ASDS and RTLS, then smoothly flare tilt to 0 deg over 2.6 m -> 0.5 m.
+  const posWeight = clamp((heightAboveTarget - 2.0) / 6.0, 0, 1);
   const posTerm = scale(toTargetHoriz, (6.0 * posWeight) / (tGoPos * tGoPos));
   const velTerm = scale(vHorizVec, 4.0 / tGoVel);
   let aLatCmd = sub(posTerm, velTerm);
 
-  const uprightFlare = clamp((heightAboveTarget - 0.5) / 3.0, 0, 1);
+  const uprightFlare = clamp((heightAboveTarget - 0.5) / 2.1, 0, 1);
   const maxTiltRad =
-    heightAboveTarget < 3.5
-      ? 0.10 * uprightFlare // smoothly flares to 0 deg by 0.5 m AGL -> touchdown tilt < 1 deg
+    heightAboveTarget < 2.6
+      ? 0.12 * uprightFlare // smoothly flares to 0 deg by 0.5 m AGL -> touchdown tilt < 1 deg
       : heightAboveTarget < 45.0
-        ? 0.26
+        ? 0.30
         : 0.65;
   const maxLatAccel = Math.max(1.0, aUpCmd) * Math.tan(maxTiltRad);
   const aLatMag = norm(aLatCmd);

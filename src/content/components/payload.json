@@ -1,0 +1,17 @@
+{
+  "id": "payload",
+  "name": "Payload / Spacecraft",
+  "summary": "Customer satellite stack or Crew Dragon spacecraft carried atop the Stage 2 payload adapter.",
+  "function": "Rides inside the fairing (or directly atop Stage 2 for Crew Dragon missions like DM-1) until orbital insertion and spacecraft separation after SECO.",
+  "materials": "Mission-dependent spacecraft bus (aluminum/composite structure, solar arrays, or Crew Dragon pressure vessel + PICA-X heat shield).",
+  "specs": [
+    { "label": "LEO ASDS Baseline Mass", "value": "12,000", "unit": "kg", "source": "Default mission config (src/sim/config/missions.ts)", "status": "ASSUMED" },
+    { "label": "DM-1 Crew Dragon Mass", "value": "12,055", "unit": "kg", "source": "NASA / Wikipedia Crew Dragon Demo-1 specs", "status": "SOURCED" },
+    { "label": "Max LEO Capacity (Reusable)", "value": "17,500", "unit": "kg", "source": "Public SpaceX Starlink Block 5 capacity", "status": "SOURCED" }
+  ],
+  "history": "Falcon 9 has launched commercial communications satellites, Starlink constellations, NASA ISS cargo/crew Dragon missions, and deep-space science probes.",
+  "sources": [
+    "SpaceX Falcon User's Guide",
+    "NASA Crew Dragon Demo-1 Press Kit"
+  ]
+}

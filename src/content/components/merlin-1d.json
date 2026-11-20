@@ -1,0 +1,19 @@
+{
+  "id": "merlin-1d",
+  "name": "Merlin 1D Sea-Level Engine",
+  "summary": "Gas-generator cycle LOX/RP-1 rocket engine arranged in a 9-engine Octaweb on Stage 1.",
+  "function": "Provides liftoff thrust (9 engines), boostback & entry braking (3 engines), and terminal hoverslam landing thrust (1–3 engines) with deep-throttling and gimbaled thrust vector control.",
+  "materials": "Regeneratively cooled copper-alloy combustion chamber with Inconel/superalloy jacket, single-shaft turbopump, and pintle injector.",
+  "specs": [
+    { "label": "Sea-Level Thrust", "value": "845.2", "unit": "kN", "source": "SpaceX Falcon User's Guide (7,607 kN / 9)", "status": "SOURCED" },
+    { "label": "Vacuum Thrust", "value": "914.1", "unit": "kN", "source": "SpaceX Specs (8,227 kN / 9)", "status": "SOURCED" },
+    { "label": "Specific Impulse (Vac)", "value": "311", "unit": "s", "source": "SpaceX / Aerospace reference specs", "status": "SOURCED" },
+    { "label": "Specific Impulse (SL)", "value": "287.6", "unit": "s", "source": "Choked-flow consistent with 7607/8227 kN (Block 5 est. 285–288 s)", "status": "ASSUMED" },
+    { "label": "Throttle Range", "value": "40–100", "unit": "%", "source": "Public Merlin 1D deep-throttle estimate", "status": "ASSUMED" }
+  ],
+  "history": "Descended from Merlin 1A/1C on Falcon 1, the Merlin 1D achieved the highest thrust-to-weight ratio (>180:1) of any operational boost engine and is certified for dozens of relights via TEA-TEB pyrophoric ignition.",
+  "sources": [
+    "SpaceX Falcon User's Guide",
+    "SpaceX Falcon 9 Spec Page"
+  ]
+}

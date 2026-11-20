@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "e2e": "playwright test",
+    "e2e:update": "playwright test --update-snapshots",
     "sim:ascent": "tsx src/cli/run-ascent.ts",
     "sim:mission": "tsx src/cli/run-mission.ts",
     "sim:validate": "tsx src/cli/run-validation.ts",
@@ -25,6 +27,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.50.1",
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",

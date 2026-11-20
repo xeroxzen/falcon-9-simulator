@@ -1,0 +1,19 @@
+{
+  "id": "stage2",
+  "name": "Second Stage",
+  "summary": "Expendable upper stage powered by a single Merlin 1D Vacuum (MVac) engine.",
+  "function": "Ignites after stage separation (SES-1) to insert the payload into its target orbit, capable of multiple restarts for GTO, SSO, and direct-insertion missions.",
+  "materials": "Shortened aluminum-lithium (Al-Li) monocoque tank sharing the same 3.7 m tooling as Stage 1, with an aft composite skirt and radiatively cooled MVac nozzle.",
+  "specs": [
+    { "label": "Height", "value": "12.6", "unit": "m", "source": "Public Falcon 9 Block 5 geometry", "status": "SOURCED" },
+    { "label": "Diameter", "value": "3.7", "unit": "m", "source": "SpaceX Falcon User's Guide", "status": "SOURCED" },
+    { "label": "Propellant Mass (LOX / RP-1)", "value": "111,500", "unit": "kg", "source": "Public Block 5 subcooled S2 load estimate", "status": "ASSUMED" },
+    { "label": "Dry Mass", "value": "4,500", "unit": "kg", "source": "Public Block 5 S2 dry mass estimate", "status": "ASSUMED" },
+    { "label": "Vacuum Thrust (MVac)", "value": "981", "unit": "kN", "source": "SpaceX Falcon 9 Spec Page", "status": "SOURCED" }
+  ],
+  "history": "Stretched in the v1.1 and Full Thrust upgrades to accommodate densified subcooled propellants, giving Falcon 9 the delta-v margin to reserve Stage 1 propellant for recovery.",
+  "sources": [
+    "SpaceX Falcon User's Guide",
+    "SpaceX Falcon 9 Spec Page"
+  ]
+}
