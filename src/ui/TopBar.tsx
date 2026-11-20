@@ -16,18 +16,21 @@ const CAMERA_MODES: readonly { id: CameraMode; label: string }[] = [
 ];
 
 export function TopBar() {
-  const mission = useSimStore((s) => s.mission);
+  const baseMission = useSimStore((s) => s.baseMission);
   const trajectory = useSimStore((s) => s.trajectory);
   const loading = useSimStore((s) => s.loading);
   const cameraMode = useSimStore((s) => s.cameraMode);
   const focusStage = useSimStore((s) => s.focusStage);
   const showEngineerPanel = useSimStore((s) => s.showEngineerPanel);
+  const showWhatIfPanel = useSimStore((s) => s.showWhatIfPanel);
+  const isWhatIfActive = useSimStore((s) => s.isWhatIfActive);
   const showHotspots = useSimStore((s) => s.showHotspots);
   const selectedComponent = useSimStore((s) => s.selectedComponent);
   const runMission = useSimStore((s) => s.runMission);
   const setCameraMode = useSimStore((s) => s.setCameraMode);
   const setFocusStage = useSimStore((s) => s.setFocusStage);
   const toggleEngineerPanel = useSimStore((s) => s.toggleEngineerPanel);
+  const toggleWhatIfPanel = useSimStore((s) => s.toggleWhatIfPanel);
   const toggleHotspots = useSimStore((s) => s.toggleHotspots);
   const selectComponent = useSimStore((s) => s.selectComponent);
 
@@ -37,11 +40,11 @@ export function TopBar() {
         <span className="brand-title">FALCON 9 SIM</span>
         <select
           className="mission-select"
-          value={mission.id}
+          value={baseMission.id}
           disabled={loading}
           onChange={(e) => {
             const next = AVAILABLE_MISSIONS.find((m) => m.id === e.target.value);
-            if (next) runMission(next);
+            if (next) runMission(next, false);
           }}
         >
           {AVAILABLE_MISSIONS.map((m) => (
@@ -107,6 +110,13 @@ export function TopBar() {
             </option>
           ))}
         </select>
+        <button
+          className={`pill-btn ${showWhatIfPanel || isWhatIfActive ? 'active' : ''}`}
+          onClick={toggleWhatIfPanel}
+          data-testid="whatif-toggle-btn"
+        >
+          What-If{isWhatIfActive ? ' •' : ''}
+        </button>
         <button
           className={`pill-btn ${showHotspots ? 'active' : ''}`}
           onClick={toggleHotspots}

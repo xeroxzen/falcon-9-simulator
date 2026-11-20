@@ -69,6 +69,7 @@ export interface StageFrameSnapshot {
   readonly landingLegsDeployed: boolean;
   readonly fairingAttached: boolean;
   readonly ambientPressurePa: number;
+  readonly ambientDensityKgM3: number;
 }
 
 export interface PlaybackFrame {
@@ -92,6 +93,12 @@ export interface MissionTrajectoryData {
   readonly orbit: OrbitalElements;
   readonly orbitAchieved: boolean;
   readonly boosterOutcome: 'LANDED' | 'CRASHED' | 'EXPENDED';
+  readonly boosterFailureReason?: string;
+  readonly mecoTimeS: number;
+  readonly boosterApogeeM: number;
+  readonly boosterTouchdownMissM: number;
+  readonly boosterPropRemainingKg: number;
+  readonly stage2PropRemainingKg: number;
   readonly landingTarget: GeodeticCoord;
   readonly computeTimeMs: number;
 }
@@ -106,6 +113,12 @@ export type WorkerRequest = {
 };
 
 export type WorkerResponse =
+  | {
+      readonly type: 'MISSION_PROGRESS';
+      readonly requestId: number;
+      readonly progress: number;
+      readonly stage: string;
+    }
   | {
       readonly type: 'MISSION_RESULT';
       readonly requestId: number;

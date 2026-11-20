@@ -302,6 +302,25 @@ export function greatCircleDistanceM(
 }
 
 /**
+ * Canonical horizontal distance (meters) from an ECI position at `timeS` to a
+ * geodetic landing target, measured in the target's local ENU horizontal plane.
+ * Used uniformly across booster guidance, telemetry snapshots, HUD, and tests.
+ */
+export function horizontalDistanceToTargetM(
+  posEci: Vec3,
+  timeS: number,
+  targetCoord: GeodeticCoord
+): number {
+  const posEcef = eciToEcef(posEci, timeS);
+  const targetEcef = geodeticToEcef(targetCoord);
+  const d = sub(posEcef, targetEcef);
+  const basis = localEnuBasisEcef(targetCoord.latRad, targetCoord.lonRad);
+  const east = dot(d, basis.east);
+  const north = dot(d, basis.north);
+  return Math.hypot(east, north);
+}
+
+/**
  * Compute classical Keplerian orbital elements from ECI position and velocity.
  */
 export function computeOrbitalElements(

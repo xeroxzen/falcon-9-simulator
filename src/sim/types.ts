@@ -324,6 +324,7 @@ export interface FullMissionResult {
   readonly orbit: OrbitalElements;
   readonly landingTarget: GeodeticCoord;
   readonly boosterOutcome: 'LANDED' | 'CRASHED' | 'EXPENDED';
+  readonly boosterFailureReason?: string;
   readonly orbitAchieved: boolean;
   readonly events: readonly MissionEvent[];
 }

@@ -37,29 +37,50 @@ void main() {
  * Launch Pad (LC-39A / SLC-40 concrete pad, flame trench, strongback tower)
  * rendered at local origin (0, 0, 0).
  */
-export function LaunchPadMesh({ siteId }: { readonly siteId: string }) {
+export function LaunchPadMesh({
+  siteId,
+  timeS = 0,
+}: {
+  readonly siteId: string;
+  readonly timeS?: number;
+}) {
+  // Strongback is already retracted ~20 deg away from the vehicle before T-0,
+  // and throws back smoothly to ~40 deg during T+0..3 s — never intersects the vehicle.
+  const throwFrac = Math.min(1, Math.max(0, timeS / 3.0));
+  const retractAngleRad = 0.35 + 0.33 * throwFrac;
+
   return (
     <group position={[0, 0, 0]}>
       {/* Ground plane around pad */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]} receiveShadow>
-        <circleGeometry args={[1200, 48]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]} receiveShadow raycast={NO_RAYCAST}>
+        <circleGeometry args={[1200, 36]} />
         <meshStandardMaterial color="#2a332b" roughness={0.95} />
       </mesh>
       {/* Concrete pad apron */}
-      <mesh position={[0, 0.25, 0]} receiveShadow>
+      <mesh position={[0, 0.25, 0]} receiveShadow raycast={NO_RAYCAST}>
         <boxGeometry args={[46, 0.5, 46]} />
         <meshStandardMaterial color="#595e66" roughness={0.88} />
       </mesh>
       {/* Launch mount / flame trench */}
-      <mesh position={[0, 1.6, 0]} receiveShadow>
+      <mesh position={[0, 1.6, 0]} receiveShadow raycast={NO_RAYCAST}>
         <boxGeometry args={[12, 3.2, 12]} />
         <meshStandardMaterial color="#3c4047" roughness={0.8} />
       </mesh>
-      {/* Transporter/Erector strongback tower */}
-      <mesh position={[-7.5, 32, 0]} castShadow>
-        <boxGeometry args={[3.2, 64, 3.2]} />
-        <meshStandardMaterial color="#4a505a" roughness={0.6} metalness={0.5} />
-      </mesh>
+      {/* Transporter/Erector strongback tower — hinged at base, retracted away in -X */}
+      <group position={[-7.5, 2.0, 0]} rotation={[0, 0, retractAngleRad]}>
+        <mesh position={[0, 31, 0]} castShadow raycast={NO_RAYCAST}>
+          <boxGeometry args={[3.2, 62, 3.2]} />
+          <meshStandardMaterial color="#4a505a" roughness={0.6} metalness={0.5} />
+        </mesh>
+        <InteractableHitbox
+          componentId="launch-pad"
+          label={`Launch Pad (${siteId})`}
+          position={[0, 31, 0]}
+          shape="box"
+          args={[6.5, 62, 6.5]}
+          labelOffset={[-6, 12, 0]}
+        />
+      </group>
       {/* 4x Lightning protection towers */}
       {[
         [36, 36],
@@ -67,24 +88,16 @@ export function LaunchPadMesh({ siteId }: { readonly siteId: string }) {
         [36, -36],
         [-36, -36],
       ].map(([x, z], i) => (
-        <mesh key={i} position={[x!, 42, z!]}>
+        <mesh key={i} position={[x!, 42, z!]} raycast={NO_RAYCAST}>
           <cylinderGeometry args={[0.35, 0.8, 84, 8]} />
           <meshStandardMaterial color="#70757d" metalness={0.5} />
         </mesh>
       ))}
       {/* Subtle site marker */}
       <mesh position={[0, 0.55, 18]} rotation={[-Math.PI / 2, 0, 0]} raycast={NO_RAYCAST}>
-        <ringGeometry args={[1.2, 1.8, 24]} />
+        <ringGeometry args={[1.2, 1.8, 20]} />
         <meshBasicMaterial color={siteId === 'LC-39A' ? '#4ea1ff' : '#ffd166'} />
       </mesh>
-      <InteractableHitbox
-        componentId="launch-pad"
-        label={`Launch Pad (${siteId})`}
-        position={[-7.5, 32, 0]}
-        shape="box"
-        args={[7, 65, 7]}
-        labelOffset={[-6, 12, 0]}
-      />
     </group>
   );
 }
@@ -216,7 +229,7 @@ export function EarthAndSky({ altitudeM }: { readonly altitudeM: number }) {
         <Stars
           radius={22_000}
           depth={8_000}
-          count={4500}
+          count={2200}
           factor={180}
           saturation={0.2}
           fade
@@ -227,7 +240,7 @@ export function EarthAndSky({ altitudeM }: { readonly altitudeM: number }) {
       {showCurvedEarth && (
         <group position={[0, earthCenterY, 0]}>
           <mesh raycast={NO_RAYCAST}>
-            <sphereGeometry args={[earthVisualR, 72, 48]} />
+            <sphereGeometry args={[earthVisualR, 48, 32]} />
             <meshStandardMaterial
               color="#153e73"
               roughness={0.85}
@@ -235,7 +248,7 @@ export function EarthAndSky({ altitudeM }: { readonly altitudeM: number }) {
             />
           </mesh>
           <mesh material={atmoMat} raycast={NO_RAYCAST}>
-            <sphereGeometry args={[earthVisualR * 1.018, 64, 40]} />
+            <sphereGeometry args={[earthVisualR * 1.018, 40, 28]} />
           </mesh>
         </group>
       )}

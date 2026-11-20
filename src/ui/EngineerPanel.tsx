@@ -28,7 +28,9 @@ export function EngineerPanel() {
         </div>
         <div className="eng-row">
           <span>Mach Number</span>
-          <strong>M {snap.mach.toFixed(2)}</strong>
+          <strong data-testid="eng-mach">
+            {snap.ambientDensityKgM3 < 1e-6 ? '—' : `M ${snap.mach.toFixed(2)}`}
+          </strong>
         </div>
         <div className="eng-row">
           <span>Axial Accel</span>

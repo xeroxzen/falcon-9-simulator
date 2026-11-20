@@ -11,10 +11,19 @@ import {
   waitFrames,
 } from './helpers.js';
 
-const QA_DIR = path.resolve(process.cwd(), 'docs/screenshots/phase4');
+const QA_DIR = path.resolve(process.cwd(), 'docs/screenshots/phase5');
 
-test.describe('Phase 3 & 4 Visual QA Checklist', () => {
-  test('verifies 1x/100x FPS, backward scrub across sep, >100km space view, split view, touchdown height, HUD=CLI at MECO, and fins/legs state', async ({
+interface PerfMetrics {
+  readonly fps: number;
+  readonly p50FrameMs: number;
+  readonly p95FrameMs: number;
+  readonly drawCalls: number;
+  readonly triangles: number;
+  readonly samples: number;
+}
+
+test.describe('Phase 5 Visual QA, Physics Integrity & GPU Performance', () => {
+  test('verifies T+5s status chips & retracted strongback, 1x/100x GPU FPS & frame times, Mach="—" >100km, split view, 18m legs touchdown height, unified miss distance, and full-stack outline', async ({
     page,
   }) => {
     fs.mkdirSync(QA_DIR, { recursive: true });
@@ -24,7 +33,41 @@ test.describe('Phase 3 & 4 Visual QA Checklist', () => {
     const mecoEv = initial.events.find((e) => e.type === 'MECO');
     expect(mecoEv).toBeDefined();
 
-    // 1. Playback at 1x and 100x — measure average FPS via window.__f9debug
+    // 1. T+5 s check: status chips reflect current sim time only (S1: IN FLIGHT, no premature ORBIT/LANDED)
+    //    and strongback is retracted away from the vehicle.
+    await page.evaluate(() => {
+      const dbg = (
+        window as unknown as {
+          __f9debug: {
+            setTimeS: (t: number) => void;
+            setPlaying: (p: boolean) => void;
+            setCameraMode: (m: string) => void;
+          };
+        }
+      ).__f9debug;
+      dbg.setPlaying(false);
+      dbg.setCameraMode('chase');
+      dbg.setTimeS(5);
+    });
+    await waitFrames(page, 8);
+    const chipsText = await page.getByTestId('hud-status-chips').innerText();
+    expect(chipsText).toContain('S1: IN FLIGHT');
+    expect(chipsText).not.toContain('LANDED');
+    expect(chipsText).not.toContain('ORBIT');
+    await assertCanvasRendered(page);
+    await page.screenshot({ path: path.join(QA_DIR, 'qa-t5s-liftoff.png') });
+
+    // 2. Full-stack selection outline (wraps entire 70 m vehicle)
+    await page.locator('.inspect-select').selectOption('falcon9-stack');
+    await waitFrames(page, 6);
+    await assertCanvasRendered(page);
+    await page.screenshot({ path: path.join(QA_DIR, 'qa-full-stack-outline.png') });
+    await page.evaluate(() => {
+      const dbg = (window as unknown as { __f9debug: { clearSelection: () => void } }).__f9debug;
+      dbg.clearSelection();
+    });
+
+    // 3. Playback at 1x and 100x — measure FPS, p50/p95 frame time, draw calls & triangles
     await page.evaluate(() => {
       const dbg = (
         window as unknown as {
@@ -36,15 +79,15 @@ test.describe('Phase 3 & 4 Visual QA Checklist', () => {
           };
         }
       ).__f9debug;
-      dbg.setTimeS(10);
+      dbg.setTimeS(15);
       dbg.setPlaybackSpeed(1);
       dbg.setPlaying(true);
       dbg.resetFps();
     });
-    await page.waitForTimeout(1500);
-    const fps1x = await page.evaluate(() => {
-      const dbg = (window as unknown as { __f9debug: { getFps: () => number } }).__f9debug;
-      return dbg.getFps();
+    await page.waitForTimeout(2000);
+    const perf1x: PerfMetrics = await page.evaluate(() => {
+      const dbg = (window as unknown as { __f9debug: { getPerfMetrics: () => PerfMetrics } }).__f9debug;
+      return dbg.getPerfMetrics();
     });
     await assertCanvasRendered(page);
     await page.screenshot({ path: path.join(QA_DIR, 'qa-playback-1x.png') });
@@ -61,41 +104,43 @@ test.describe('Phase 3 & 4 Visual QA Checklist', () => {
       dbg.setPlaybackSpeed(100);
       dbg.resetFps();
     });
-    await page.waitForTimeout(1500);
-    const fps100x = await page.evaluate(() => {
+    await page.waitForTimeout(2000);
+    const perf100x: PerfMetrics = await page.evaluate(() => {
       const dbg = (
         window as unknown as {
-          __f9debug: { getFps: () => number; setPlaying: (p: boolean) => void };
+          __f9debug: { getPerfMetrics: () => PerfMetrics; setPlaying: (p: boolean) => void };
         }
       ).__f9debug;
       dbg.setPlaying(false);
-      return dbg.getFps();
+      return dbg.getPerfMetrics();
     });
     await assertCanvasRendered(page);
     await page.screenshot({ path: path.join(QA_DIR, 'qa-playback-100x.png') });
-    console.log(`[Visual QA] Average FPS — 1x: ${fps1x.toFixed(1)} fps | 100x: ${fps100x.toFixed(1)} fps`);
-    expect(fps1x).toBeGreaterThan(2);
-    expect(fps100x).toBeGreaterThan(2);
+    console.log(
+      `[Perf 1x]   FPS=${perf1x.fps.toFixed(1)} | p50=${perf1x.p50FrameMs.toFixed(2)}ms | p95=${perf1x.p95FrameMs.toFixed(2)}ms | draws=${perf1x.drawCalls} | tris=${perf1x.triangles}`
+    );
+    console.log(
+      `[Perf 100x] FPS=${perf100x.fps.toFixed(1)} | p50=${perf100x.p50FrameMs.toFixed(2)}ms | p95=${perf100x.p95FrameMs.toFixed(2)}ms | draws=${perf100x.drawCalls} | tris=${perf100x.triangles}`
+    );
+    expect(perf1x.fps).toBeGreaterThan(2);
+    expect(perf100x.fps).toBeGreaterThan(2);
 
-    // 2. Scrub backward across stage separation — verify separated toggles cleanly
+    // 4. Scrub backward across stage separation
     await page.evaluate((tAfter) => {
       const dbg = (window as unknown as { __f9debug: { setTimeS: (t: number) => void } }).__f9debug;
       dbg.setTimeS(tAfter);
     }, sepT + 20);
-    await waitFrames(page, 10);
+    await waitFrames(page, 6);
     expect((await getDebugState(page)).separated).toBe(true);
 
     await page.evaluate((tBefore) => {
       const dbg = (window as unknown as { __f9debug: { setTimeS: (t: number) => void } }).__f9debug;
       dbg.setTimeS(tBefore);
     }, sepT - 15);
-    await waitFrames(page, 10);
-    const backState = await getDebugState(page);
-    expect(backState.separated).toBe(false);
-    await assertCanvasRendered(page);
-    await page.screenshot({ path: path.join(QA_DIR, 'qa-scrub-before-sep.png') });
+    await waitFrames(page, 6);
+    expect((await getDebugState(page)).separated).toBe(false);
 
-    // 3. Above 100 km: Earth & sky visible, no NaN/jitter
+    // 5. Above 100 km: Earth & sky visible, Mach displays as "—"
     await page.evaluate(() => {
       const dbg = (
         window as unknown as {
@@ -110,13 +155,15 @@ test.describe('Phase 3 & 4 Visual QA Checklist', () => {
       dbg.setCameraMode('chase');
       dbg.setTimeS(260);
     });
-    await waitFrames(page, 18);
+    await waitFrames(page, 12);
     const spaceState = await getDebugState(page);
     expect(spaceState.frame!.stage2.altitudeM).toBeGreaterThan(100_000);
+    const machText = await page.getByTestId('eng-mach').innerText();
+    expect(machText.trim()).toBe('—');
     await assertCanvasRendered(page);
     await page.screenshot({ path: path.join(QA_DIR, 'qa-above-100km.png') });
 
-    // 4. Split view after separation: 2 canvases rendered, both tracking
+    // 6. Split view after separation
     await page.evaluate((t) => {
       const dbg = (
         window as unknown as {
@@ -129,12 +176,14 @@ test.describe('Phase 3 & 4 Visual QA Checklist', () => {
       dbg.setTimeS(t);
       dbg.setCameraMode('split');
     }, sepT + 140);
-    await waitFrames(page, 18);
+    await waitFrames(page, 12);
     expect(await page.locator('canvas').count()).toBe(2);
     await assertCanvasRendered(page);
     await page.screenshot({ path: path.join(QA_DIR, 'qa-split-view.png') });
 
-    // 5. Booster on the ASDS deck at touchdown: height above deck within 0.5 m
+    // 7. Booster on ASDS deck at touchdown: 18 m leg span, foot height < 0.5 m,
+    //    post-entry soot visible, S1: LANDED + ORBIT chips shown, HUD miss == CLI miss
+    const cli = runFullMission(FALCON9_BLOCK5, DEFAULT_LEO_ASDS_MISSION, 1.0);
     await page.evaluate((tLand) => {
       const dbg = (
         window as unknown as {
@@ -149,19 +198,26 @@ test.describe('Phase 3 & 4 Visual QA Checklist', () => {
       dbg.setCameraMode('droneship');
       dbg.setTimeS(tLand);
     }, durationS);
-    await waitFrames(page, 18);
+    await waitFrames(page, 12);
     const landState = await getDebugState(page);
     expect(landState.boosterFootHeightAboveDeckM).not.toBeNull();
     expect(Math.abs(landState.boosterFootHeightAboveDeckM!)).toBeLessThan(0.5);
     expect(landState.frame!.stage1.landingLegsDeployed).toBe(true);
+    expect(landState.frame!.stage1.phase).toBe('LANDED');
+    expect(
+      Math.abs(landState.frame!.stage1.distanceToTargetM - cli.boosterFinal.distanceToTargetM)
+    ).toBeLessThan(0.05);
+
+    const endChipsText = await page.getByTestId('hud-status-chips').innerText();
+    expect(endChipsText).toContain('S1: LANDED');
+    expect(endChipsText).toContain('ORBIT');
     console.log(
-      `[Visual QA] Touchdown foot height above deck: ${landState.boosterFootHeightAboveDeckM!.toFixed(3)} m | legsDeployed=${landState.frame!.stage1.landingLegsDeployed}`
+      `[Visual QA] Touchdown foot height=${landState.boosterFootHeightAboveDeckM!.toFixed(3)} m | Unified miss: HUD=${landState.frame!.stage1.distanceToTargetM.toFixed(2)} m vs CLI=${cli.boosterFinal.distanceToTargetM.toFixed(2)} m`
     );
     await assertCanvasRendered(page);
     await page.screenshot({ path: path.join(QA_DIR, 'qa-touchdown-deck.png') });
 
-    // 6. HUD speed/altitude at MECO equals headless CLI telemetry
-    const cli = runFullMission(FALCON9_BLOCK5, DEFAULT_LEO_ASDS_MISSION, 1.0);
+    // 8. HUD speed/altitude at MECO equals headless CLI telemetry
     const cliMeco = cli.ascent.finalState;
     await page.evaluate((tMeco) => {
       const dbg = (window as unknown as { __f9debug: { setTimeS: (t: number) => void } }).__f9debug;
@@ -183,19 +239,5 @@ test.describe('Phase 3 & 4 Visual QA Checklist', () => {
     const expectedKm = cliMeco.geodetic.altitudeM / 1000;
     expect(Math.abs(Number(hudS1SpeedText) - expectedKmh)).toBeLessThanOrEqual(35);
     expect(Math.abs(Number(hudS1AltText) - expectedKm)).toBeLessThanOrEqual(0.3);
-    console.log(
-      `[Visual QA] MECO HUD vs CLI — Speed: HUD=${hudS1SpeedText} km/h vs CLI=${expectedKmh} km/h | Alt: HUD=${hudS1AltText} km vs CLI=${expectedKm.toFixed(1)} km`
-    );
-
-    // 7. Grid fins & landing legs driven by sim state check
-    await page.evaluate(() => {
-      const dbg = (window as unknown as { __f9debug: { setTimeS: (t: number) => void } }).__f9debug;
-      dbg.setTimeS(455); // mid-aero descent
-    });
-    await waitFrames(page, 6);
-    const aeroState = await getDebugState(page);
-    console.log(
-      `[Visual QA] Aero descent @ T+455s — gridFinDeflectionDeg=${aeroState.frame!.stage1.gridFinDeflectionDeg.toFixed(2)}° (sim-driven 3-DOF lift command), landingLegsDeployed=${aeroState.frame!.stage1.landingLegsDeployed}`
-    );
   });
 });

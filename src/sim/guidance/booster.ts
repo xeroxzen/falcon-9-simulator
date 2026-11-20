@@ -15,6 +15,7 @@ import {
   earthRotationVelocityEci,
   ecefToEci,
   geodeticToEcef,
+  horizontalDistanceToTargetM,
   localEnuBasisEci,
   norm,
   normalize,
@@ -26,6 +27,7 @@ export interface BoosterGuidanceMemory {
   phase: BoosterPhase;
   entryBurnStartTimeS: number | null;
   landingLegsDeployed: boolean;
+  failureReason?: string;
 }
 
 export interface BoosterGuidanceCommand {
@@ -59,6 +61,7 @@ export function computeBoosterGuidance(
   geodetic: GeodeticCoord,
   totalMassKg: number,
   ambientPressurePa: number,
+  ambientDensityKgM3: number,
   targetCoord: GeodeticCoord,
   vehicle: VehicleConfig,
   mission: MissionConfig,
@@ -77,7 +80,11 @@ export function computeBoosterGuidance(
   const toTargetEci = sub(targetEci, dynamic.positionEci);
   const toTargetUp = dot(toTargetEci, basis.up);
   const toTargetHoriz = sub(toTargetEci, scale(basis.up, toTargetUp));
-  const distHoriz = norm(toTargetHoriz);
+  const distHoriz = horizontalDistanceToTargetM(
+    dynamic.positionEci,
+    timeS,
+    targetCoord
+  );
 
   const heightAboveTarget = geodetic.altitudeM - targetCoord.altitudeM;
   const tiltDeg = angleBetweenRad(dynamic.attitudeEci, basis.up) * RAD_TO_DEG;
@@ -86,13 +93,23 @@ export function computeBoosterGuidance(
   // Strict realistic touchdown check
   if (heightAboveTarget <= 0 && timeS > stageSepTimeS + 10) {
     const maxMissM = mission.landingMode === 'RTLS' ? 15.0 : 10.0;
-    const softLanding =
-      Math.abs(vUp) < 2.0 &&
-      vHoriz < 1.0 &&
-      tiltDeg < 5.0 &&
-      distHoriz < maxMissM &&
-      dynamic.propellantKg > 0;
+    const reasons: string[] = [];
+    if (dynamic.propellantKg <= 0) reasons.push('Propellant depleted');
+    if (Math.abs(vUp) >= 2.0) {
+      reasons.push(`Vertical speed ${Math.abs(vUp).toFixed(1)} m/s (>= 2 m/s)`);
+    }
+    if (vHoriz >= 1.0) {
+      reasons.push(`Horizontal speed ${vHoriz.toFixed(1)} m/s (>= 1 m/s)`);
+    }
+    if (tiltDeg >= 5.0) {
+      reasons.push(`Tilt ${tiltDeg.toFixed(1)}° (>= 5°)`);
+    }
+    if (distHoriz >= maxMissM) {
+      reasons.push(`Off-target miss ${distHoriz.toFixed(1)} m (>= ${maxMissM} m)`);
+    }
+    const softLanding = reasons.length === 0;
     mem.phase = softLanding ? 'LANDED' : 'CRASHED';
+    mem.failureReason = softLanding ? undefined : reasons.join('; ');
     return {
       phase: mem.phase,
       targetAttitudeEci: basis.up,
@@ -273,13 +290,37 @@ export function computeBoosterGuidance(
     ) {
       mem.phase = 'LANDING_BURN';
     } else {
-      // Predict ground impact point (accounting for hoverslam horizontal travel ~0.75 * tFall)
-      const tFall = (0.75 * heightAboveTarget) / Math.max(40, vDown);
-      const predMiss = sub(scale(vHorizVec, tFall), toTargetHoriz);
+      // Aerodynamic glide-slope proportional controller:
+      // Because drag acts anti-parallel to velocity, the glide ratio v_h / v_down
+      // is nearly invariant during atmospheric descent. Projecting along the
+      // current velocity vector gives the true unpowered impact miss; fin
+      // deflection is proportional to the angular glide-slope error (with a
+      // dynamic-pressure gate where fins have negligible authority above ~45 km).
+      const qPa = 0.5 * ambientDensityKgM3 * speedRel * speedRel;
+      if (qPa < 1_000) {
+        return {
+          phase: 'AERO_DESCENT',
+          targetAttitudeEci: retroDir,
+          activeEngineIndices: [],
+          throttle: 0,
+          aeroSteerDirEci: zeroVec,
+          gridFinDeflectionDeg: 0,
+          landingLegsDeployed: false,
+        };
+      }
+      // Physical horizontal travel predictor:
+      //  - During aero glide, drag acts anti-parallel to v so v_h/v_down is nearly invariant.
+      //  - During constant-deceleration hoverslam, t_burn = 2*h/v_down and
+      //    d_burn = 0.5*v_h*t_burn = v_h * (h / v_down) (the 0.5 and 2 cancel).
+      //  - Slightly < 1.0 (~0.92) accounts for gravity steepening the flight path.
+      const tGlide = (0.92 * heightAboveTarget) / Math.max(40, vDown);
+      const predMiss = sub(scale(vHorizVec, tGlide), toTargetHoriz);
       const missDist = norm(predMiss);
       const steerDir =
         missDist > 1 ? scale(predMiss, -1 / missDist) : zeroVec;
-      const deflDeg = clamp((missDist / 250) * 20, 0, 20);
+      const angleErrDeg =
+        Math.atan2(missDist, Math.max(heightAboveTarget, 600)) * RAD_TO_DEG;
+      const deflDeg = clamp(angleErrDeg * 1.15, 0, 20);
 
       return {
         phase: 'AERO_DESCENT',
@@ -316,25 +357,33 @@ export function computeBoosterGuidance(
   const aUpCmd = G0 + vDownExcessSq / (2 * Math.max(heightAboveTarget, 0.25));
 
   // Exact constant-deceleration time-to-go: t_go = 2*h / (vDown + vTd)
-  const tGoRaw = (2 * Math.max(heightAboveTarget, 0.5)) / Math.max(vDown + vTd, 1.5);
-  const tGoPos = Math.max(1.1, tGoRaw);
-  const tGoVel = Math.max(0.75, tGoRaw);
+  // Exact constant-deceleration time-to-go: t_go = 2*h / (vDown + vTd)
+  // Target horizontal convergence (r_h -> 0, v_h -> 0) by a terminal vertical
+  // alignment gate ~1.8 s before touchdown (~8-12 m AGL) so the booster arrives
+  // upright with near-zero lateral speed before the final flare.
+  const tGoTotal = (2 * Math.max(heightAboveTarget, 0.5)) / Math.max(vDown + vTd, 1.5);
+  const tGoGate = Math.max(0.8, tGoTotal - 1.8);
 
-  // Exact textbook ZEM/ZEV optimal horizontal acceleration:
-  //   a_horiz = posWeight * 6 * (r_target - r) / t_go^2 - 4 * v_horiz / t_go
-  // Keep full position authority down to 8 m (fading 8 m -> 2 m) so miss stays
-  // < 5 m on both ASDS and RTLS, then smoothly flare tilt to 0 deg over 2.6 m -> 0.5 m.
-  const posWeight = clamp((heightAboveTarget - 2.0) / 6.0, 0, 1);
-  const posTerm = scale(toTargetHoriz, (6.0 * posWeight) / (tGoPos * tGoPos));
-  const velTerm = scale(vHorizVec, 4.0 / tGoVel);
-  let aLatCmd = sub(posTerm, velTerm);
+  let aLatCmd: Vec3;
+  if (heightAboveTarget > 12.0 && tGoTotal > 2.4) {
+    // Textbook ZEM/ZEV targeting (r=0, v=0) at the terminal alignment gate
+    const posTerm = scale(toTargetHoriz, 6.0 / (tGoGate * tGoGate));
+    const velTerm = scale(vHorizVec, 4.0 / tGoGate);
+    aLatCmd = sub(posTerm, velTerm);
+  } else {
+    // Terminal vertical descent (< 12 m): null residual horizontal velocity cleanly
+    const posWeight = clamp((heightAboveTarget - 3.0) / 9.0, 0, 1);
+    const posTerm = scale(toTargetHoriz, 0.8 * posWeight);
+    const velTerm = scale(vHorizVec, 2.2);
+    aLatCmd = sub(posTerm, velTerm);
+  }
 
   const uprightFlare = clamp((heightAboveTarget - 0.5) / 2.1, 0, 1);
   const maxTiltRad =
     heightAboveTarget < 2.6
       ? 0.12 * uprightFlare // smoothly flares to 0 deg by 0.5 m AGL -> touchdown tilt < 1 deg
-      : heightAboveTarget < 45.0
-        ? 0.30
+      : heightAboveTarget < 30.0
+        ? 0.35
         : 0.65;
   const maxLatAccel = Math.max(1.0, aUpCmd) * Math.tan(maxTiltRad);
   const aLatMag = norm(aLatCmd);

@@ -12,10 +12,14 @@ let activeCamera: THREE.Camera | null = null;
 let activeCanvas: HTMLCanvasElement | null = null;
 let boosterFootHeightAboveDeckM: number | null = null;
 
-// Rolling FPS counter updated inside useFrame
+// Rolling FPS & frame-time profiler updated inside useFrame
 let fpsFrames = 0;
 let fpsStartMs = performance.now();
 let lastMeasuredFps = 0;
+let lastFrameStampMs = 0;
+const frameTimesMs: number[] = [];
+let lastDrawCalls = 0;
+let lastTriangles = 0;
 
 function hitboxKey(componentId: string, engineIndex?: number): string {
   return engineIndex !== undefined ? `${componentId}:${engineIndex}` : componentId;
@@ -38,15 +42,29 @@ export function registerDebugHitbox(
 export function updateDebugFrame(
   camera: THREE.Camera,
   canvas: HTMLCanvasElement,
-  footHeightAboveDeckM: number | null
+  footHeightAboveDeckM: number | null,
+  renderInfo?: { readonly calls: number; readonly triangles: number }
 ): void {
   if (!import.meta.env.DEV) return;
   activeCamera = camera;
   activeCanvas = canvas;
   boosterFootHeightAboveDeckM = footHeightAboveDeckM;
+  if (renderInfo) {
+    lastDrawCalls = renderInfo.calls;
+    lastTriangles = renderInfo.triangles;
+  }
+
+  const now = performance.now();
+  if (lastFrameStampMs > 0) {
+    const dtMs = now - lastFrameStampMs;
+    if (dtMs > 0 && dtMs < 2000) {
+      frameTimesMs.push(dtMs);
+      if (frameTimesMs.length > 600) frameTimesMs.shift();
+    }
+  }
+  lastFrameStampMs = now;
 
   fpsFrames++;
-  const now = performance.now();
   const elapsed = now - fpsStartMs;
   if (elapsed >= 500) {
     lastMeasuredFps = (fpsFrames * 1000) / elapsed;
@@ -63,6 +81,8 @@ export function installDebugHook(): void {
       fpsFrames = 0;
       fpsStartMs = performance.now();
       lastMeasuredFps = 0;
+      lastFrameStampMs = 0;
+      frameTimesMs.length = 0;
     },
     getFps() {
       const elapsed = performance.now() - fpsStartMs;
@@ -70,6 +90,26 @@ export function installDebugHook(): void {
         return (fpsFrames * 1000) / elapsed;
       }
       return lastMeasuredFps;
+    },
+    getPerfMetrics() {
+      const sorted = [...frameTimesMs].sort((a, b) => a - b);
+      const p50 =
+        sorted.length > 0 ? sorted[Math.floor(sorted.length * 0.5)]! : 0;
+      const p95 =
+        sorted.length > 0 ? sorted[Math.floor(sorted.length * 0.95)]! : 0;
+      const elapsed = performance.now() - fpsStartMs;
+      const fps =
+        elapsed > 100 && fpsFrames > 0
+          ? (fpsFrames * 1000) / elapsed
+          : lastMeasuredFps;
+      return {
+        fps,
+        p50FrameMs: p50,
+        p95FrameMs: p95,
+        drawCalls: lastDrawCalls,
+        triangles: lastTriangles,
+        samples: sorted.length,
+      };
     },
     getState() {
       const s = useSimStore.getState();

@@ -84,6 +84,7 @@ function lerpStage(
     propellantFraction: lerp(a.propellantFraction, b.propellantFraction, t),
     gridFinDeflectionDeg: lerp(a.gridFinDeflectionDeg, b.gridFinDeflectionDeg, t),
     ambientPressurePa: lerp(a.ambientPressurePa, b.ambientPressurePa, t),
+    ambientDensityKgM3: lerp(a.ambientDensityKgM3, b.ambientDensityKgM3, t),
   };
 }
 
@@ -121,9 +122,14 @@ export function sampleFrameAt(
 }
 
 interface SimStoreState {
+  baseMission: MissionConfig;
   mission: MissionConfig;
+  nominalTrajectory: MissionTrajectoryData | null;
   trajectory: MissionTrajectoryData | null;
+  isWhatIfActive: boolean;
   loading: boolean;
+  loadingProgress: number;
+  loadingStage: string;
   error: string | null;
   timeS: number;
   playing: boolean;
@@ -131,10 +137,12 @@ interface SimStoreState {
   cameraMode: CameraMode;
   focusStage: FocusStage;
   showEngineerPanel: boolean;
+  showWhatIfPanel: boolean;
   showHotspots: boolean;
   selectedComponent: ComponentSelection | null;
   hoveredComponent: ComponentSelection | null;
-  runMission: (mission: MissionConfig) => void;
+  runMission: (mission: MissionConfig, asWhatIf?: boolean) => void;
+  resetToNominal: () => void;
   setTimeS: (t: number) => void;
   advanceTime: (dtRealS: number) => void;
   togglePlay: () => void;
@@ -143,6 +151,7 @@ interface SimStoreState {
   setCameraMode: (mode: CameraMode) => void;
   setFocusStage: (stage: FocusStage) => void;
   toggleEngineerPanel: () => void;
+  toggleWhatIfPanel: () => void;
   toggleHotspots: () => void;
   selectComponent: (sel: ComponentSelection | null) => void;
   hoverComponent: (sel: ComponentSelection | null) => void;
@@ -162,9 +171,14 @@ function getWorker(): Worker {
 }
 
 export const useSimStore = create<SimStoreState>((set, get) => ({
+  baseMission: DEFAULT_LEO_ASDS_MISSION,
   mission: DEFAULT_LEO_ASDS_MISSION,
+  nominalTrajectory: null,
   trajectory: null,
+  isWhatIfActive: false,
   loading: false,
+  loadingProgress: 0,
+  loadingStage: '',
   error: null,
   timeS: 0,
   playing: false,
@@ -172,32 +186,59 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   cameraMode: 'chase',
   focusStage: 'stage1',
   showEngineerPanel: true,
+  showWhatIfPanel: false,
   showHotspots: false,
   selectedComponent: null,
   hoveredComponent: null,
 
-  runMission: (mission) => {
+  runMission: (mission, asWhatIf = false) => {
     const requestId = ++latestRequestId;
-    set({ mission, loading: true, error: null, playing: false, timeS: 0 });
+    set((s) => ({
+      baseMission: asWhatIf ? s.baseMission : mission,
+      mission,
+      isWhatIfActive: asWhatIf,
+      loading: true,
+      loadingProgress: 0.08,
+      loadingStage: 'Dispatching to Web Worker…',
+      error: null,
+      playing: false,
+    }));
 
     const worker = getWorker();
     worker.onmessage = (ev: MessageEvent<WorkerResponse>) => {
       const msg = ev.data;
       if (msg.requestId !== latestRequestId) return;
+      if (msg.type === 'MISSION_PROGRESS') {
+        set({ loadingProgress: msg.progress, loadingStage: msg.stage });
+        return;
+      }
       if (msg.type === 'MISSION_RESULT') {
-        set({
+        set((s) => ({
           trajectory: msg.data,
+          nominalTrajectory: asWhatIf ? s.nominalTrajectory : msg.data,
           loading: false,
+          loadingProgress: 1,
+          loadingStage: '',
           error: null,
           timeS: 0,
           playing: true,
-        });
+        }));
       } else {
-        set({ loading: false, error: msg.message });
+        set({
+          loading: false,
+          loadingProgress: 0,
+          loadingStage: '',
+          error: msg.message,
+        });
       }
     };
     worker.onerror = (err) => {
-      set({ loading: false, error: err.message || 'Physics worker error' });
+      set({
+        loading: false,
+        loadingProgress: 0,
+        loadingStage: '',
+        error: err.message || 'Physics worker error',
+      });
     };
 
     const req: WorkerRequest = {
@@ -208,6 +249,21 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
       sampleIntervalS: 0.25,
     };
     worker.postMessage(req);
+  },
+
+  resetToNominal: () => {
+    const { baseMission, nominalTrajectory } = get();
+    if (nominalTrajectory) {
+      set({
+        mission: baseMission,
+        trajectory: nominalTrajectory,
+        isWhatIfActive: false,
+        timeS: 0,
+        playing: true,
+      });
+    } else {
+      get().runMission(baseMission, false);
+    }
   },
 
   setTimeS: (t) => {
@@ -233,7 +289,16 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   setFocusStage: (focusStage) => set({ focusStage }),
   toggleEngineerPanel: () =>
     set((s) => ({ showEngineerPanel: !s.showEngineerPanel })),
+  toggleWhatIfPanel: () =>
+    set((s) => ({
+      showWhatIfPanel: !s.showWhatIfPanel,
+      selectedComponent: !s.showWhatIfPanel ? null : s.selectedComponent,
+    })),
   toggleHotspots: () => set((s) => ({ showHotspots: !s.showHotspots })),
-  selectComponent: (selectedComponent) => set({ selectedComponent }),
+  selectComponent: (selectedComponent) =>
+    set((s) => ({
+      selectedComponent,
+      showWhatIfPanel: selectedComponent ? false : s.showWhatIfPanel,
+    })),
   hoverComponent: (hoveredComponent) => set({ hoveredComponent }),
 }));

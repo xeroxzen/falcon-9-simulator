@@ -340,10 +340,22 @@ body,
   border: 1px solid rgba(34, 197, 94, 0.45);
 }
 
+.outcome-tag.neutral {
+  background: rgba(56, 189, 248, 0.16);
+  color: #bae6fd;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
 .outcome-tag.warn {
-  background: rgba(239, 68, 68, 0.2);
+  background: rgba(249, 115, 22, 0.2);
+  color: #fdba74;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+}
+
+.outcome-tag.err {
+  background: rgba(239, 68, 68, 0.22);
   color: #fca5a5;
-  border: 1px solid rgba(239, 68, 68, 0.45);
+  border: 1px solid rgba(239, 68, 68, 0.5);
 }
 
 /* Timeline Bar */
@@ -687,4 +699,183 @@ body,
 .hotspot-pin.selected {
   background: #38bdf8;
   color: #020617;
+}
+
+/* Non-blocking Worker Progress Banner */
+.worker-progress-banner {
+  position: absolute;
+  top: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 35;
+  min-width: 280px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--glass);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  pointer-events: none;
+}
+
+.worker-progress-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e2e8f0;
+  text-align: center;
+}
+
+.worker-progress-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.worker-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  transition: width 120ms ease;
+}
+
+/* What-If Scenarios Panel (Phase 5) */
+.whatif-panel {
+  position: absolute;
+  top: 88px;
+  left: 12px;
+  bottom: 205px;
+  z-index: 19;
+  width: 325px;
+  max-width: calc(100vw - 24px);
+  padding: 12px 14px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  backdrop-filter: blur(14px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.whatif-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.whatif-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.whatif-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #cbd5e1;
+}
+
+.whatif-label-row strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #f8fafc;
+}
+
+.whatif-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: #f8fafc;
+  cursor: pointer;
+}
+
+.whatif-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.whatif-row-2 label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.whatif-input {
+  background: rgba(15, 23, 42, 0.85);
+  color: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+.whatif-seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.whatif-wind-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.whatif-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.whatif-run-btn {
+  flex: 1;
+  font-weight: 700;
+}
+
+.whatif-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.whatif-progress-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.whatif-progress-fill {
+  height: 100%;
+  background: #38bdf8;
+}
+
+.whatif-outcome-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.whatif-failure-reason {
+  color: #fca5a5;
+  font-size: 10px;
+  line-height: 1.35;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  padding: 5px 7px;
+}
+
+.diff-delta {
+  color: #94a3b8;
+  font-weight: 500;
 }

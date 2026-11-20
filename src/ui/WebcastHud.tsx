@@ -15,16 +15,36 @@ export function WebcastHud() {
   if (!frame || !trajectory) return null;
 
   const s1Kmh = Math.round(frame.stage1.speedEarthRelMs * 3.6);
-  const s1Km = (frame.stage1.altitudeM / 1000).toFixed(1);
+  const s1Km = (Math.max(0, frame.stage1.altitudeM) / 1000).toFixed(1);
   const s2Kmh = Math.round(frame.stage2.speedEarthRelMs * 3.6);
-  const s2Km = (frame.stage2.altitudeM / 1000).toFixed(1);
+  const s2Km = (Math.max(0, frame.stage2.altitudeM) / 1000).toFixed(1);
+
+  const s1Phase = frame.stage1.phase;
+  const s2Phase = frame.stage2.phase;
+  const secoReached = s2Phase === 'SECO' || s2Phase === 'ORBIT';
+
+  let s1ChipLabel = 'S1: IN FLIGHT';
+  let s1ChipClass = 'neutral';
+  if (s1Phase === 'LANDED') {
+    s1ChipLabel = 'S1: LANDED';
+    s1ChipClass = 'ok';
+  } else if (s1Phase === 'CRASHED') {
+    s1ChipLabel = 'S1: CRASHED';
+    s1ChipClass = 'err';
+  } else if (trajectory.landingMode === 'EXPENDABLE' && frame.separated) {
+    s1ChipLabel = 'S1: EXPENDED';
+    s1ChipClass = 'warn';
+  } else if (timeS <= 0.1) {
+    s1ChipLabel = 'S1: ON PAD';
+    s1ChipClass = 'neutral';
+  }
 
   return (
     <div className="webcast-hud">
       {/* Stage 1 Block */}
       <div className="hud-stage">
         <div className="hud-stage-label">
-          STAGE 1 <span className="hud-phase">{frame.stage1.phase.replace(/_/g, ' ')}</span>
+          STAGE 1 <span className="hud-phase">{s1Phase.replace(/_/g, ' ')}</span>
         </div>
         <div className="hud-metrics">
           <div className="hud-metric">
@@ -46,17 +66,16 @@ export function WebcastHud() {
         <div className="hud-mission-sub">
           {trajectory.launchSiteId} • {trajectory.landingMode}
         </div>
-        <div className="hud-outcomes">
-          <span className={`outcome-tag ${trajectory.orbitAchieved ? 'ok' : 'warn'}`}>
-            ORBIT {(trajectory.orbit.perigeeAltitudeM / 1000).toFixed(0)}×
-            {(trajectory.orbit.apogeeAltitudeM / 1000).toFixed(0)} km
-          </span>
-          <span
-            className={`outcome-tag ${
-              trajectory.boosterOutcome === 'LANDED' ? 'ok' : 'warn'
-            }`}
-          >
-            S1 {trajectory.boosterOutcome}
+        <div className="hud-outcomes" data-testid="hud-status-chips">
+          {secoReached && (
+            <span className={`outcome-tag ${trajectory.orbitAchieved ? 'ok' : 'err'}`}>
+              {trajectory.orbitAchieved
+                ? `ORBIT ${(trajectory.orbit.perigeeAltitudeM / 1000).toFixed(0)}×${(trajectory.orbit.apogeeAltitudeM / 1000).toFixed(0)} km`
+                : 'SUBORBITAL'}
+            </span>
+          )}
+          <span className={`outcome-tag ${s1ChipClass}`}>
+            {s1ChipLabel}
           </span>
         </div>
       </div>

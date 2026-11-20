@@ -208,6 +208,7 @@ function buildSnapshotFromAscent(
     landingLegsDeployed: false,
     fairingAttached: hasFairing,
     ambientPressurePa: s.atmosphere.pressurePa,
+    ambientDensityKgM3: s.atmosphere.densityKgM3,
   };
 }
 
@@ -250,6 +251,7 @@ function buildSnapshotFromBooster(
     landingLegsDeployed: b.landingLegsDeployed,
     fairingAttached: false,
     ambientPressurePa: atmo.pressurePa,
+    ambientDensityKgM3: atmo.densityKgM3,
   };
 }
 
@@ -293,6 +295,7 @@ function buildSnapshotFromStage2(
     landingLegsDeployed: false,
     fairingAttached: s2.fairingAttached,
     ambientPressurePa: atmo.pressurePa,
+    ambientDensityKgM3: atmo.densityKgM3,
   };
 }
 
@@ -393,6 +396,31 @@ export function buildMissionTrajectory(
     });
   }
 
+  // Always emit the exact final frame at maxT so HUD/timeline match boosterFinal & stage2Final
+  const lastEmittedT = frames.length > 0 ? frames[frames.length - 1]!.timeS : -1;
+  if (lastEmittedT < maxT - 1e-4) {
+    frames.push({
+      timeS: Number(maxT.toFixed(3)),
+      separated: maxT >= stageSepTimeS,
+      stage1: buildSnapshotFromBooster(
+        res.boosterFinal,
+        vehicle,
+        padCoord,
+        padEcef,
+        landCoord,
+        landEcef
+      ),
+      stage2: buildSnapshotFromStage2(
+        res.stage2Final,
+        vehicle,
+        padCoord,
+        padEcef,
+        landCoord,
+        landEcef
+      ),
+    });
+  }
+
   const events: TimelineEvent[] = res.events.map((ev, i) => {
     const { label, stage } = eventLabelAndStage(ev);
     return {
@@ -409,6 +437,13 @@ export function buildMissionTrajectory(
   });
 
   const segments = buildDynamicSegments(frames);
+  const apogeeEv = res.events.find((e) => e.type === 'APOGEE');
+  const boosterApogeeM =
+    apogeeEv?.altitudeM ??
+    Math.max(
+      res.ascent.finalState.geodetic.altitudeM,
+      ...res.boosterSamples.map((b) => b.geodetic.altitudeM)
+    );
 
   return {
     missionId: mission.id,
@@ -424,6 +459,12 @@ export function buildMissionTrajectory(
     orbit: res.orbit,
     orbitAchieved: res.orbitAchieved,
     boosterOutcome: res.boosterOutcome,
+    boosterFailureReason: res.boosterFailureReason,
+    mecoTimeS: mecoT,
+    boosterApogeeM,
+    boosterTouchdownMissM: res.boosterFinal.distanceToTargetM,
+    boosterPropRemainingKg: res.boosterFinal.dynamic.propellantKg,
+    stage2PropRemainingKg: res.stage2Final.dynamic.propellantKg,
     landingTarget: res.landingTarget,
     computeTimeMs,
   };

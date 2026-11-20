@@ -46,7 +46,7 @@ function buildHonestTelemetry(
           { label: 'Propellant Remaining', value: `${(s1.propellantFraction * 100).toFixed(1)}% (${(s1.propellantKg / 1000).toFixed(1)} t)`, origin: 'SIM' },
           { label: 'Total Mass', value: `${(s1.totalMassKg / 1000).toFixed(1)} t`, origin: 'SIM' },
           { label: 'Dynamic Pressure (q)', value: `${(s1.dynamicPressurePa / 1000).toFixed(2)} kPa`, origin: 'DERIVED' },
-          { label: 'Mach Number', value: `M ${s1.mach.toFixed(2)}`, origin: 'DERIVED' },
+          { label: 'Mach Number', value: s1.ambientDensityKgM3 < 1e-6 ? '—' : `M ${s1.mach.toFixed(2)}`, origin: 'DERIVED' },
           { label: 'Axial Acceleration', value: `${s1.axialAccelG.toFixed(2)} g`, origin: 'DERIVED' },
         ],
       };
@@ -104,7 +104,7 @@ function buildHonestTelemetry(
         rows: [
           { label: 'Commanded Deflection (3-DOF)', value: `${s1.gridFinDeflectionDeg.toFixed(1)}°`, origin: 'DERIVED' },
           { label: 'Dynamic Pressure (q)', value: `${(s1.dynamicPressurePa / 1000).toFixed(2)} kPa`, origin: 'DERIVED' },
-          { label: 'Mach Number', value: `M ${s1.mach.toFixed(2)}`, origin: 'DERIVED' },
+          { label: 'Mach Number', value: s1.ambientDensityKgM3 < 1e-6 ? '—' : `M ${s1.mach.toFixed(2)}`, origin: 'DERIVED' },
         ],
         note: '3-DOF simplified lateral lift command (C_L = 0.8/rad); individual fin hinge torques are not modeled.',
       };

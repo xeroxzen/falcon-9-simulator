@@ -13,6 +13,9 @@ interface InteractableHitboxProps {
   readonly shape: 'cylinder' | 'box';
   /** Cylinder: [radiusTop, radiusBottom, height]; Box: [width, height, depth] */
   readonly args: readonly [number, number, number];
+  /** Optional custom outline dimensions (e.g. full-stack outline wrapping entire vehicle) */
+  readonly outlineArgs?: readonly [number, number, number];
+  readonly outlineOffset?: readonly [number, number, number];
   readonly labelOffset?: readonly [number, number, number];
 }
 
@@ -28,6 +31,8 @@ export function InteractableHitbox({
   position = [0, 0, 0],
   shape,
   args,
+  outlineArgs,
+  outlineOffset = [0, 0, 0],
   labelOffset = [0, 0, 0],
 }: InteractableHitboxProps) {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -85,11 +90,28 @@ export function InteractableHitbox({
 
       {/* Hover / Selection Outline */}
       {(isHovered || isSelected) && (
-        <mesh raycast={() => null} scale={[1.05, 1.02, 1.05]}>
+        <mesh
+          raycast={() => null}
+          position={[outlineOffset[0], outlineOffset[1], outlineOffset[2]]}
+          scale={[1.04, 1.01, 1.04]}
+        >
           {shape === 'cylinder' ? (
-            <cylinderGeometry args={[args[0], args[1], args[2], 16]} />
+            <cylinderGeometry
+              args={[
+                (outlineArgs ?? args)[0],
+                (outlineArgs ?? args)[1],
+                (outlineArgs ?? args)[2],
+                16,
+              ]}
+            />
           ) : (
-            <boxGeometry args={[args[0], args[1], args[2]]} />
+            <boxGeometry
+              args={[
+                (outlineArgs ?? args)[0],
+                (outlineArgs ?? args)[1],
+                (outlineArgs ?? args)[2],
+              ]}
+            />
           )}
           <meshBasicMaterial
             color={isSelected ? '#38bdf8' : '#7dd3fc'}

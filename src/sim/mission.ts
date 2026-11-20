@@ -24,6 +24,7 @@ import {
   eciToEcef,
   enuToEci,
   greatCircleDistanceM,
+  horizontalDistanceToTargetM,
   localEnuBasisEci,
   norm,
   normalize,
@@ -220,11 +221,10 @@ function buildBoosterState(
     geodetic.latRad,
     geodetic.lonRad
   );
-  const distanceToTargetM = greatCircleDistanceM(
-    targetCoord.latRad,
-    targetCoord.lonRad,
-    geodetic.latRad,
-    geodetic.lonRad
+  const distanceToTargetM = horizontalDistanceToTargetM(
+    dynamic.positionEci,
+    timeS,
+    targetCoord
   );
 
   const tiltFromVerticalDeg =
@@ -277,11 +277,11 @@ function predictAsdsTargetCoord(
     const posEcef = eciToEcef(dyn.positionEci, t);
     const geo = ecefToGeodetic(posEcef);
     if (geo.altitudeM <= 2_500 && i > 200) {
-      // Account for ~1.1 km horizontal travel during hoverslam deceleration
+      // Account for horizontal travel during hoverslam deceleration (~6.5 s equivalent)
       const vRotEnd = earthRotationVelocityEci(dyn.positionEci);
       const vRelEnd = sub(dyn.velocityEci, vRotEnd);
-      const posProjected = addScaled(dyn.positionEci, vRelEnd, 8.0);
-      const geoProj = ecefToGeodetic(eciToEcef(posProjected, t + 8.0));
+      const posProjected = addScaled(dyn.positionEci, vRelEnd, 6.5);
+      const geoProj = ecefToGeodetic(eciToEcef(posProjected, t + 6.5));
       return { latRad: geoProj.latRad, lonRad: geoProj.lonRad, altitudeM: 0 };
     }
     if (geo.altitudeM <= 0) {
@@ -636,6 +636,7 @@ export function runFullMission(
         bGeo,
         bState.totalMassKg,
         bAtmo.pressurePa,
+        bAtmo.densityKgM3,
         landingTarget,
         vehicle,
         mission,
@@ -644,8 +645,9 @@ export function runFullMission(
 
       if (bCmd.phase === 'LANDED' || bCmd.phase === 'CRASHED') {
         boosterDone = true;
+        // Use prevT (exact timestamp of bDyn) so ECI->ECEF matches the touchdown state
         bState = buildBoosterState(
-          t,
+          prevT,
           bCmd.phase,
           bDyn,
           [],
@@ -662,14 +664,14 @@ export function runFullMission(
         boosterSamples.push(bState);
         events.push({
           type: bCmd.phase === 'LANDED' ? 'TOUCHDOWN' : 'CRASH',
-          timeS: t,
+          timeS: prevT,
           altitudeM: bState.geodetic.altitudeM,
           speedMs: bState.speedAirRelMs,
           downrangeM: bState.downrangeM,
           detail:
             bCmd.phase === 'LANDED'
               ? `Booster landed (${mission.landingMode}) | v_z=${bState.verticalSpeedMs.toFixed(2)} m/s, v_h=${bState.horizontalSpeedMs.toFixed(2)} m/s, tilt=${bState.tiltFromVerticalDeg.toFixed(2)}°, miss=${bState.distanceToTargetM.toFixed(2)} m, prop=${bDyn.propellantKg.toFixed(0)} kg`
-              : `Booster impact (${mission.landingMode}) | v_z=${bState.verticalSpeedMs.toFixed(2)} m/s, v_h=${bState.horizontalSpeedMs.toFixed(2)} m/s, tilt=${bState.tiltFromVerticalDeg.toFixed(2)}°, miss=${bState.distanceToTargetM.toFixed(1)} m, prop=${bDyn.propellantKg.toFixed(0)} kg`,
+              : `Booster impact (${mission.landingMode}): ${bMem.failureReason ?? 'Hard landing'} | v_z=${bState.verticalSpeedMs.toFixed(2)} m/s, v_h=${bState.horizontalSpeedMs.toFixed(2)} m/s, tilt=${bState.tiltFromVerticalDeg.toFixed(2)}°, miss=${bState.distanceToTargetM.toFixed(1)} m, prop=${bDyn.propellantKg.toFixed(0)} kg`,
         });
       } else {
     const slewRate =
@@ -895,6 +897,11 @@ export function runFullMission(
         ? 'LANDED'
         : 'CRASHED';
 
+  const boosterFailureReason =
+    boosterOutcome === 'CRASHED'
+      ? (bMem.failureReason ?? 'Did not reach touchdown within simulation window')
+      : undefined;
+
   return {
     ascent,
     stage2Samples,
@@ -904,6 +911,7 @@ export function runFullMission(
     orbit,
     landingTarget,
     boosterOutcome,
+    boosterFailureReason,
     orbitAchieved,
     events,
   };

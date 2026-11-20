@@ -48,7 +48,7 @@ function SceneContent({
   cameraMode,
   isPrimaryTicker,
 }: SceneContentProps) {
-  const { camera, gl } = useThree();
+  const { camera, gl, scene } = useThree();
   const trajectory = useSimStore((s) => s.trajectory);
   const timeS = useSimStore((s) => s.timeS);
   const advanceTime = useSimStore((s) => s.advanceTime);
@@ -56,6 +56,10 @@ function SceneContent({
   const s1GroupRef = useRef<THREE.Group>(null);
   const s2GroupRef = useRef<THREE.Group>(null);
   const camTargetRef = useRef(new THREE.Vector3(0, 35, 0));
+  const camPosVelRef = useRef(new THREE.Vector3(0, 0, 0));
+  const camTgtVelRef = useRef(new THREE.Vector3(0, 0, 0));
+  const prevOriginKeyRef = useRef<string>('');
+  const camInitializedRef = useRef(false);
 
   useEffect(() => {
     installDebugHook();
@@ -66,10 +70,40 @@ function SceneContent({
     [trajectory, timeS]
   );
 
+  // Frame-rate-independent critically damped spring (Game Programming Gems 4)
+  function dampVec3(
+    cur: THREE.Vector3,
+    target: THREE.Vector3,
+    vel: THREE.Vector3,
+    smoothTime: number,
+    dt: number
+  ): void {
+    const omega = 2 / Math.max(0.001, smoothTime);
+    const x = omega * dt;
+    const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+    const dx = cur.x - target.x;
+    const dy = cur.y - target.y;
+    const dz = cur.z - target.z;
+    const tx = (vel.x + omega * dx) * dt;
+    const ty = (vel.y + omega * dy) * dt;
+    const tz = (vel.z + omega * dz) * dt;
+    vel.set(
+      (vel.x - omega * tx) * exp,
+      (vel.y - omega * ty) * exp,
+      (vel.z - omega * tz) * exp
+    );
+    cur.set(
+      target.x + (dx + tx) * exp,
+      target.y + (dy + ty) * exp,
+      target.z + (dz + tz) * exp
+    );
+  }
+
   // Advance simulation clock once per animation frame (only in primary viewport)
   useFrame((_, delta) => {
+    const dtClamped = Math.min(delta, 0.05);
     if (isPrimaryTicker) {
-      advanceTime(Math.min(delta, 0.05));
+      advanceTime(dtClamped);
     }
 
     if (!frame || !trajectory) return;
@@ -140,7 +174,31 @@ function SceneContent({
         ? (s1GroupRef.current?.position.y ?? s1Pos.y) +
           (frame.stage1.landingLegsDeployed ? 0.03 : 0.3)
         : null;
-      updateDebugFrame(camera, gl.domElement, footHeightAboveDeck);
+      // Count actual visible scene draw calls & triangles (since EffectComposer resets gl.info.render)
+      let calls = 0;
+      let triangles = 0;
+      scene.traverseVisible((obj) => {
+        if ((obj as THREE.Mesh).isMesh) {
+          const mesh = obj as THREE.Mesh;
+          const mat = mesh.material as THREE.Material | undefined;
+          // Skip invisible proxy hitboxes (opacity === 0)
+          if (mat && 'opacity' in mat && (mat as THREE.MeshBasicMaterial).opacity === 0) {
+            return;
+          }
+          calls++;
+          const geom = mesh.geometry;
+          if (geom) {
+            const idx = geom.getIndex();
+            const pos = geom.getAttribute('position');
+            if (idx) triangles += Math.floor(idx.count / 3);
+            else if (pos) triangles += Math.floor(pos.count / 3);
+          }
+        }
+      });
+      updateDebugFrame(camera, gl.domElement, footHeightAboveDeck, {
+        calls,
+        triangles,
+      });
     }
 
     if (s2GroupRef.current) {
@@ -155,39 +213,50 @@ function SceneContent({
       }
     }
 
-    // Camera positioning:
-    // Directly track lookTarget in chase/split modes so the vehicle stays
-    // rock-solid in frame across floating-origin switches and at 100x playback.
+    // Camera positioning with frame-rate-independent critically damped smoothing.
+    // Snap ONLY when floating-origin anchor / camera mode / stage changes, or when
+    // lag exceeds 25 m (e.g., timeline scrub or 100x jump).
+    const originKey = `${nearPad ? 'pad' : nearLanding ? 'land' : 'hi'}:${viewStage}:${cameraMode}`;
+    const originSwitched = prevOriginKeyRef.current !== originKey;
+    prevOriginKeyRef.current = originKey;
+
     const centerOffset = new THREE.Vector3(0, frame.separated ? 18 : 28, 0);
     const activeQuat = viewStage === 'stage1' ? q1 : q2;
     const lookTarget = focusPos
       .clone()
       .add(centerOffset.clone().applyQuaternion(activeQuat));
-    camTargetRef.current.copy(lookTarget);
+
+    const moveCamera = (desiredPos: THREE.Vector3, desiredTarget: THREE.Vector3) => {
+      const lag = camera.position.distanceTo(desiredPos);
+      if (!camInitializedRef.current || originSwitched || lag > 25) {
+        camera.position.copy(desiredPos);
+        camTargetRef.current.copy(desiredTarget);
+        camPosVelRef.current.set(0, 0, 0);
+        camTgtVelRef.current.set(0, 0, 0);
+        camInitializedRef.current = true;
+      } else {
+        dampVec3(camera.position, desiredPos, camPosVelRef.current, 0.16, dtClamped);
+        dampVec3(camTargetRef.current, desiredTarget, camTgtVelRef.current, 0.12, dtClamped);
+      }
+      camera.lookAt(camTargetRef.current);
+    };
 
     if (cameraMode === 'chase' || cameraMode === 'split') {
       const dist = frame.separated ? 82 : 142;
       const desired = lookTarget
         .clone()
         .add(new THREE.Vector3(dist * 0.72, dist * 0.16, dist * 0.72));
-      camera.position.copy(desired);
-      camera.lookAt(camTargetRef.current);
+      moveCamera(desired, lookTarget);
     } else if (cameraMode === 'pad') {
-      if (nearPad) {
-        camera.position.set(95, 18, 125);
-        camera.lookAt(camTargetRef.current);
-      } else {
-        camera.position.copy(lookTarget).add(new THREE.Vector3(90, 20, 110));
-        camera.lookAt(camTargetRef.current);
-      }
+      const desired = nearPad
+        ? new THREE.Vector3(95, 18, 125)
+        : lookTarget.clone().add(new THREE.Vector3(90, 20, 110));
+      moveCamera(desired, lookTarget);
     } else if (cameraMode === 'droneship') {
-      if (nearLanding) {
-        camera.position.set(78, 16, 85);
-        camera.lookAt(camTargetRef.current);
-      } else {
-        camera.position.copy(lookTarget).add(new THREE.Vector3(75, 18, 85));
-        camera.lookAt(camTargetRef.current);
-      }
+      const desired = nearLanding
+        ? new THREE.Vector3(78, 16, 85)
+        : lookTarget.clone().add(new THREE.Vector3(75, 18, 85));
+      moveCamera(desired, lookTarget);
     } else if (cameraMode === 'onboard-s1') {
       const camOffset = new THREE.Vector3(2.8, 38.5, 0).applyQuaternion(q1);
       const lookDown = new THREE.Vector3(0, -25, 0).applyQuaternion(q1);
@@ -201,6 +270,8 @@ function SceneContent({
       const lookBack = new THREE.Vector3(0, -30, 0).applyQuaternion(q2);
       camera.position.copy(basePos).add(camOffset);
       camera.lookAt(basePos.clone().add(lookBack));
+    } else if (cameraMode === 'orbit') {
+      camTargetRef.current.copy(lookTarget);
     }
     void activeSnap;
   });
@@ -231,7 +302,7 @@ function SceneContent({
         color="#6aa6ff"
       />
 
-      {nearPad && <LaunchPadMesh siteId={trajectory.launchSiteId} />}
+      {nearPad && <LaunchPadMesh siteId={trajectory.launchSiteId} timeS={timeS} />}
       {nearLanding && <LandingPadMesh mode={trajectory.landingMode} />}
 
       <group ref={s1GroupRef}>
@@ -256,7 +327,7 @@ function SceneContent({
         />
       )}
 
-      <EffectComposer>
+      <EffectComposer multisampling={0}>
         <Bloom
           luminanceThreshold={0.85}
           mipmapBlur
@@ -287,7 +358,7 @@ export function MissionCanvas() {
           <Canvas
             gl={{ preserveDrawingBuffer: true }}
             camera={{ fov: 48, near: 0.5, far: 45_000, position: [80, 40, 80] }}
-            dpr={[1, 2]}
+            dpr={[1, 1.5]}
           >
             <SceneContent
               viewStage="stage2"
@@ -301,7 +372,7 @@ export function MissionCanvas() {
           <Canvas
             gl={{ preserveDrawingBuffer: true }}
             camera={{ fov: 48, near: 0.5, far: 45_000, position: [80, 40, 80] }}
-            dpr={[1, 2]}
+            dpr={[1, 1.5]}
           >
             <SceneContent
               viewStage="stage1"
@@ -326,7 +397,7 @@ export function MissionCanvas() {
       <Canvas
         gl={{ preserveDrawingBuffer: true }}
         camera={{ fov: 48, near: 0.5, far: 45_000, position: [100, 45, 115] }}
-        dpr={[1, 2]}
+        dpr={[1, 1.5]}
       >
         <SceneContent
           viewStage={effectiveStage}

@@ -30,7 +30,27 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
     snapshot.phase !== 'MECO_COAST' &&
     snapshot.phase !== 'ASCENT';
   const finDeflRad = (snapshot.gridFinDeflectionDeg * Math.PI) / 180;
-  const legDeployAngle = snapshot.landingLegsDeployed ? 1.89 : 0.08;
+
+  // Falcon 9 Block 5 real deployed landing leg span = 18.0 m tip-to-tip (9.0 m radius)
+  // Source: SpaceX Falcon 9 specifications / public disclosures.
+  // Hinge at r_h = 1.88 m, y_h = 3.0 m; telescoping leg length L = 7.715 m:
+  //   deployed angle = 1.9660 rad (112.64 deg from +Y)
+  //   -> r_foot = 1.88 + 7.715 * sin(1.9660) = 9.000 m (18.0 m span)
+  //   -> y_foot = 3.00 + 7.715 * cos(1.9660) = +0.030 m (flush on y=0 deck)
+  const legLengthM = 7.715;
+  const legDeployAngle = snapshot.landingLegsDeployed ? 1.966 : 0.06;
+
+  // Post-entry-burn RP-1 exhaust soot builds up during ENTRY_BURN and persists
+  // through AERO_DESCENT, LANDING_BURN, LANDED, and CRASHED.
+  const postEntrySoot =
+    snapshot.phase === 'ENTRY_BURN'
+      ? 0.42
+      : snapshot.phase === 'AERO_DESCENT' ||
+          snapshot.phase === 'LANDING_BURN' ||
+          snapshot.phase === 'LANDED' ||
+          snapshot.phase === 'CRASHED'
+        ? 0.62
+        : 0.0;
 
   const reentryIntensity =
     separated && snapshot.mach > 2.2 && snapshot.dynamicPressurePa > 2_000
@@ -41,24 +61,38 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
     <group>
       {/* --- Visual Render Meshes (raycast disabled; y=0 is ground/deck contact datum) --- */}
       <mesh position={[0, 2.4, 0]} castShadow raycast={NO_RAYCAST}>
-        <cylinderGeometry args={[1.86, 1.86, 1.8, 28]} />
+        <cylinderGeometry args={[1.86, 1.86, 1.8, 22]} />
         <meshStandardMaterial color="#1b1e24" roughness={0.65} metalness={0.45} />
       </mesh>
 
       <mesh position={[0, 19.65, 0]} castShadow receiveShadow raycast={NO_RAYCAST}>
-        <cylinderGeometry args={[1.85, 1.85, 32.7, 28]} />
+        <cylinderGeometry args={[1.85, 1.85, 32.7, 22]} />
         <meshStandardMaterial color="#e8ecf0" roughness={0.38} metalness={0.12} />
       </mesh>
 
-      <mesh position={[0, 11.2, 0]} raycast={NO_RAYCAST}>
-        <cylinderGeometry args={[1.858, 1.858, 13.5, 28]} />
-        <meshStandardMaterial
-          color="#2c3038"
-          transparent
-          opacity={separated ? 0.35 : 0.08}
-          roughness={0.8}
-        />
-      </mesh>
+      {/* Post-entry-burn RP-1 coking soot bands (absent during ascent, builds after entry burn) */}
+      {postEntrySoot > 0.01 && (
+        <>
+          <mesh position={[0, 12.2, 0]} raycast={NO_RAYCAST}>
+            <cylinderGeometry args={[1.86, 1.86, 16.5, 22]} />
+            <meshStandardMaterial
+              color="#1e2025"
+              transparent
+              opacity={postEntrySoot}
+              roughness={0.92}
+            />
+          </mesh>
+          <mesh position={[0, 24.5, 0]} raycast={NO_RAYCAST}>
+            <cylinderGeometry args={[1.858, 1.858, 10.0, 22]} />
+            <meshStandardMaterial
+              color="#2b2e35"
+              transparent
+              opacity={postEntrySoot * 0.45}
+              roughness={0.88}
+            />
+          </mesh>
+        </>
+      )}
 
       <mesh position={[1.87, 19.65, 0]} raycast={NO_RAYCAST}>
         <boxGeometry args={[0.16, 32.5, 0.24]} />
@@ -158,19 +192,35 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
         </group>
       ))}
 
-      {/* 4x Carbon-Fiber Landing Legs (hinged at y=2.6 m -> deployed feet rest at y=+0.03 m) */}
+      {/* 4x Carbon-Fiber Landing Legs (18.0 m deployed span; feet rest at y=+0.03 m) */}
       {finAngles.map((ang, i) => (
         <group
           key={i}
-          position={[Math.cos(ang) * 1.88, 2.6, Math.sin(ang) * 1.88]}
+          position={[Math.cos(ang) * 1.88, 3.0, Math.sin(ang) * 1.88]}
           rotation={[0, -ang + Math.PI / 4, 0]}
         >
           <group rotation={[0, 0, -legDeployAngle]}>
-            <mesh position={[0.22, 4.1, 0]} raycast={NO_RAYCAST}>
-              <boxGeometry args={[0.38, 8.2, 0.72]} />
+            <mesh position={[0.16, legLengthM * 0.5, 0]} raycast={NO_RAYCAST}>
+              <boxGeometry args={[0.36, legLengthM, 0.72]} />
               <meshStandardMaterial color="#1a1d24" roughness={0.5} metalness={0.3} />
             </mesh>
+            {/* Foot pad at tip */}
+            <mesh position={[0.16, legLengthM, 0]} raycast={NO_RAYCAST}>
+              <boxGeometry args={[0.45, 0.14, 0.82]} />
+              <meshStandardMaterial color="#303540" roughness={0.6} metalness={0.5} />
+            </mesh>
           </group>
+          {/* Telescoping A-frame upper support strut when deployed */}
+          {snapshot.landingLegsDeployed && (
+            <mesh
+              position={[2.45, 2.3, 0]}
+              rotation={[0, 0, 0.62]}
+              raycast={NO_RAYCAST}
+            >
+              <cylinderGeometry args={[0.12, 0.14, 8.3, 8]} />
+              <meshStandardMaterial color="#2a2f38" roughness={0.45} metalness={0.55} />
+            </mesh>
+          )}
         </group>
       ))}
 
@@ -180,7 +230,11 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
         label="Landing Legs"
         position={[0, 6.2, 0]}
         shape="cylinder"
-        args={[snapshot.landingLegsDeployed ? 7.2 : 2.35, snapshot.landingLegsDeployed ? 8.8 : 2.35, 6.8]}
+        args={[
+          snapshot.landingLegsDeployed ? 7.6 : 2.35,
+          snapshot.landingLegsDeployed ? 9.2 : 2.35,
+          6.8,
+        ]}
         labelOffset={[-3.6, 0, 0]}
       />
       <InteractableHitbox
@@ -198,6 +252,8 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
           position={[0, 32.8, 0]}
           shape="cylinder"
           args={[2.2, 2.2, 5.2]}
+          outlineArgs={[2.85, 2.85, 68.0]}
+          outlineOffset={[0, 1.5, 0]}
           labelOffset={[3.5, 0, 0]}
         />
       )}
@@ -289,23 +345,39 @@ export function Stage2Mesh({ snapshot, hasFairing, separated }: Stage2MeshProps)
         labelOffset={[3.2, 0, 0]}
       />
 
-      {/* Payload adapter + satellite bus (visible once fairing separates) */}
+      {/* Payload adapter + detailed satellite bus (visible once fairing separates) */}
       {hasFairing && !snapshot.fairingAttached && (
         <group position={[0, 12.6, 0]}>
+          {/* Payload Attach Fitting (PAF) cone */}
           <mesh position={[0, 0.9, 0]} raycast={NO_RAYCAST}>
-            <cylinderGeometry args={[1.1, 1.75, 1.8, 20]} />
-            <meshStandardMaterial color="#2a2f3a" metalness={0.6} roughness={0.4} />
+            <cylinderGeometry args={[1.05, 1.75, 1.8, 18]} />
+            <meshStandardMaterial color="#2a2f3a" metalness={0.65} roughness={0.38} />
           </mesh>
-          <mesh position={[0, 3.8, 0]} raycast={NO_RAYCAST}>
-            <boxGeometry args={[2.2, 4.2, 2.2]} />
-            <meshStandardMaterial color="#d4a74a" metalness={0.75} roughness={0.3} />
+          {/* Gold MLI thermal-blanketed satellite bus */}
+          <mesh position={[0, 3.6, 0]} raycast={NO_RAYCAST}>
+            <boxGeometry args={[2.1, 3.6, 2.1]} />
+            <meshStandardMaterial color="#d4a74a" metalness={0.78} roughness={0.28} />
+          </mesh>
+          {/* Stowed dark-blue photovoltaic solar array wings */}
+          <mesh position={[1.22, 3.6, 0]} raycast={NO_RAYCAST}>
+            <boxGeometry args={[0.16, 3.3, 1.85]} />
+            <meshStandardMaterial color="#18325e" metalness={0.5} roughness={0.25} />
+          </mesh>
+          <mesh position={[-1.22, 3.6, 0]} raycast={NO_RAYCAST}>
+            <boxGeometry args={[0.16, 3.3, 1.85]} />
+            <meshStandardMaterial color="#18325e" metalness={0.5} roughness={0.25} />
+          </mesh>
+          {/* High-gain Ka-band dish antenna */}
+          <mesh position={[0, 5.75, 0.25]} rotation={[0.35, 0, 0]} raycast={NO_RAYCAST}>
+            <cylinderGeometry args={[0.85, 0.18, 0.35, 18]} />
+            <meshStandardMaterial color="#dce3ed" metalness={0.4} roughness={0.3} />
           </mesh>
           <InteractableHitbox
             componentId="payload"
             label="Payload"
             position={[0, 3.4, 0]}
             shape="box"
-            args={[2.8, 5.2, 2.8]}
+            args={[2.8, 5.4, 2.8]}
             labelOffset={[2.8, 1.0, 0]}
           />
         </group>
@@ -315,15 +387,15 @@ export function Stage2Mesh({ snapshot, hasFairing, separated }: Stage2MeshProps)
       {hasFairing && snapshot.fairingAttached && (
         <group position={[0, 12.6, 0]}>
           <mesh position={[0, 0.9, 0]} raycast={NO_RAYCAST}>
-            <cylinderGeometry args={[2.6, 1.85, 1.8, 28]} />
+            <cylinderGeometry args={[2.6, 1.85, 1.8, 22]} />
             <meshStandardMaterial color="#f2f4f8" roughness={0.3} />
           </mesh>
           <mesh position={[0, 4.8, 0]} raycast={NO_RAYCAST}>
-            <cylinderGeometry args={[2.6, 2.6, 6.0, 28]} />
+            <cylinderGeometry args={[2.6, 2.6, 6.0, 22]} />
             <meshStandardMaterial color="#f2f4f8" roughness={0.3} />
           </mesh>
           <mesh position={[0, 10.45, 0]} raycast={NO_RAYCAST}>
-            <coneGeometry args={[2.6, 5.3, 28]} />
+            <coneGeometry args={[2.6, 5.3, 22]} />
             <meshStandardMaterial color="#f2f4f8" roughness={0.3} />
           </mesh>
           <InteractableHitbox
@@ -337,19 +409,63 @@ export function Stage2Mesh({ snapshot, hasFairing, separated }: Stage2MeshProps)
         </group>
       )}
 
-      {/* Crew Dragon Capsule + Trunk (when hasFairing=false, e.g., DM-1) */}
+      {/* Detailed Crew Dragon Capsule + Trunk (when hasFairing=false, e.g., DM-1) */}
       {!hasFairing && (
         <group position={[0, 12.6, 0]}>
+          {/* Trunk cylindrical shell (white radiator side) */}
           <mesh position={[0, 1.9, 0]} raycast={NO_RAYCAST}>
-            <cylinderGeometry args={[1.85, 1.85, 3.8, 28]} />
+            <cylinderGeometry args={[1.85, 1.85, 3.8, 22]} />
             <meshStandardMaterial color="#eceff3" roughness={0.35} />
           </mesh>
-          <mesh position={[0, 5.8, 0]} raycast={NO_RAYCAST}>
-            <cylinderGeometry args={[0.95, 1.95, 4.1, 28]} />
+          {/* Trunk solar-cell array wrap (half-cylinder) */}
+          <mesh position={[0, 1.9, 0]} raycast={NO_RAYCAST}>
+            <cylinderGeometry args={[1.87, 1.87, 3.4, 16, 1, true, 0, Math.PI]} />
+            <meshStandardMaterial color="#162847" metalness={0.55} roughness={0.25} />
+          </mesh>
+          {/* 4x Trunk aerodynamic stabilizing fins */}
+          {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((a, idx) => (
+            <mesh
+              key={idx}
+              position={[Math.cos(a) * 2.02, 1.4, Math.sin(a) * 2.02]}
+              rotation={[0, -a, 0]}
+              raycast={NO_RAYCAST}
+            >
+              <boxGeometry args={[0.42, 2.4, 0.1]} />
+              <meshStandardMaterial color="#dce2ea" roughness={0.4} />
+            </mesh>
+          ))}
+          {/* Heatshield dark ring */}
+          <mesh position={[0, 3.95, 0]} raycast={NO_RAYCAST}>
+            <cylinderGeometry args={[1.95, 1.88, 0.35, 22]} />
+            <meshStandardMaterial color="#232730" roughness={0.7} />
+          </mesh>
+          {/* Gumdrop pressure vessel */}
+          <mesh position={[0, 5.95, 0]} raycast={NO_RAYCAST}>
+            <cylinderGeometry args={[0.98, 1.96, 3.7, 22]} />
             <meshStandardMaterial color="#f5f7fa" roughness={0.25} />
           </mesh>
-          <mesh position={[0, 8.2, 0]} raycast={NO_RAYCAST}>
-            <sphereGeometry args={[0.95, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          {/* 4x SuperDraco abort thruster nacelles */}
+          {[Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4].map(
+            (a, idx) => (
+              <mesh
+                key={idx}
+                position={[Math.cos(a) * 1.62, 5.1, Math.sin(a) * 1.62]}
+                rotation={[0, -a, 0]}
+                raycast={NO_RAYCAST}
+              >
+                <boxGeometry args={[0.52, 1.35, 0.45]} />
+                <meshStandardMaterial color="#e2e7ee" roughness={0.32} />
+              </mesh>
+            )
+          )}
+          {/* Tinted crew windows */}
+          <mesh position={[0, 6.2, 1.42]} rotation={[-0.25, 0, 0]} raycast={NO_RAYCAST}>
+            <boxGeometry args={[0.48, 0.32, 0.08]} />
+            <meshStandardMaterial color="#0b1220" metalness={0.85} roughness={0.15} />
+          </mesh>
+          {/* Hinged nosecone cap */}
+          <mesh position={[0, 7.8, 0]} raycast={NO_RAYCAST}>
+            <sphereGeometry args={[0.98, 20, 14, 0, Math.PI * 2, 0, Math.PI / 2]} />
             <meshStandardMaterial color="#1f232b" roughness={0.4} />
           </mesh>
           <InteractableHitbox
