@@ -5,6 +5,7 @@ import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import {
   createMutableFrameTransform,
+  liveSimClock,
   sampleFrameAt,
   sampleFrameTransformInto,
   useSimStore,
@@ -25,21 +26,46 @@ import {
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const SCRATCH_DIR = new THREE.Vector3();
-const SCRATCH_FOCUS = new THREE.Vector3();
-const SCRATCH_S1_POS = new THREE.Vector3();
-const SCRATCH_S2_POS = new THREE.Vector3();
-const SCRATCH_S1_ATT = new THREE.Vector3();
-const SCRATCH_S2_ATT = new THREE.Vector3();
 const SCRATCH_P1 = new THREE.Vector3();
 const SCRATCH_P2 = new THREE.Vector3();
-const SCRATCH_Q1 = new THREE.Quaternion();
-const SCRATCH_Q2 = new THREE.Quaternion();
 const SCRATCH_OFFSET = new THREE.Vector3();
 const SCRATCH_LOOK_TARGET = new THREE.Vector3();
 const SCRATCH_DESIRED = new THREE.Vector3();
 const SCRATCH_CAM_OFF = new THREE.Vector3();
 const SCRATCH_LOOK_DIR = new THREE.Vector3();
-const SCRATCH_FRAME: MutableFrameTransform = createMutableFrameTransform();
+const SCRATCH_S1_ATT = new THREE.Vector3();
+const SCRATCH_S2_ATT = new THREE.Vector3();
+
+/** Single-source-of-truth per-frame simulation & transform snapshot (zero alloc). */
+interface FrameStateSnapshot {
+  valid: boolean;
+  timeS: number;
+  dtClamped: number;
+  nearPad: boolean;
+  nearLanding: boolean;
+  readonly transform: MutableFrameTransform;
+  readonly focusPos: THREE.Vector3;
+  readonly s1Pos: THREE.Vector3;
+  readonly s2Pos: THREE.Vector3;
+  readonly q1: THREE.Quaternion;
+  readonly q2: THREE.Quaternion;
+}
+
+function createFrameStateSnapshot(): FrameStateSnapshot {
+  return {
+    valid: false,
+    timeS: 0,
+    dtClamped: 0,
+    nearPad: true,
+    nearLanding: false,
+    transform: createMutableFrameTransform(),
+    focusPos: new THREE.Vector3(),
+    s1Pos: new THREE.Vector3(),
+    s2Pos: new THREE.Vector3(),
+    q1: new THREE.Quaternion(),
+    q2: new THREE.Quaternion(),
+  };
+}
 
 /** Convert ENU (x=E, y=N, z=U) into Three.js right-handed (x=E, y=U, z=-N) in-place. */
 function enuToThreeInto(v: Vec3, out: THREE.Vector3): THREE.Vector3 {
@@ -60,7 +86,24 @@ function dirToQuatInto(dirThree: THREE.Vector3, out: THREE.Quaternion): THREE.Qu
   return out;
 }
 
-/** Frame-rate-independent critically damped spring (Game Programming Gems 4), zero alloc. */
+/** Frame-rate-independent critically damped scalar spring (zero alloc). */
+function dampScalar(
+  cur: number,
+  target: number,
+  velRef: { v: number },
+  smoothTime: number,
+  dt: number
+): number {
+  const omega = 2 / Math.max(0.001, smoothTime);
+  const x = omega * dt;
+  const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const d = cur - target;
+  const t = (velRef.v + omega * d) * dt;
+  velRef.v = (velRef.v - omega * t) * exp;
+  return target + (d + t) * exp;
+}
+
+/** Frame-rate-independent critically damped Vec3 spring (zero alloc). */
 function dampVec3(
   cur: THREE.Vector3,
   target: THREE.Vector3,
@@ -90,85 +133,90 @@ function dampVec3(
 }
 
 /**
- * Position s1Group and s2Group in floating-origin coordinates for a given `viewStage`,
- * writing the resulting focus position and stage quaternions into scratch objects.
+ * Compute floating-origin vehicle positions & orientations into `out` for a given `viewStage`.
  */
-function positionVehiclesForStage(
+function computeStageTransformsInto(
   frame: MutableFrameTransform,
   viewStage: FocusStage,
-  s1Group: THREE.Group | null,
-  s2Group: THREE.Group | null
-): { nearPad: boolean; nearLanding: boolean } {
+  out: FrameStateSnapshot
+): void {
   const nearPad = !frame.separated && frame.stage1.altitudeM < 12_000;
   const nearLanding =
     viewStage === 'stage1' &&
     frame.separated &&
     frame.stage1.altitudeM < 15_000;
 
+  out.nearPad = nearPad;
+  out.nearLanding = nearLanding;
+
   if (nearPad) {
-    enuToThreeInto(frame.stage1.padEnuM, SCRATCH_S1_POS);
+    enuToThreeInto(frame.stage1.padEnuM, out.s1Pos);
     enuToThreeInto(frame.stage1.attitudePadEnu, SCRATCH_S1_ATT);
-    SCRATCH_S2_POS.copy(SCRATCH_S1_POS);
+    out.s2Pos.copy(out.s1Pos);
     SCRATCH_S2_ATT.copy(SCRATCH_S1_ATT);
-    SCRATCH_FOCUS.copy(SCRATCH_S1_POS);
+    out.focusPos.copy(out.s1Pos);
   } else if (nearLanding) {
-    enuToThreeInto(frame.stage1.landingEnuM, SCRATCH_S1_POS);
+    enuToThreeInto(frame.stage1.landingEnuM, out.s1Pos);
     enuToThreeInto(frame.stage1.attitudeLandingEnu, SCRATCH_S1_ATT);
-    enuToThreeInto(frame.stage2.landingEnuM, SCRATCH_S2_POS);
+    enuToThreeInto(frame.stage2.landingEnuM, out.s2Pos);
     enuToThreeInto(frame.stage2.attitudeLandingEnu, SCRATCH_S2_ATT);
-    SCRATCH_FOCUS.copy(SCRATCH_S1_POS);
+    out.focusPos.copy(out.s1Pos);
   } else {
     enuToThreeInto(frame.stage1.padEnuM, SCRATCH_P1);
     enuToThreeInto(frame.stage2.padEnuM, SCRATCH_P2);
     if (viewStage === 'stage1') {
-      SCRATCH_S1_POS.set(0, 0, 0);
-      SCRATCH_S2_POS.copy(SCRATCH_P2).sub(SCRATCH_P1);
-      SCRATCH_FOCUS.set(0, 0, 0);
+      out.s1Pos.set(0, 0, 0);
+      out.s2Pos.copy(SCRATCH_P2).sub(SCRATCH_P1);
+      out.focusPos.set(0, 0, 0);
     } else {
-      SCRATCH_S2_POS.set(0, 0, 0);
-      SCRATCH_S1_POS.copy(SCRATCH_P1).sub(SCRATCH_P2);
-      SCRATCH_FOCUS.set(0, 0, 0);
+      out.s2Pos.set(0, 0, 0);
+      out.s1Pos.copy(SCRATCH_P1).sub(SCRATCH_P2);
+      out.focusPos.set(0, 0, 0);
     }
     enuToThreeInto(frame.stage1.attitudePadEnu, SCRATCH_S1_ATT);
     enuToThreeInto(frame.stage2.attitudePadEnu, SCRATCH_S2_ATT);
   }
 
-  dirToQuatInto(SCRATCH_S1_ATT, SCRATCH_Q1);
-  dirToQuatInto(SCRATCH_S2_ATT, SCRATCH_Q2);
+  dirToQuatInto(SCRATCH_S1_ATT, out.q1);
+  dirToQuatInto(SCRATCH_S2_ATT, out.q2);
+}
 
+function applyTransformsToGroups(
+  fs: FrameStateSnapshot,
+  s1Group: THREE.Group | null,
+  s2Group: THREE.Group | null
+): void {
   if (s1Group) {
     const s1Y =
-      nearLanding && frame.stage1.phase === 'LANDED'
-        ? Math.max(0, SCRATCH_S1_POS.y)
-        : SCRATCH_S1_POS.y;
-    s1Group.position.set(SCRATCH_S1_POS.x, s1Y, SCRATCH_S1_POS.z);
-    s1Group.quaternion.copy(SCRATCH_Q1);
+      fs.nearLanding && fs.transform.stage1.phase === 'LANDED'
+        ? Math.max(0, fs.s1Pos.y)
+        : fs.s1Pos.y;
+    s1Group.position.set(fs.s1Pos.x, s1Y, fs.s1Pos.z);
+    s1Group.quaternion.copy(fs.q1);
   }
 
   if (s2Group) {
-    if (!frame.separated) {
-      SCRATCH_OFFSET.set(0, 42.6, 0).applyQuaternion(SCRATCH_Q1);
-      s2Group.position.copy(SCRATCH_S1_POS).add(SCRATCH_OFFSET);
-      s2Group.quaternion.copy(SCRATCH_Q1);
+    if (!fs.transform.separated) {
+      SCRATCH_OFFSET.set(0, 42.6, 0).applyQuaternion(fs.q1);
+      s2Group.position.copy(fs.s1Pos).add(SCRATCH_OFFSET);
+      s2Group.quaternion.copy(fs.q1);
     } else {
-      s2Group.position.copy(SCRATCH_S2_POS);
-      s2Group.quaternion.copy(SCRATCH_Q2);
+      s2Group.position.copy(fs.s2Pos);
+      s2Group.quaternion.copy(fs.q2);
     }
   }
-
-  return { nearPad, nearLanding };
 }
 
 /**
  * Single-renderer, single-canvas, two-scissored-viewport Split View renderer.
- * Only mounted when `isSplit === true`, so R3F's normal pipeline + Bloom runs
- * in single view while Split View renders both Stage 2 (left) and Stage 1 (right)
- * in a single WebGL context at 60+ fps.
+ * Reads directly from the single-source-of-truth `frameStateRef` populated at priority -1.
  */
 function SplitScissorPass({
+  frameStateRef,
   s1GroupRef,
   s2GroupRef,
 }: {
+  readonly frameStateRef: React.RefObject<FrameStateSnapshot>;
   readonly s1GroupRef: React.RefObject<THREE.Group | null>;
   readonly s2GroupRef: React.RefObject<THREE.Group | null>;
 }) {
@@ -183,15 +231,9 @@ function SplitScissorPass({
     camRightRef.current = new THREE.PerspectiveCamera(48, 1, 0.5, 45_000);
   }
 
-  useFrame((_, delta) => {
-    const dtClamped = Math.min(delta, 0.05);
-    const store = useSimStore.getState();
-    store.advanceTime(dtClamped);
-
-    if (!sampleFrameTransformInto(store.trajectory, useSimStore.getState().timeS, SCRATCH_FRAME)) {
-      return;
-    }
-    const frame = SCRATCH_FRAME;
+  useFrame(() => {
+    const fs = frameStateRef.current;
+    if (!fs || !fs.valid) return;
 
     const calls = gl.info.render.calls;
     const triangles = gl.info.render.triangles;
@@ -218,9 +260,10 @@ function SplitScissorPass({
     gl.setScissorTest(true);
 
     // --- Left viewport: Stage 2 Orbital Ascent ---
-    positionVehiclesForStage(frame, 'stage2', s1GroupRef.current, s2GroupRef.current);
-    SCRATCH_OFFSET.set(0, 18, 0).applyQuaternion(SCRATCH_Q2);
-    SCRATCH_LOOK_TARGET.copy(SCRATCH_FOCUS).add(SCRATCH_OFFSET);
+    computeStageTransformsInto(fs.transform, 'stage2', fs);
+    applyTransformsToGroups(fs, s1GroupRef.current, s2GroupRef.current);
+    SCRATCH_OFFSET.set(0, 18, 0).applyQuaternion(fs.q2);
+    SCRATCH_LOOK_TARGET.copy(fs.focusPos).add(SCRATCH_OFFSET);
     camL.position
       .copy(SCRATCH_LOOK_TARGET)
       .add(SCRATCH_DESIRED.set(82 * 0.72, 82 * 0.16, 82 * 0.72));
@@ -230,14 +273,10 @@ function SplitScissorPass({
     gl.render(scene, camL);
 
     // --- Right viewport: Stage 1 Booster Recovery ---
-    const { nearLanding } = positionVehiclesForStage(
-      frame,
-      'stage1',
-      s1GroupRef.current,
-      s2GroupRef.current
-    );
-    SCRATCH_OFFSET.set(0, 18, 0).applyQuaternion(SCRATCH_Q1);
-    SCRATCH_LOOK_TARGET.copy(SCRATCH_FOCUS).add(SCRATCH_OFFSET);
+    computeStageTransformsInto(fs.transform, 'stage1', fs);
+    applyTransformsToGroups(fs, s1GroupRef.current, s2GroupRef.current);
+    SCRATCH_OFFSET.set(0, 18, 0).applyQuaternion(fs.q1);
+    SCRATCH_LOOK_TARGET.copy(fs.focusPos).add(SCRATCH_OFFSET);
     camR.position
       .copy(SCRATCH_LOOK_TARGET)
       .add(SCRATCH_DESIRED.set(82 * 0.72, 82 * 0.16, 82 * 0.72));
@@ -249,9 +288,9 @@ function SplitScissorPass({
     gl.setScissorTest(false);
     gl.setViewport(0, 0, fullW, fullH);
 
-    const footHeightAboveDeck = nearLanding
-      ? (s1GroupRef.current?.position.y ?? SCRATCH_S1_POS.y) +
-        (frame.stage1.landingLegsDeployed ? 0.03 : 0.3)
+    const footHeightAboveDeck = fs.nearLanding
+      ? (s1GroupRef.current?.position.y ?? fs.s1Pos.y) +
+        (fs.transform.stage1.landingLegsDeployed ? 0.03 : 0.3)
       : null;
     updateDebugFrame(camR, gl.domElement, footHeightAboveDeck, {
       calls,
@@ -271,20 +310,30 @@ interface SceneContentProps {
 function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
   const { camera, gl } = useThree();
   const trajectory = useSimStore((s) => s.trajectory);
+  // Synced at ~10 Hz during playback (immediately on scrub) for low-GC HUD & mesh state
   const timeS = useSimStore((s) => s.timeS);
 
   const s1GroupRef = useRef<THREE.Group>(null);
   const s2GroupRef = useRef<THREE.Group>(null);
+  const frameStateRef = useRef<FrameStateSnapshot>(createFrameStateSnapshot());
+
+  // Chase camera smoothed orbit angle + zoom ONLY (position rigidly locked to target + offset)
+  const chaseYawRef = useRef(Math.PI / 4);
+  const chaseYawVelRef = useRef({ v: 0 });
+  const chaseElevRef = useRef(Math.atan2(0.16, Math.hypot(0.72, 0.72)));
+  const chaseElevVelRef = useRef({ v: 0 });
+  const chaseDistRef = useRef(142);
+  const chaseDistVelRef = useRef({ v: 0 });
+
+  // Mode/target switch smoothing offset (decays to 0 after mode/stage switch, never lags velocity)
+  const switchOffsetRef = useRef(new THREE.Vector3(0, 0, 0));
+  const switchOffsetVelRef = useRef(new THREE.Vector3(0, 0, 0));
   const camTargetRef = useRef(new THREE.Vector3(0, 35, 0));
-  const camPosVelRef = useRef(new THREE.Vector3(0, 0, 0));
-  const camTgtVelRef = useRef(new THREE.Vector3(0, 0, 0));
-  const prevOriginKeyRef = useRef<string>('');
-  const camInitializedRef = useRef(false);
+  const prevSwitchKeyRef = useRef<string>('');
+  const prevSimTimeRef = useRef<number>(0);
 
   useEffect(() => {
     installDebugHook();
-    // Disable autoReset so renderer.info.render accumulates ALL WebGL draw calls
-    // and triangles across the entire frame (scene + shadows + postprocessing).
     gl.info.autoReset = false;
     return () => {
       gl.info.autoReset = true;
@@ -296,35 +345,44 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
     [trajectory, timeS]
   );
 
-  // Single-viewport update loop (zero per-frame heap allocations)
+  // PRIORITY -1: Single source of truth per frame.
+  // Advances the clamped playback clock (max 50 ms) and interpolates the vehicle
+  // transform ONCE into `frameStateRef.current` before ANY vehicle or camera update.
   useFrame((_, delta) => {
-    if (isSplit) return;
-
-    const dtClamped = Math.min(delta, 0.05);
+    const dtClamped = Math.min(Math.max(0, delta), 0.05);
     const store = useSimStore.getState();
-    store.advanceTime(dtClamped);
+    store.tickFrameClock(dtClamped);
 
+    const fs = frameStateRef.current;
+    fs.dtClamped = dtClamped;
+    fs.timeS = liveSimClock.timeS;
     if (
       !store.trajectory ||
-      !sampleFrameTransformInto(store.trajectory, useSimStore.getState().timeS, SCRATCH_FRAME)
+      !sampleFrameTransformInto(store.trajectory, fs.timeS, fs.transform)
     ) {
+      fs.valid = false;
       return;
     }
-    const curFrame = SCRATCH_FRAME;
+    fs.valid = true;
+    computeStageTransformsInto(fs.transform, viewStage, fs);
+  }, -1);
 
-    const { nearPad, nearLanding } = positionVehiclesForStage(
-      curFrame,
-      viewStage,
-      s1GroupRef.current,
-      s2GroupRef.current
-    );
+  // PRIORITY 0: Apply transforms to vehicle meshes AND position camera from the
+  // exact same `frameStateRef.current` snapshot (camera never reads previous frame!).
+  useFrame(() => {
+    if (isSplit) return;
 
-    const footHeightAboveDeck = nearLanding
-      ? (s1GroupRef.current?.position.y ?? SCRATCH_S1_POS.y) +
-        (curFrame.stage1.landingLegsDeployed ? 0.03 : 0.3)
+    const fs = frameStateRef.current;
+    if (!fs.valid) return;
+
+    // 1. Update vehicle group transforms from this frame's single source of truth
+    applyTransformsToGroups(fs, s1GroupRef.current, s2GroupRef.current);
+
+    // 2. Update debug/perf telemetry directly from renderer.info.render
+    const footHeightAboveDeck = fs.nearLanding
+      ? (s1GroupRef.current?.position.y ?? fs.s1Pos.y) +
+        (fs.transform.stage1.landingLegsDeployed ? 0.03 : 0.3)
       : null;
-
-    // Read true per-frame WebGL draw calls & triangles directly from renderer.info.render
     const calls = gl.info.render.calls;
     const triangles = gl.info.render.triangles;
     gl.info.reset();
@@ -333,84 +391,135 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
       triangles,
     });
 
-    // Camera positioning with frame-rate-independent critically damped smoothing.
-    // Snap ONLY when floating-origin anchor / camera mode / stage changes, or when
-    // lag exceeds 25 m (e.g., timeline scrub or 100x jump).
-    const originKey = `${nearPad ? 'pad' : nearLanding ? 'land' : 'hi'}:${viewStage}:${cameraMode}`;
-    const originSwitched = prevOriginKeyRef.current !== originKey;
-    prevOriginKeyRef.current = originKey;
+    // 3. Compute exact current-frame lookTarget (never lagged behind flight path)
+    const activeQuat = viewStage === 'stage1' ? fs.q1 : fs.q2;
+    SCRATCH_OFFSET.set(0, fs.transform.separated ? 18 : 28, 0).applyQuaternion(
+      activeQuat
+    );
+    SCRATCH_LOOK_TARGET.copy(fs.focusPos).add(SCRATCH_OFFSET);
 
-    const activeQuat = viewStage === 'stage1' ? SCRATCH_Q1 : SCRATCH_Q2;
-    SCRATCH_OFFSET.set(0, curFrame.separated ? 18 : 28, 0).applyQuaternion(activeQuat);
-    SCRATCH_LOOK_TARGET.copy(SCRATCH_FOCUS).add(SCRATCH_OFFSET);
-
-    const moveCamera = (desiredPos: THREE.Vector3, desiredTarget: THREE.Vector3) => {
-      const lag = camera.position.distanceTo(desiredPos);
-      if (!camInitializedRef.current || originSwitched || lag > 25) {
-        camera.position.copy(desiredPos);
-        camTargetRef.current.copy(desiredTarget);
-        camPosVelRef.current.set(0, 0, 0);
-        camTgtVelRef.current.set(0, 0, 0);
-        camInitializedRef.current = true;
-      } else {
-        dampVec3(camera.position, desiredPos, camPosVelRef.current, 0.16, dtClamped);
-        dampVec3(camTargetRef.current, desiredTarget, camTgtVelRef.current, 0.12, dtClamped);
-      }
-      camera.lookAt(camTargetRef.current);
-    };
+    // Detect mode/target switch or discontinuous timeline scrub (> 2 s jump)
+    const switchKey = `${viewStage}:${cameraMode}`;
+    const switched =
+      prevSwitchKeyRef.current !== '' && prevSwitchKeyRef.current !== switchKey;
+    prevSwitchKeyRef.current = switchKey;
+    const scrubbed = Math.abs(fs.timeS - prevSimTimeRef.current) > 2.0;
+    prevSimTimeRef.current = fs.timeS;
 
     if (cameraMode === 'chase') {
-      const dist = curFrame.separated ? 82 : 142;
-      SCRATCH_DESIRED.set(
-        SCRATCH_LOOK_TARGET.x + dist * 0.72,
-        SCRATCH_LOOK_TARGET.y + dist * 0.16,
-        SCRATCH_LOOK_TARGET.z + dist * 0.72
+      // Critically damped smoothing ONLY on orbit angle & zoom distance
+      const targetDist = fs.transform.separated ? 82 : 142;
+      const targetYaw = Math.PI / 4;
+      const targetElev = Math.atan2(0.16, Math.hypot(0.72, 0.72));
+
+      if (scrubbed) {
+        chaseDistRef.current = targetDist;
+        chaseDistVelRef.current.v = 0;
+        switchOffsetRef.current.set(0, 0, 0);
+        switchOffsetVelRef.current.set(0, 0, 0);
+      }
+
+      const dist = dampScalar(
+        chaseDistRef.current,
+        targetDist,
+        chaseDistVelRef.current,
+        0.25,
+        fs.dtClamped
       );
-      moveCamera(SCRATCH_DESIRED, SCRATCH_LOOK_TARGET);
+      const yaw = dampScalar(
+        chaseYawRef.current,
+        targetYaw,
+        chaseYawVelRef.current,
+        0.25,
+        fs.dtClamped
+      );
+      const elev = dampScalar(
+        chaseElevRef.current,
+        targetElev,
+        chaseElevVelRef.current,
+        0.25,
+        fs.dtClamped
+      );
+      chaseDistRef.current = dist;
+      chaseYawRef.current = yaw;
+      chaseElevRef.current = elev;
+
+      const cosE = Math.cos(elev);
+      SCRATCH_DESIRED.set(
+        SCRATCH_LOOK_TARGET.x + dist * cosE * Math.sin(yaw),
+        SCRATCH_LOOK_TARGET.y + dist * Math.sin(elev),
+        SCRATCH_LOOK_TARGET.z + dist * cosE * Math.cos(yaw)
+      );
+
+      // On mode/stage switch, smooth only the relative switch delta (clamped <= 60 m)
+      if (switched) {
+        switchOffsetRef.current.copy(camera.position).sub(SCRATCH_DESIRED);
+        if (switchOffsetRef.current.lengthSq() > 60 * 60) {
+          switchOffsetRef.current.set(0, 0, 0);
+        }
+        switchOffsetVelRef.current.set(0, 0, 0);
+      }
+      if (switchOffsetRef.current.lengthSq() > 1e-6) {
+        SCRATCH_CAM_OFF.set(0, 0, 0);
+        dampVec3(
+          switchOffsetRef.current,
+          SCRATCH_CAM_OFF,
+          switchOffsetVelRef.current,
+          0.18,
+          fs.dtClamped
+        );
+      }
+
+      // Rigidly locked to target + offset along flight path (zero spring lag, zero 25 m snap)
+      camera.position.copy(SCRATCH_DESIRED).add(switchOffsetRef.current);
+      camTargetRef.current.copy(SCRATCH_LOOK_TARGET);
+      camera.lookAt(camTargetRef.current);
     } else if (cameraMode === 'pad') {
-      if (nearPad) {
-        SCRATCH_DESIRED.set(95, 18, 125);
+      if (fs.nearPad) {
+        camera.position.set(95, 18, 125);
       } else {
-        SCRATCH_DESIRED.set(
+        camera.position.set(
           SCRATCH_LOOK_TARGET.x + 90,
           SCRATCH_LOOK_TARGET.y + 20,
           SCRATCH_LOOK_TARGET.z + 110
         );
       }
-      moveCamera(SCRATCH_DESIRED, SCRATCH_LOOK_TARGET);
+      camTargetRef.current.copy(SCRATCH_LOOK_TARGET);
+      camera.lookAt(camTargetRef.current);
     } else if (cameraMode === 'droneship') {
-      if (nearLanding) {
-        SCRATCH_DESIRED.set(78, 16, 85);
+      if (fs.nearLanding) {
+        camera.position.set(78, 16, 85);
       } else {
-        SCRATCH_DESIRED.set(
+        camera.position.set(
           SCRATCH_LOOK_TARGET.x + 75,
           SCRATCH_LOOK_TARGET.y + 18,
           SCRATCH_LOOK_TARGET.z + 85
         );
       }
-      moveCamera(SCRATCH_DESIRED, SCRATCH_LOOK_TARGET);
+      camTargetRef.current.copy(SCRATCH_LOOK_TARGET);
+      camera.lookAt(camTargetRef.current);
     } else if (cameraMode === 'onboard-s1') {
-      SCRATCH_CAM_OFF.set(2.8, 38.5, 0).applyQuaternion(SCRATCH_Q1);
-      SCRATCH_LOOK_DIR.set(0, -25, 0).applyQuaternion(SCRATCH_Q1);
-      camera.position.copy(SCRATCH_S1_POS).add(SCRATCH_CAM_OFF);
-      SCRATCH_DESIRED.copy(SCRATCH_S1_POS).add(SCRATCH_LOOK_DIR);
+      SCRATCH_CAM_OFF.set(2.8, 38.5, 0).applyQuaternion(fs.q1);
+      SCRATCH_LOOK_DIR.set(0, -25, 0).applyQuaternion(fs.q1);
+      camera.position.copy(fs.s1Pos).add(SCRATCH_CAM_OFF);
+      SCRATCH_DESIRED.copy(fs.s1Pos).add(SCRATCH_LOOK_DIR);
       camera.lookAt(SCRATCH_DESIRED);
     } else if (cameraMode === 'onboard-s2') {
-      if (curFrame.separated) {
-        SCRATCH_P1.copy(SCRATCH_S2_POS);
+      if (fs.transform.separated) {
+        SCRATCH_P1.copy(fs.s2Pos);
       } else {
-        SCRATCH_OFFSET.set(0, 42.6, 0).applyQuaternion(SCRATCH_Q1);
-        SCRATCH_P1.copy(SCRATCH_S1_POS).add(SCRATCH_OFFSET);
+        SCRATCH_OFFSET.set(0, 42.6, 0).applyQuaternion(fs.q1);
+        SCRATCH_P1.copy(fs.s1Pos).add(SCRATCH_OFFSET);
       }
-      SCRATCH_CAM_OFF.set(2.8, 10.0, 0).applyQuaternion(SCRATCH_Q2);
-      SCRATCH_LOOK_DIR.set(0, -30, 0).applyQuaternion(SCRATCH_Q2);
+      SCRATCH_CAM_OFF.set(2.8, 10.0, 0).applyQuaternion(fs.q2);
+      SCRATCH_LOOK_DIR.set(0, -30, 0).applyQuaternion(fs.q2);
       camera.position.copy(SCRATCH_P1).add(SCRATCH_CAM_OFF);
       SCRATCH_DESIRED.copy(SCRATCH_P1).add(SCRATCH_LOOK_DIR);
       camera.lookAt(SCRATCH_DESIRED);
     } else if (cameraMode === 'orbit') {
       camTargetRef.current.copy(SCRATCH_LOOK_TARGET);
     }
-  });
+  }, 0);
 
   if (!frame || !trajectory) return null;
 
@@ -464,7 +573,11 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
       )}
 
       {isSplit ? (
-        <SplitScissorPass s1GroupRef={s1GroupRef} s2GroupRef={s2GroupRef} />
+        <SplitScissorPass
+          frameStateRef={frameStateRef}
+          s1GroupRef={s1GroupRef}
+          s2GroupRef={s2GroupRef}
+        />
       ) : (
         <EffectComposer multisampling={0}>
           <Bloom

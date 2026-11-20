@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import { sampleFrameAt, useSimStore, type CameraMode, type FocusStage } from '../store/simStore.js';
+import {
+  liveSimClock,
+  sampleFrameAt,
+  useSimStore,
+  type CameraMode,
+  type FocusStage,
+} from '../store/simStore.js';
 
 interface RegisteredHitbox {
   readonly componentId: string;
@@ -12,14 +18,19 @@ let activeCamera: THREE.Camera | null = null;
 let activeCanvas: HTMLCanvasElement | null = null;
 let boosterFootHeightAboveDeckM: number | null = null;
 
-// Rolling FPS & frame-time profiler updated inside useFrame
+// Pre-allocated ring buffer & scratch vectors (zero per-frame heap allocations)
+const MAX_FRAME_SAMPLES = 600;
+const frameTimesBuf = new Float64Array(MAX_FRAME_SAMPLES);
+let frameTimesCount = 0;
+let frameTimesHead = 0;
 let fpsFrames = 0;
 let fpsStartMs = performance.now();
 let lastMeasuredFps = 0;
 let lastFrameStampMs = 0;
-const frameTimesMs: number[] = [];
 let lastDrawCalls = 0;
 let lastTriangles = 0;
+const SCRATCH_WORLD_POS = new THREE.Vector3();
+const SCRATCH_NDC = new THREE.Vector3();
 
 function hitboxKey(componentId: string, engineIndex?: number): string {
   return engineIndex !== undefined ? `${componentId}:${engineIndex}` : componentId;
@@ -58,8 +69,9 @@ export function updateDebugFrame(
   if (lastFrameStampMs > 0) {
     const dtMs = now - lastFrameStampMs;
     if (dtMs > 0 && dtMs < 2000) {
-      frameTimesMs.push(dtMs);
-      if (frameTimesMs.length > 600) frameTimesMs.shift();
+      frameTimesBuf[frameTimesHead] = dtMs;
+      frameTimesHead = (frameTimesHead + 1) % MAX_FRAME_SAMPLES;
+      if (frameTimesCount < MAX_FRAME_SAMPLES) frameTimesCount++;
     }
   }
   lastFrameStampMs = now;
@@ -82,7 +94,8 @@ export function installDebugHook(): void {
       fpsStartMs = performance.now();
       lastMeasuredFps = 0;
       lastFrameStampMs = 0;
-      frameTimesMs.length = 0;
+      frameTimesCount = 0;
+      frameTimesHead = 0;
     },
     getFps() {
       const elapsed = performance.now() - fpsStartMs;
@@ -92,7 +105,9 @@ export function installDebugHook(): void {
       return lastMeasuredFps;
     },
     getPerfMetrics() {
-      const sorted = [...frameTimesMs].sort((a, b) => a - b);
+      const sorted = Array.from(frameTimesBuf.subarray(0, frameTimesCount)).sort(
+        (a, b) => a - b
+      );
       const p50 =
         sorted.length > 0 ? sorted[Math.floor(sorted.length * 0.5)]! : 0;
       const p95 =
@@ -113,11 +128,11 @@ export function installDebugHook(): void {
     },
     getState() {
       const s = useSimStore.getState();
-      const frame = sampleFrameAt(s.trajectory, s.timeS);
+      const frame = sampleFrameAt(s.trajectory, liveSimClock.timeS);
       return {
         loading: s.loading,
         error: s.error,
-        timeS: s.timeS,
+        timeS: liveSimClock.timeS,
         playing: s.playing,
         playbackSpeed: s.playbackSpeed,
         cameraMode: s.cameraMode,
@@ -167,15 +182,14 @@ export function installDebugHook(): void {
       if (!entry) return null;
 
       entry.mesh.updateWorldMatrix(true, false);
-      const worldPos = new THREE.Vector3();
-      entry.mesh.getWorldPosition(worldPos);
-      const ndc = worldPos.clone().project(activeCamera);
+      entry.mesh.getWorldPosition(SCRATCH_WORLD_POS);
+      SCRATCH_NDC.copy(SCRATCH_WORLD_POS).project(activeCamera);
       const rect = activeCanvas.getBoundingClientRect();
-      const x = rect.left + ((ndc.x + 1) / 2) * rect.width;
-      const y = rect.top + ((-ndc.y + 1) / 2) * rect.height;
+      const x = rect.left + ((SCRATCH_NDC.x + 1) / 2) * rect.width;
+      const y = rect.top + ((-SCRATCH_NDC.y + 1) / 2) * rect.height;
       const visible =
-        ndc.z >= -1 &&
-        ndc.z <= 1 &&
+        SCRATCH_NDC.z >= -1 &&
+        SCRATCH_NDC.z <= 1 &&
         x >= rect.left + 4 &&
         x <= rect.right - 4 &&
         y >= rect.top + 4 &&

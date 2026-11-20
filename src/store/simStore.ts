@@ -243,6 +243,17 @@ export function sampleFrameAt(
   };
 }
 
+/**
+ * High-frequency mutable simulation clock read/written in the priority -1 useFrame
+ * without triggering React re-renders on every animation frame. Zustand `timeS`
+ * is synced at ~10 Hz during playback (and immediately on scrubs/seeks) so HUD
+ * components stay smooth with minimal GC pressure.
+ */
+export const liveSimClock = {
+  timeS: 0,
+  lastHudSyncMs: 0,
+};
+
 interface SimStoreState {
   baseMission: MissionConfig;
   mission: MissionConfig;
@@ -267,6 +278,8 @@ interface SimStoreState {
   resetToNominal: () => void;
   setTimeS: (t: number) => void;
   advanceTime: (dtRealS: number) => void;
+  /** High-frequency rAF clock tick: clamps dt <= 50 ms, updates liveSimClock, throttles HUD sync to ~10 Hz */
+  tickFrameClock: (dtRealS: number) => void;
   togglePlay: () => void;
   setPlaying: (playing: boolean) => void;
   setPlaybackSpeed: (speed: number) => void;
@@ -335,6 +348,8 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
         return;
       }
       if (msg.type === 'MISSION_RESULT') {
+        liveSimClock.timeS = 0;
+        liveSimClock.lastHudSyncMs = performance.now();
         set((s) => ({
           trajectory: msg.data,
           nominalTrajectory: asWhatIf ? s.nominalTrajectory : msg.data,
@@ -376,6 +391,8 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   resetToNominal: () => {
     const { baseMission, nominalTrajectory } = get();
     if (nominalTrajectory) {
+      liveSimClock.timeS = 0;
+      liveSimClock.lastHudSyncMs = performance.now();
       set({
         mission: baseMission,
         trajectory: nominalTrajectory,
@@ -390,7 +407,10 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
 
   setTimeS: (t) => {
     const dur = get().trajectory?.durationS ?? 0;
-    set({ timeS: Math.max(0, Math.min(dur, t)) });
+    const clamped = Math.max(0, Math.min(dur, t));
+    liveSimClock.timeS = clamped;
+    liveSimClock.lastHudSyncMs = performance.now();
+    set({ timeS: clamped });
   },
 
   advanceTime: (dtRealS) => {
@@ -398,14 +418,44 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
     if (!playing || !trajectory) return;
     const next = timeS + dtRealS * playbackSpeed;
     if (next >= trajectory.durationS) {
+      liveSimClock.timeS = trajectory.durationS;
       set({ timeS: trajectory.durationS, playing: false });
     } else {
+      liveSimClock.timeS = next;
       set({ timeS: next });
     }
   },
 
-  togglePlay: () => set((s) => ({ playing: !s.playing })),
-  setPlaying: (playing) => set({ playing }),
+  tickFrameClock: (dtRealS) => {
+    const { playing, playbackSpeed, trajectory } = get();
+    if (!playing || !trajectory) return;
+    const clampedDt = Math.min(Math.max(0, dtRealS), 0.05);
+    const next = liveSimClock.timeS + clampedDt * playbackSpeed;
+    const now = performance.now();
+    if (next >= trajectory.durationS) {
+      liveSimClock.timeS = trajectory.durationS;
+      liveSimClock.lastHudSyncMs = now;
+      set({ timeS: trajectory.durationS, playing: false });
+    } else {
+      liveSimClock.timeS = next;
+      // Throttle HUD/React state updates to ~10 Hz (every 100 ms) during playback
+      if (now - liveSimClock.lastHudSyncMs >= 100) {
+        liveSimClock.lastHudSyncMs = now;
+        set({ timeS: next });
+      }
+    }
+  },
+
+  togglePlay: () =>
+    set((s) => {
+      const nextPlaying = !s.playing;
+      liveSimClock.lastHudSyncMs = performance.now();
+      return { playing: nextPlaying, timeS: liveSimClock.timeS };
+    }),
+  setPlaying: (playing) => {
+    liveSimClock.lastHudSyncMs = performance.now();
+    set({ playing, timeS: liveSimClock.timeS });
+  },
   setPlaybackSpeed: (playbackSpeed) => set({ playbackSpeed }),
   setCameraMode: (cameraMode) => set({ cameraMode }),
   setFocusStage: (focusStage) => set({ focusStage }),
