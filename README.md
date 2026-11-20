@@ -60,14 +60,35 @@ Validated against OCR-cleaned SpaceX webcast telemetry ([shahar603/Telemetry-Dat
 
 *Note on Stage 2 holdouts:* Real Iridium NEXT 8 and SAOCOM 1A fly a **two-burn** Stage 2 profile (park orbit + circularization burn), whereas the current simulator models a single continuous Stage 2 burn (tracked in [docs/BACKLOG.md](docs/BACKLOG.md)).
 
-### Monte Carlo Dispersion Robustness (`N = 200`, `seed = 42`)
+### Monte Carlo Dispersion Robustness (`N = 1,000` per Unseen Holdout Seed)
 
-Dispersions applied simultaneously: Thrust `±1%`, Isp `±0.5%`, `Cd ±5%`, base wind `±12 m/s` + altitude gusts `±10 m/s`, horizontal nav noise `0.5–2.0 m`, and first-order actuator lag `40–120 ms`.
+All robustness numbers below are measured on **unseen holdout seeds** (zero tuning on these seeds).
 
-| Profile | Landing Success | Orbit Achieved | Miss Distance (p50 / p95) | S1 Fuel Margin (p5) |
-| --- | --- | --- | --- | --- |
-| **ASDS (`leo-asds-lc39a`)** | **200/200 (100.0%)** | **100.0%** | `0.99 m` / `1.78 m` | `2,360 kg` (`0.57%`) |
-| **RTLS (`leo-rtls-slc40`)** | **200/200 (100.0%)** | **100.0%** | `0.13 m` / `0.38 m` | `6,138 kg` (`1.49%`) |
+#### 1. v1.0.0 Dispersion Set (Unseen Holdout Seeds `1337`, `2024`, `7` — Zero Guidance Changes)
+Dispersions: Thrust `±1%`, Isp `±0.5%`, `Cd ±5%`, base wind `±12 m/s` + gusts `±10 m/s`, horizontal nav noise `0.5–2.0 m`, actuator lag `40–120 ms`.
+
+| Profile | Seed (`N=1000`) | Landing Success | Orbit Achieved | Miss (p50 / p95) | S1 Fuel Margin (p5) |
+| --- | --- | --- | --- | --- | --- |
+| **ASDS** | `1337` | **1000/1000 (100.0%)** | 100.0% | `0.97 m` / `1.81 m` | `2,378 kg` (`0.58%`) |
+| **ASDS** | `2024` | **1000/1000 (100.0%)** | 100.0% | `0.98 m` / `1.87 m` | `2,345 kg` (`0.57%`) |
+| **ASDS** | `7` | **1000/1000 (100.0%)** | 100.0% | `0.99 m` / `1.75 m` | `2,383 kg` (`0.58%`) |
+| **RTLS** | `1337` | **1000/1000 (100.0%)** | 100.0% | `0.15 m` / `0.36 m` | `6,125 kg` (`1.49%`) |
+| **RTLS** | `2024` | **1000/1000 (100.0%)** | 100.0% | `0.14 m` / `0.36 m` | `6,160 kg` (`1.50%`) |
+| **RTLS** | `7` | **1000/1000 (100.0%)** | 100.0% | `0.14 m` / `0.38 m` | `6,192 kg` (`1.51%`) |
+
+#### 2. v1.1.0 Full Realistic Dispersion Set (New Unseen Holdout Seeds `4096`, `8888`, `9999`)
+Adds: altitude nav error `±5 m`, velocity nav error `±0.3 m/s`, propellant load `±0.5%`, dry mass `±1%`, ASDS droneship offset `±10 m`, ASDS deck heave `0–1.5 m` & roll `0–2.5°`, and ascent/booster throttle response lag `40–120 ms`. Peak aerodynamic load `q·α` checked against the `200 kPa·deg` (`ASSUMED`) structural envelope.
+
+| Profile | Seed (`N=1000`) | Landing Success | Orbit Achieved | Miss (p50 / p95) | S1 Fuel (p5) | Peak `q·α` (p95) |
+| --- | --- | --- | --- | --- | --- | --- |
+| **ASDS** | `4096` | **967/1000 (96.7%)** | 100.0% | `1.09 m` / `2.26 m` | `1,712 kg` (`0.42%`) | `102.6 kPa·deg` (`0` exceed) |
+| **ASDS** | `8888` | **956/1000 (95.6%)** | 100.0% | `1.11 m` / `2.31 m` | `1,721 kg` (`0.42%`) | `102.4 kPa·deg` (`0` exceed) |
+| **ASDS** | `9999` | **959/1000 (95.9%)** | 100.0% | `1.09 m` / `2.27 m` | `1,717 kg` (`0.42%`) | `100.8 kPa·deg` (`0` exceed) |
+| **RTLS** | `4096` | **999/1000 (99.9%)** | 100.0% | `0.14 m` / `0.35 m` | `5,795 kg` (`1.41%`) | `101.4 kPa·deg` (`0` exceed) |
+| **RTLS** | `8888` | **1000/1000 (100.0%)** | 100.0% | `0.15 m` / `0.37 m` | `5,827 kg` (`1.42%`) | `104.1 kPa·deg` (`0` exceed) |
+| **RTLS** | `9999` | **1000/1000 (100.0%)** | 100.0% | `0.14 m` / `0.37 m` | `5,747 kg` (`1.40%`) | `102.5 kPa·deg` (`0` exceed) |
+
+*Note: Seed `42` was used as the development seed during v1.0.0 guidance tuning and is excluded from the holdout tables above. With the v1.1.0 realistic dispersions enabled before guidance updates, seed `1337` (`N=200`) initially dropped to 82.0% ASDS / 57.5% RTLS due to deck heave and altimeter noise; adding a terminal flare + anti-hover-bounce cutoff guard in a separate commit restored >95.6% ASDS and ≥99.9% RTLS on unseen seeds `4096`, `8888`, and `9999`.*
 
 ---
 

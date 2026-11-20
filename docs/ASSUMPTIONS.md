@@ -60,3 +60,16 @@ This document tracks every `ASSUMED` parameter, modeling simplification, and emp
 1. **At liftoff ($T+0\ \text{s}$):** `DM-1/JSON/stage2 raw.json` reads $v = 0.28\ \text{m/s}$ ($1\ \text{km/h}$), not the $\approx 408.2\ \text{m/s}$ inertial speed of LC-39A ($28.61^\circ\text{N}$) due to Earth's rotation.
 2. **At orbital insertion (SECO-1, prograde inclined LEO):** At $T+548.9\ \text{s}$ ($h = 198\ \text{km}$, $i = 51.66^\circ$ ISS orbit), `DM-1` reads **$7{,}547.2\ \text{m/s}$** ($27{,}170\ \text{km/h}$), vs inertial circular velocity $7{,}785.6\ \text{m/s}$ ($238\ \text{m/s}$ higher). Subtracting Earth's eastward rotation component ($\omega_\oplus r \cos i \approx 297.9\ \text{m/s}$) yields $7{,}495\text{–}7{,}550\ \text{m/s}$, matching the webcast. (`SpaceX CRS-16` at $207\ \text{km}$, $51.6^\circ$ similarly reads $7{,}538.6\ \text{m/s}$.)
 3. **Near-polar cross-check (`Iridium NEXT 8`, $86.4^\circ$ incl., $632\ \text{km}$):** With Earth's rotation nearly perpendicular ($\cos 86.4^\circ = 0.063$), $v_{\text{ECEF}} \approx 7{,}520\ \text{m/s}$ vs $v_{\text{ECI}} \approx 7{,}542\ \text{m/s}$ — and `Iridium NEXT 8` reads **$7{,}522.2\ \text{m/s}$**.
+
+## Aerodynamic Structural Load Limit (`q·α`) — `ASSUMED`
+
+- **Limit (`ASSUMED_MAX_Q_ALPHA_PA_DEG`):** `200 kPa·deg` (`~3.49 kPa·rad`), representative of public orbital launch-vehicle structural bending-moment envelopes near Max-Q.
+- **Ascent wind steering:** Stage 1 flies a ground-relative gravity turn after pitchover while winds apply physical aerodynamic drag and side-force loads (`v_air = v_ground − v_wind`). Under `±12 m/s` base winds + `±10 m/s` altitude gusts, p95 peak `q·α` remains `~98–100 kPa·deg` (well below the `200 kPa·deg` ASSUMED structural envelope, `0%` exceedances).
+
+## Monte Carlo Dispersions (`v1.1`) — `ASSUMED`
+
+- Thrust `±1.0%`, Isp `±0.5%`, `Cd ±5.0%`, propellant load `±0.5%`, dry mass `±1.0%`.
+- Base wind `±12 m/s` (East/North) + altitude-varying gusts `±10 m/s`.
+- Navigation errors fed into booster guidance: horizontal `0.5–2.0 m`, altitude `±5.0 m`, velocity `±0.3 m/s` per axis.
+- ASDS station-keeping offset `±10 m` + simplified ocean deck motion: heave `0–1.5 m` (`7 s` swell period) and roll `0–2.5°` (`8 s` period), enforced against relative vertical touchdown speed (`|v_z − v_heave| < 2.0 m/s`) and combined tilt (`tilt + |roll| < 5.0°`).
+- First-order actuator and throttle response lag: `40–120 ms`.
