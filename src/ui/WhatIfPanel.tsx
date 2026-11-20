@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { FALCON9_BLOCK5 } from '../sim/config/falcon9.js';
 import type { LandingMode, MissionConfig } from '../sim/types.js';
 import { useSimStore } from '../store/simStore.js';
+import { fmtSignedDelta } from './format.js';
 
 function formatDelta(val: number, unit: string, digits = 1): string {
-  const sign = val > 0 ? '+' : '';
-  return `${sign}${val.toFixed(digits)} ${unit}`;
+  return fmtSignedDelta(val, unit, digits);
 }
 
 export function WhatIfPanel() {

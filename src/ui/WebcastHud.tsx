@@ -1,4 +1,5 @@
 import { sampleFrameAt, useSimStore } from '../store/simStore.js';
+import { fmtFixed } from './format.js';
 
 function formatMissionClock(timeS: number): string {
   const total = Math.max(0, Math.floor(timeS));
@@ -14,10 +15,10 @@ export function WebcastHud() {
 
   if (!frame || !trajectory) return null;
 
-  const s1Kmh = Math.round(frame.stage1.speedEarthRelMs * 3.6);
-  const s1Km = (Math.max(0, frame.stage1.altitudeM) / 1000).toFixed(1);
-  const s2Kmh = Math.round(frame.stage2.speedEarthRelMs * 3.6);
-  const s2Km = (Math.max(0, frame.stage2.altitudeM) / 1000).toFixed(1);
+  const s1Kmh = Math.round(Math.max(0, frame.stage1.speedEarthRelMs * 3.6));
+  const s1Km = fmtFixed(Math.max(0, frame.stage1.altitudeM) / 1000, 1);
+  const s2Kmh = Math.round(Math.max(0, frame.stage2.speedEarthRelMs * 3.6));
+  const s2Km = fmtFixed(Math.max(0, frame.stage2.altitudeM) / 1000, 1);
 
   const s1Phase = frame.stage1.phase;
   const s2Phase = frame.stage2.phase;

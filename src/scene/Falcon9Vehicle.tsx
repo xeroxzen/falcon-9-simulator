@@ -94,9 +94,10 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
         </>
       )}
 
-      <mesh position={[1.87, 19.65, 0]} raycast={NO_RAYCAST}>
-        <boxGeometry args={[0.16, 32.5, 0.24]} />
-        <meshStandardMaterial color="#252930" roughness={0.6} />
+      {/* Stage 1 avionics/FTS cable raceway — slim white fairing offset to +X side */}
+      <mesh position={[1.86, 19.65, 0]} raycast={NO_RAYCAST}>
+        <boxGeometry args={[0.09, 32.2, 0.16]} />
+        <meshStandardMaterial color="#d8dee6" roughness={0.42} metalness={0.12} />
       </mesh>
 
       <mesh position={[0, 39.3, 0]} castShadow raycast={NO_RAYCAST}>

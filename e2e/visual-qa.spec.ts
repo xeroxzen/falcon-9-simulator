@@ -163,20 +163,38 @@ test.describe('Phase 5 Visual QA, Physics Integrity & GPU Performance', () => {
     await assertCanvasRendered(page);
     await page.screenshot({ path: path.join(QA_DIR, 'qa-above-100km.png') });
 
-    // 6. Split view after separation
+    // 6. Split view after separation — also measure GPU perf in Split View
     await page.evaluate((t) => {
       const dbg = (
         window as unknown as {
           __f9debug: {
             setCameraMode: (m: string) => void;
             setTimeS: (t: number) => void;
+            setPlaybackSpeed: (s: number) => void;
+            setPlaying: (p: boolean) => void;
+            resetFps: () => void;
           };
         }
       ).__f9debug;
       dbg.setTimeS(t);
       dbg.setCameraMode('split');
+      dbg.setPlaybackSpeed(1);
+      dbg.setPlaying(true);
+      dbg.resetFps();
     }, sepT + 140);
-    await waitFrames(page, 12);
+    await page.waitForTimeout(1800);
+    const perfSplit: PerfMetrics = await page.evaluate(() => {
+      const dbg = (
+        window as unknown as {
+          __f9debug: { getPerfMetrics: () => PerfMetrics; setPlaying: (p: boolean) => void };
+        }
+      ).__f9debug;
+      dbg.setPlaying(false);
+      return dbg.getPerfMetrics();
+    });
+    console.log(
+      `[Perf Split] FPS=${perfSplit.fps.toFixed(1)} | p50=${perfSplit.p50FrameMs.toFixed(2)}ms | p95=${perfSplit.p95FrameMs.toFixed(2)}ms | draws=${perfSplit.drawCalls} | tris=${perfSplit.triangles}`
+    );
     expect(await page.locator('canvas').count()).toBe(2);
     await assertCanvasRendered(page);
     await page.screenshot({ path: path.join(QA_DIR, 'qa-split-view.png') });
@@ -198,7 +216,16 @@ test.describe('Phase 5 Visual QA, Physics Integrity & GPU Performance', () => {
       dbg.setCameraMode('droneship');
       dbg.setTimeS(tLand);
     }, durationS);
-    await waitFrames(page, 12);
+    await expect(page.locator('canvas')).toHaveCount(1);
+    await page.waitForFunction(() => {
+      const dbg = (
+        window as unknown as {
+          __f9debug?: { getState: () => { boosterFootHeightAboveDeckM: number | null } };
+        }
+      ).__f9debug;
+      return dbg?.getState().boosterFootHeightAboveDeckM !== null;
+    });
+    await waitFrames(page, 6);
     const landState = await getDebugState(page);
     expect(landState.boosterFootHeightAboveDeckM).not.toBeNull();
     expect(Math.abs(landState.boosterFootHeightAboveDeckM!)).toBeLessThan(0.5);

@@ -232,17 +232,11 @@ export function stepAscent(
       altitudeM: state.geodetic.altitudeM,
       latRad: state.geodetic.latRad,
       lonRad: state.geodetic.lonRad,
+      // Fly ground-relative gravity turn (like real DOLILU guidance) so surface
+      // winds apply physical aero loads without weathercocking the pitchover kick.
       vAirRelEci: sub(
-        sub(
-          state.dynamic.velocityEci,
-          earthRotationVelocityEci(state.dynamic.positionEci)
-        ),
-        windVelocityEci(
-          state.geodetic.latRad,
-          state.geodetic.lonRad,
-          state.timeS,
-          mission
-        )
+        state.dynamic.velocityEci,
+        earthRotationVelocityEci(state.dynamic.positionEci)
       ),
       mach: state.mach,
       dynamicPressurePa: state.dynamicPressurePa,
@@ -280,10 +274,12 @@ export function stepAscent(
       const vWind = windVelocityEci(geo.latRad, geo.lonRad, t, mission);
       const vAirRel = sub(sub(s.velocityEci, vRot), vWind);
 
+      const disp = mission.dispersions;
       const aero = evaluateAscentAerodynamics(
         vAirRel,
         atmo,
-        vehicle.referenceAreaM2
+        vehicle.referenceAreaM2,
+        disp?.cdScale ?? 1
       );
       const prop = evaluateStagePropulsion(
         vehicle.stage1,
@@ -291,7 +287,9 @@ export function stepAscent(
         atmo.pressurePa,
         t,
         s.stage1PropellantKg,
-        mission.engineOuts
+        mission.engineOuts,
+        disp?.thrustScale ?? 1,
+        disp?.ispScale ?? 1
       );
 
       const mass = fixedMass + Math.max(0, s.stage1PropellantKg);

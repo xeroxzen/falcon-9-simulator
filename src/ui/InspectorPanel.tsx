@@ -1,6 +1,7 @@
 import { getComponentContent } from '../content/registry.js';
 import { sampleFrameAt, useSimStore } from '../store/simStore.js';
 import type { PlaybackFrame } from '../worker/protocol.js';
+import { fmtFixed } from './format.js';
 
 type TelemetryOrigin = 'SIM' | 'DERIVED';
 
@@ -113,7 +114,7 @@ function buildHonestTelemetry(
       return {
         rows: [
           { label: 'Deployment State', value: s1.landingLegsDeployed ? 'DEPLOYED' : 'STOWED', origin: 'SIM' },
-          { label: 'Altitude AGL', value: `${s1.altitudeM.toFixed(1)} m`, origin: 'SIM' },
+          { label: 'Altitude AGL', value: `${fmtFixed(Math.max(0, s1.altitudeM), 1)} m`, origin: 'SIM' },
         ],
       };
 

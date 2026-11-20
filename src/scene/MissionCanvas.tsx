@@ -48,7 +48,7 @@ function SceneContent({
   cameraMode,
   isPrimaryTicker,
 }: SceneContentProps) {
-  const { camera, gl, scene } = useThree();
+  const { camera, gl } = useThree();
   const trajectory = useSimStore((s) => s.trajectory);
   const timeS = useSimStore((s) => s.timeS);
   const advanceTime = useSimStore((s) => s.advanceTime);
@@ -63,7 +63,13 @@ function SceneContent({
 
   useEffect(() => {
     installDebugHook();
-  }, []);
+    // Disable autoReset so renderer.info.render accumulates ALL WebGL draw calls
+    // and triangles across the entire frame (scene + shadows + EffectComposer).
+    gl.info.autoReset = false;
+    return () => {
+      gl.info.autoReset = true;
+    };
+  }, [gl]);
 
   const frame = useMemo(
     () => sampleFrameAt(trajectory, timeS),
@@ -174,27 +180,10 @@ function SceneContent({
         ? (s1GroupRef.current?.position.y ?? s1Pos.y) +
           (frame.stage1.landingLegsDeployed ? 0.03 : 0.3)
         : null;
-      // Count actual visible scene draw calls & triangles (since EffectComposer resets gl.info.render)
-      let calls = 0;
-      let triangles = 0;
-      scene.traverseVisible((obj) => {
-        if ((obj as THREE.Mesh).isMesh) {
-          const mesh = obj as THREE.Mesh;
-          const mat = mesh.material as THREE.Material | undefined;
-          // Skip invisible proxy hitboxes (opacity === 0)
-          if (mat && 'opacity' in mat && (mat as THREE.MeshBasicMaterial).opacity === 0) {
-            return;
-          }
-          calls++;
-          const geom = mesh.geometry;
-          if (geom) {
-            const idx = geom.getIndex();
-            const pos = geom.getAttribute('position');
-            if (idx) triangles += Math.floor(idx.count / 3);
-            else if (pos) triangles += Math.floor(pos.count / 3);
-          }
-        }
-      });
+      // Read true per-frame WebGL draw calls & triangles directly from renderer.info.render
+      const calls = gl.info.render.calls;
+      const triangles = gl.info.render.triangles;
+      gl.info.reset();
       updateDebugFrame(camera, gl.domElement, footHeightAboveDeck, {
         calls,
         triangles,
@@ -327,7 +316,7 @@ function SceneContent({
         />
       )}
 
-      <EffectComposer multisampling={0}>
+      <EffectComposer multisampling={0} resolutionScale={cameraMode === 'split' ? 0.5 : 1}>
         <Bloom
           luminanceThreshold={0.85}
           mipmapBlur
@@ -358,7 +347,7 @@ export function MissionCanvas() {
           <Canvas
             gl={{ preserveDrawingBuffer: true }}
             camera={{ fov: 48, near: 0.5, far: 45_000, position: [80, 40, 80] }}
-            dpr={[1, 1.5]}
+            dpr={1}
           >
             <SceneContent
               viewStage="stage2"
@@ -372,7 +361,7 @@ export function MissionCanvas() {
           <Canvas
             gl={{ preserveDrawingBuffer: true }}
             camera={{ fov: 48, near: 0.5, far: 45_000, position: [80, 40, 80] }}
-            dpr={[1, 1.5]}
+            dpr={1}
           >
             <SceneContent
               viewStage="stage1"

@@ -85,6 +85,25 @@ export interface WindConfig {
   readonly upMs: number;
 }
 
+export interface DispersionConfig {
+  /** Multiplicative thrust scale (e.g., 1.0 ± 0.01) */
+  readonly thrustScale: number;
+  /** Multiplicative Isp scale (e.g., 1.0 ± 0.005) */
+  readonly ispScale: number;
+  /** Multiplicative drag coefficient Cd scale (e.g., 1.0 ± 0.05) */
+  readonly cdScale: number;
+  /** Altitude-varying wind gust amplitude (m/s, east/north) */
+  readonly windGustEastMs: number;
+  readonly windGustNorthMs: number;
+  readonly windGustPhaseRad: number;
+  /** Horizontal navigation position noise (1-sigma meters) */
+  readonly navNoiseM: number;
+  /** First-order actuator lag time constant (seconds) */
+  readonly actuatorLagS: number;
+  /** Deterministic seed for step-level navigation noise */
+  readonly seed: number;
+}
+
 export interface AscentGuidanceConfig {
   /** Altitude (m) at which pitchover maneuver begins (ASSUMED) */
   readonly pitchKickAltitudeM: number;
@@ -129,6 +148,7 @@ export interface MissionConfig {
   readonly dtS: number;
   readonly maxSimTimeS: number;
   readonly wind: WindConfig;
+  readonly dispersions?: DispersionConfig;
   readonly engineOuts: readonly EngineOutConfig[];
   readonly guidance: AscentGuidanceConfig;
 }

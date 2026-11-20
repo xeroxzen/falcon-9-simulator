@@ -31,7 +31,9 @@ export function evaluateEngine(
   commandedThrottle: number,
   ambientPressurePa: number,
   failed: boolean,
-  hasPropellant: boolean
+  hasPropellant: boolean,
+  thrustScale = 1,
+  ispScale = 1
 ): EngineState {
   if (failed || !hasPropellant || commandedThrottle <= 0) {
     return {
@@ -45,11 +47,13 @@ export function evaluateEngine(
   }
 
   const throttle = clamp(commandedThrottle, spec.minThrottle, spec.maxThrottle);
+  const thrustVac = spec.thrustVacuumN * thrustScale;
+  const ispVac = spec.ispVacuumS * ispScale;
   const thrustN = Math.max(
     0,
-    throttle * spec.thrustVacuumN - ambientPressurePa * spec.exitAreaM2
+    throttle * thrustVac - ambientPressurePa * spec.exitAreaM2
   );
-  const massFlowKgS = (throttle * spec.thrustVacuumN) / (spec.ispVacuumS * G0);
+  const massFlowKgS = (throttle * thrustVac) / (ispVac * G0);
 
   return {
     index,
@@ -71,7 +75,9 @@ export function evaluateStagePropulsion(
   ambientPressurePa: number,
   timeS: number,
   propellantRemainingKg: number,
-  engineOuts: readonly EngineOutConfig[]
+  engineOuts: readonly EngineOutConfig[],
+  thrustScale = 1,
+  ispScale = 1
 ): PropulsionOutput {
   const hasPropellant = propellantRemainingKg > 0;
   const engines: EngineState[] = [];
@@ -89,7 +95,9 @@ export function evaluateStagePropulsion(
       commandedThrottle,
       ambientPressurePa,
       failed,
-      hasPropellant
+      hasPropellant,
+      thrustScale,
+      ispScale
     );
     engines.push(st);
     totalThrustN += st.thrustN;

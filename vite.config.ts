@@ -25,6 +25,7 @@ function validateComponentsPlugin(): Plugin {
 }
 
 export default defineConfig({
+  base: process.env.BASE_PATH || './',
   plugins: [react(), validateComponentsPlugin()],
   worker: {
     format: 'es',

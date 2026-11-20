@@ -56,14 +56,15 @@ export function boosterDescentDragCoefficient(mach: number): number {
 export function evaluateAscentAerodynamics(
   vAirRelEci: Vec3,
   atmosphere: AtmosphereSample,
-  referenceAreaM2: number
+  referenceAreaM2: number,
+  cdScale = 1
 ): AeroOutput {
   const speed = norm(vAirRelEci);
   if (speed < 1e-6 || atmosphere.densityKgM3 <= 0) {
     return {
       mach: 0,
       dynamicPressurePa: 0,
-      cd: ascentDragCoefficient(0),
+      cd: ascentDragCoefficient(0) * cdScale,
       dragMagnitudeN: 0,
       dragForceEci: { x: 0, y: 0, z: 0 },
     };
@@ -72,7 +73,7 @@ export function evaluateAscentAerodynamics(
   const mach =
     atmosphere.speedOfSoundMs > 0 ? speed / atmosphere.speedOfSoundMs : 0;
   const dynamicPressurePa = 0.5 * atmosphere.densityKgM3 * speed * speed;
-  const cd = ascentDragCoefficient(mach);
+  const cd = ascentDragCoefficient(mach) * cdScale;
   const dragMagnitudeN = dynamicPressurePa * cd * referenceAreaM2;
   const dragForceEci = scale(vAirRelEci, -dragMagnitudeN / speed);
 
@@ -105,14 +106,15 @@ export function evaluateBoosterAerodynamics(
   atmosphere: AtmosphereSample,
   referenceAreaM2: number,
   steerDirEci: Vec3,
-  gridFinDeflectionDeg: number
+  gridFinDeflectionDeg: number,
+  cdScale = 1
 ): BoosterAeroOutput {
   const speed = norm(vAirRelEci);
   if (speed < 1e-6 || atmosphere.densityKgM3 <= 0) {
     return {
       mach: 0,
       dynamicPressurePa: 0,
-      cd: boosterDescentDragCoefficient(0),
+      cd: boosterDescentDragCoefficient(0) * cdScale,
       dragMagnitudeN: 0,
       dragForceEci: { x: 0, y: 0, z: 0 },
       liftMagnitudeN: 0,
@@ -123,7 +125,7 @@ export function evaluateBoosterAerodynamics(
   const mach =
     atmosphere.speedOfSoundMs > 0 ? speed / atmosphere.speedOfSoundMs : 0;
   const dynamicPressurePa = 0.5 * atmosphere.densityKgM3 * speed * speed;
-  const cd = boosterDescentDragCoefficient(mach);
+  const cd = boosterDescentDragCoefficient(mach) * cdScale;
   const dragMagnitudeN = dynamicPressurePa * cd * referenceAreaM2;
   const vHat = scale(vAirRelEci, 1 / speed);
   const dragForceEci = scale(vHat, -dragMagnitudeN);

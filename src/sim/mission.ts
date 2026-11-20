@@ -55,14 +55,31 @@ interface BodyDerivative {
 function windEci(
   latRad: number,
   lonRad: number,
+  altitudeM: number,
   timeS: number,
   mission: MissionConfig
 ): Vec3 {
-  const { eastMs, northMs, upMs } = mission.wind;
+  const disp = mission.dispersions;
+  let eastMs = mission.wind.eastMs;
+  let northMs = mission.wind.northMs;
+  const upMs = mission.wind.upMs;
+  if (disp && (disp.windGustEastMs !== 0 || disp.windGustNorthMs !== 0)) {
+    const hFade = Math.min(1, Math.max(0, altitudeM / 500));
+    eastMs += disp.windGustEastMs * Math.sin(altitudeM / 3_500 + disp.windGustPhaseRad) * hFade;
+    northMs += disp.windGustNorthMs * Math.cos(altitudeM / 4_200 + disp.windGustPhaseRad) * hFade;
+  }
   if (eastMs === 0 && northMs === 0 && upMs === 0) {
     return { x: 0, y: 0, z: 0 };
   }
   return enuToEci(eastMs, northMs, upMs, localEnuBasisEci(latRad, lonRad, timeS));
+}
+
+function detNoiseUnit(seed: number, step: number, channel: number): number {
+  let x = (seed ^ (step * 374761393) ^ (channel * 668265263)) | 0;
+  x = Math.imul(x ^ (x >>> 13), 1274126177);
+  x = x ^ (x >>> 16);
+  // Map uint32 -> approx Gaussian via triangular [-1, 1]
+  return ((x >>> 0) / 4294967295) * 2 - 1;
 }
 
 function buildStage2State(
@@ -145,6 +162,7 @@ function evaluateBoosterEngines(
   let totalThrustN = 0;
   let totalMassFlowKgS = 0;
 
+  const disp = mission.dispersions;
   for (let i = 0; i < vehicle.stage1.engineCount; i++) {
     const failed = mission.engineOuts.some(
       (eo) => eo.engineIndex === i && timeS >= eo.timeS
@@ -156,7 +174,9 @@ function evaluateBoosterEngines(
       commanded,
       ambientPressurePa,
       failed,
-      propellantKg > 0
+      propellantKg > 0,
+      disp?.thrustScale ?? 1,
+      disp?.ispScale ?? 1
     );
     engines.push(st);
     totalThrustN += st.thrustN;
@@ -187,7 +207,7 @@ function buildBoosterState(
   const atmo = sampleAtmosphere(geodetic.altitudeM);
 
   const vRot = earthRotationVelocityEci(dynamic.positionEci);
-  const vWind = windEci(geodetic.latRad, geodetic.lonRad, timeS, mission);
+  const vWind = windEci(geodetic.latRad, geodetic.lonRad, geodetic.altitudeM, timeS, mission);
   const vAirRel = sub(sub(dynamic.velocityEci, vRot), vWind);
   const vGroundRel = sub(dynamic.velocityEci, vRot);
 
@@ -196,7 +216,8 @@ function buildBoosterState(
     atmo,
     vehicle.referenceAreaM2,
     aeroSteerDirEci,
-    gridFinDeflectionDeg
+    gridFinDeflectionDeg,
+    mission.dispersions?.cdScale ?? 1
   );
   const prop = evaluateBoosterEngines(
     vehicle,
@@ -326,7 +347,7 @@ function predictAsdsTargetCoord(
       atmo.pressurePa,
       dyn.propellantKg,
       t,
-      mission
+      { ...mission, dispersions: undefined }
     );
     const mass = vehicle.stage1.dryMassKg + Math.max(0, dyn.propellantKg);
     const gAcc = gravitationalAccelerationEci(dyn.positionEci, mission.enableJ2);
@@ -447,6 +468,8 @@ export function runFullMission(
   let landingStartRecorded = false;
   let legsRecorded = false;
   let boosterDone = false;
+  let actualBoosterThrottle = 0;
+  let actualGridFinDeflDeg = 0;
 
   const maxPostMecoSteps = Math.round(
     Math.max(60, mission.maxSimTimeS - mecoTimeS) / dt
@@ -629,10 +652,24 @@ export function runFullMission(
       const bGeo = bState.geodetic;
       const bAtmo = sampleAtmosphere(bGeo.altitudeM);
 
+      const disp = mission.dispersions;
+      // Optional navigation position noise fed into guidance (true state used for touchdown check)
+      let sensedDyn = bDyn;
+      if (disp && disp.navNoiseM > 0 && bGeo.altitudeM > 1.0) {
+        const navScale = disp.navNoiseM * Math.min(1, 0.2 + bGeo.altitudeM / 80);
+        const basisNav = localEnuBasisEci(bGeo.latRad, bGeo.lonRad, prevT);
+        const nE = detNoiseUnit(disp.seed, step, 1) * navScale;
+        const nN = detNoiseUnit(disp.seed, step, 2) * navScale;
+        sensedDyn = {
+          ...bDyn,
+          positionEci: add(bDyn.positionEci, enuToEci(nE, nN, 0, basisNav)),
+        };
+      }
+
       const bCmd = computeBoosterGuidance(
         prevT,
         stageSepTimeS,
-        bDyn,
+        sensedDyn,
         bGeo,
         bState.totalMassKg,
         bAtmo.pressurePa,
@@ -687,24 +724,40 @@ export function runFullMission(
         );
         const stepBAtt = normalize(add(bDyn.attitudeEci, nextBAtt));
 
+        // Optional first-order actuator lag on booster throttle & grid-fin deflection
+        const lagS = disp?.actuatorLagS ?? 0;
+        if (lagS > 0) {
+          const alpha = dt / (lagS + dt);
+          actualBoosterThrottle =
+            bCmd.activeEngineIndices.length > 0
+              ? actualBoosterThrottle + (bCmd.throttle - actualBoosterThrottle) * alpha
+              : 0;
+          actualGridFinDeflDeg =
+            actualGridFinDeflDeg + (bCmd.gridFinDeflectionDeg - actualGridFinDeflDeg) * alpha;
+        } else {
+          actualBoosterThrottle = bCmd.throttle;
+          actualGridFinDeflDeg = bCmd.gridFinDeflectionDeg;
+        }
+
         const bSpace: Rk4Space<BodyDynamicState, BodyDerivative> = {
           derivative(tt, s) {
             const geo = ecefToGeodetic(eciToEcef(s.positionEci, tt));
             const atmo = sampleAtmosphere(geo.altitudeM);
             const vRot = earthRotationVelocityEci(s.positionEci);
-            const vW = windEci(geo.latRad, geo.lonRad, tt, mission);
+            const vW = windEci(geo.latRad, geo.lonRad, geo.altitudeM, tt, mission);
             const vAir = sub(sub(s.velocityEci, vRot), vW);
             const aero = evaluateBoosterAerodynamics(
               vAir,
               atmo,
               vehicle.referenceAreaM2,
               bCmd.aeroSteerDirEci,
-              bCmd.gridFinDeflectionDeg
+              actualGridFinDeflDeg,
+              disp?.cdScale ?? 1
             );
             const prop = evaluateBoosterEngines(
               vehicle,
               bCmd.activeEngineIndices,
-              bCmd.throttle,
+              actualBoosterThrottle,
               atmo.pressurePa,
               s.propellantKg,
               tt,

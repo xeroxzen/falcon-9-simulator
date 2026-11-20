@@ -182,7 +182,7 @@ export function computeBoosterGuidance(
 
   // 3. Boostback burn (RTLS only, 3 engines: center + 2 outer)
   if (mem.phase === 'BOOSTBACK_BURN') {
-    const reserveAfterBoostback = s1PropTotal * 0.055;
+    const reserveAfterBoostback = s1PropTotal * 0.042;
     // Predict ballistic time of flight to target altitude (scaled by 0.92 for
     // atmospheric drag shortening during descent)
     const gLocal = 9.55;
@@ -268,22 +268,25 @@ export function computeBoosterGuidance(
   }
 
   // Compute analytic suicide-burn (hoverslam) ignition altitude.
-  // Use 65% nominal throttle so 1 engine retains vertical headroom while tilted
-  // for ZEM/ZEV lateral guidance (even on heavier high-margin RTLS boosters).
+  // Account for 1-3-1 multi-engine braking on heavier RTLS boosters (effective
+  // 1.55-engine nominal deceleration) vs 1-engine ASDS hoverslam (85% throttle),
+  // so atmospheric drag sheds energy down to ~2.2-3.5 km before ignition.
   const merlin = vehicle.stage1.engine;
-  const nomThrottle = 0.65;
-  const nomThrust1 = Math.max(
+  const nomThrottle = mission.landingMode === 'RTLS' ? 0.85 : 0.88;
+  const nomEngEquiv = mission.landingMode === 'RTLS' ? 1.55 : 1.0;
+  const nomThrust = Math.max(
     1,
-    nomThrottle * merlin.thrustVacuumN - ambientPressurePa * merlin.exitAreaM2
+    nomEngEquiv *
+      (nomThrottle * merlin.thrustVacuumN - ambientPressurePa * merlin.exitAreaM2)
   );
-  const aNetNom1 = Math.max(2.0, nomThrust1 / totalMassKg - G0);
+  const aNetNom = Math.max(2.0, nomThrust / totalMassKg - G0);
   const vDown = Math.max(0, -vUp);
-  const hIgnition = (vDown * vDown) / (2 * aNetNom1) + 25.0;
+  const hIgnition = (vDown * vDown) / (2 * aNetNom) + 35.0;
 
   // 6. Aerodynamic descent with titanium grid fins
   if (mem.phase === 'AERO_DESCENT') {
     if (
-      heightAboveTarget <= 4_000 &&
+      heightAboveTarget <= 4_500 &&
       vUp < -5 &&
       heightAboveTarget <= hIgnition &&
       dynamic.propellantKg > 0
@@ -374,7 +377,7 @@ export function computeBoosterGuidance(
     // Terminal vertical descent (< 12 m): null residual horizontal velocity cleanly
     const posWeight = clamp((heightAboveTarget - 3.0) / 9.0, 0, 1);
     const posTerm = scale(toTargetHoriz, 0.8 * posWeight);
-    const velTerm = scale(vHorizVec, 2.2);
+    const velTerm = scale(vHorizVec, 3.2);
     aLatCmd = sub(posTerm, velTerm);
   }
 
@@ -402,7 +405,7 @@ export function computeBoosterGuidance(
   const maxThrust1 =
     merlin.thrustVacuumN - ambientPressurePa * merlin.exitAreaM2;
   const useThreeEngines =
-    vDown > 60 && heightAboveTarget > 200 && reqThrustN > 0.92 * maxThrust1;
+    vDown > 45 && heightAboveTarget > 150 && reqThrustN > 0.92 * maxThrust1;
   const activeEngines = useThreeEngines ? [0, 1, 5] : [0];
   const nEng = activeEngines.length;
 
