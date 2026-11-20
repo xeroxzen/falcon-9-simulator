@@ -27,6 +27,16 @@ export function EngineerPanel() {
           <span>Dynamic Pressure (q)</span>
           <strong>{fmtFixed(snap.dynamicPressurePa / 1000, 2)} kPa</strong>
         </div>
+        {!frame.separated && (
+          <div className="eng-row">
+            <span>Aero Load (q·α)</span>
+            <strong data-testid="eng-qalpha">
+              {snap.ambientDensityKgM3 < 1e-6
+                ? '—'
+                : `${fmtFixed(snap.qAlphaPaDeg / 1000, 1)} kPa·°`}
+            </strong>
+          </div>
+        )}
         <div className="eng-row">
           <span>Mach Number</span>
           <strong data-testid="eng-mach">

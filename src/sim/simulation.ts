@@ -47,12 +47,14 @@ interface DynamicDerivative {
 export function computeAscentFixedMassKg(
   vehicle: VehicleConfig,
   payloadMassKg: number,
-  hasFairing = true
+  hasFairing = true,
+  dryMassScale = 1,
+  propellantLoadScale = 1
 ): number {
   return (
-    vehicle.stage1.dryMassKg +
-    vehicle.stage2.dryMassKg +
-    vehicle.stage2.propellantMassKg +
+    vehicle.stage1.dryMassKg * dryMassScale +
+    vehicle.stage2.dryMassKg * dryMassScale +
+    vehicle.stage2.propellantMassKg * propellantLoadScale +
     (hasFairing ? vehicle.fairingMassKg : 0) +
     payloadMassKg
   );
@@ -73,11 +75,12 @@ export function createInitialAscentState(
   const posEci = geodeticToEcef({ latRad, lonRad, altitudeM: altM });
   const velEci = earthRotationVelocityEci(posEci);
   const basis = localEnuBasisEci(latRad, lonRad, 0);
+  const propScale = mission.dispersions?.propellantLoadScale ?? 1;
 
   const dynamic: DynamicState = {
     positionEci: posEci,
     velocityEci: velEci,
-    stage1PropellantKg: vehicle.stage1.propellantMassKg,
+    stage1PropellantKg: vehicle.stage1.propellantMassKg * propScale,
     attitudeEci: basis.up,
   };
 
@@ -96,10 +99,19 @@ export function createInitialAscentState(
 function windVelocityEci(
   latRad: number,
   lonRad: number,
+  altitudeM: number,
   timeS: number,
   mission: MissionConfig
 ): Vec3 {
-  const { eastMs, northMs, upMs } = mission.wind;
+  const disp = mission.dispersions;
+  let eastMs = mission.wind.eastMs;
+  let northMs = mission.wind.northMs;
+  const upMs = mission.wind.upMs;
+  if (disp && (disp.windGustEastMs !== 0 || disp.windGustNorthMs !== 0)) {
+    const hFade = Math.min(1, Math.max(0, altitudeM / 500));
+    eastMs += disp.windGustEastMs * Math.sin(altitudeM / 3_500 + disp.windGustPhaseRad) * hFade;
+    northMs += disp.windGustNorthMs * Math.cos(altitudeM / 4_200 + disp.windGustPhaseRad) * hFade;
+  }
   if (eastMs === 0 && northMs === 0 && upMs === 0) {
     return { x: 0, y: 0, z: 0 };
   }
@@ -126,16 +138,19 @@ function buildSimState(
   const vWind = windVelocityEci(
     geodetic.latRad,
     geodetic.lonRad,
+    geodetic.altitudeM,
     timeS,
     mission
   );
   const vAirRel = sub(sub(dynamic.velocityEci, vRot), vWind);
   const vGroundRel = sub(dynamic.velocityEci, vRot);
 
+  const disp = mission.dispersions;
   const aero = evaluateAscentAerodynamics(
     vAirRel,
     atmosphere,
-    vehicle.referenceAreaM2
+    vehicle.referenceAreaM2,
+    disp?.cdScale ?? 1
   );
   const prop = evaluateStagePropulsion(
     vehicle.stage1,
@@ -143,13 +158,17 @@ function buildSimState(
     atmosphere.pressurePa,
     timeS,
     dynamic.stage1PropellantKg,
-    mission.engineOuts
+    mission.engineOuts,
+    disp?.thrustScale ?? 1,
+    disp?.ispScale ?? 1
   );
 
   const fixedMass = computeAscentFixedMassKg(
     vehicle,
     mission.payloadMassKg,
-    mission.hasFairing
+    mission.hasFairing,
+    disp?.dryMassScale ?? 1,
+    disp?.propellantLoadScale ?? 1
   );
   const totalMassKg = fixedMass + Math.max(0, dynamic.stage1PropellantKg);
 
@@ -177,6 +196,7 @@ function buildSimState(
     speedAirRelMs > 1.0
       ? angleBetweenRad(dynamic.attitudeEci, vAirRel) * RAD_TO_DEG
       : 0;
+  const qAlphaPaDeg = aero.dynamicPressurePa * angleOfAttackDeg;
 
   return {
     timeS,
@@ -197,6 +217,7 @@ function buildSimState(
     axialAccelG,
     pitchFromVerticalDeg,
     angleOfAttackDeg,
+    qAlphaPaDeg,
     engines: prop.engines,
     atmosphere,
   };
@@ -207,6 +228,7 @@ export interface AscentStepContext {
   readonly padLatRad: number;
   readonly padLonRad: number;
   pitchKickStartTimeS: number | null;
+  actualThrottle: number;
 }
 
 /**
@@ -219,10 +241,13 @@ export function stepAscent(
   mission: MissionConfig,
   ctx: AscentStepContext
 ): SimState {
+  const disp = mission.dispersions;
   const fixedMass = computeAscentFixedMassKg(
     vehicle,
     mission.payloadMassKg,
-    mission.hasFairing
+    mission.hasFairing,
+    disp?.dryMassScale ?? 1,
+    disp?.propellantLoadScale ?? 1
   );
   const activeCount = state.engines.filter((e) => e.active).length;
 
@@ -232,8 +257,7 @@ export function stepAscent(
       altitudeM: state.geodetic.altitudeM,
       latRad: state.geodetic.latRad,
       lonRad: state.geodetic.lonRad,
-      // Fly ground-relative gravity turn (like real DOLILU guidance) so surface
-      // winds apply physical aero loads without weathercocking the pitchover kick.
+      // Ground-relative gravity turn; wind still applies physical aero loads & q*alpha.
       vAirRelEci: sub(
         state.dynamic.velocityEci,
         earthRotationVelocityEci(state.dynamic.positionEci)
@@ -262,7 +286,15 @@ export function stepAscent(
   );
   // Use midpoint attitude for forces across the step
   const stepAttitude = normalize(add(state.dynamic.attitudeEci, nextAttitude));
-  const stepThrottle = cmd.throttle;
+  const lagS = disp?.actuatorLagS ?? 0;
+  if (lagS > 0 && cmd.throttle > 0) {
+    const alpha = dt / (lagS + dt);
+    ctx.actualThrottle =
+      ctx.actualThrottle + (cmd.throttle - ctx.actualThrottle) * alpha;
+  } else {
+    ctx.actualThrottle = cmd.throttle;
+  }
+  const stepThrottle = ctx.actualThrottle;
 
   const rk4Space: Rk4Space<DynamicState, DynamicDerivative> = {
     derivative(t: number, s: DynamicState): DynamicDerivative {
@@ -271,7 +303,7 @@ export function stepAscent(
       const atmo = sampleAtmosphere(geo.altitudeM);
 
       const vRot = earthRotationVelocityEci(s.positionEci);
-      const vWind = windVelocityEci(geo.latRad, geo.lonRad, t, mission);
+      const vWind = windVelocityEci(geo.latRad, geo.lonRad, geo.altitudeM, t, mission);
       const vAirRel = sub(sub(s.velocityEci, vRot), vWind);
 
       const disp = mission.dispersions;
@@ -380,6 +412,7 @@ export function runAscentToMeco(
     padLatRad: mission.launchSite.latDeg * DEG_TO_RAD,
     padLonRad: mission.launchSite.lonDeg * DEG_TO_RAD,
     pitchKickStartTimeS: null,
+    actualThrottle: 0.72,
   };
 
   let state = createInitialAscentState(vehicle, mission);
@@ -400,6 +433,8 @@ export function runAscentToMeco(
 
   let peakQ = 0;
   let peakQState = state;
+  let peakQAlpha = 0;
+  let peakQAlphaTimeS = 0;
   let peakG = 0;
   let pitchoverRecorded = false;
   const recordedEngineOuts = new Set<number>();
@@ -417,6 +452,10 @@ export function runAscentToMeco(
     if (state.dynamicPressurePa > peakQ) {
       peakQ = state.dynamicPressurePa;
       peakQState = state;
+    }
+    if (state.qAlphaPaDeg > peakQAlpha) {
+      peakQAlpha = state.qAlphaPaDeg;
+      peakQAlphaTimeS = state.timeS;
     }
     if (state.axialAccelG > peakG) {
       peakG = state.axialAccelG;
@@ -489,6 +528,8 @@ export function runAscentToMeco(
     samples,
     peakDynamicPressurePa: peakQ,
     peakDynamicPressureTimeS: peakQState.timeS,
+    peakQAlphaPaDeg: peakQAlpha,
+    peakQAlphaTimeS,
     peakAxialAccelG: peakG,
     launchAzimuthDeg,
   };

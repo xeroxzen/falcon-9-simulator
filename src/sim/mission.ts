@@ -107,8 +107,9 @@ function buildStage2State(
     dynamic.propellantKg > 0
   );
 
+  const disp = mission.dispersions;
   const fixedMass =
-    vehicle.stage2.dryMassKg +
+    vehicle.stage2.dryMassKg * (disp?.dryMassScale ?? 1) +
     (fairingAttached ? vehicle.fairingMassKg : 0) +
     mission.payloadMassKg;
   const totalMassKg = fixedMass + Math.max(0, dynamic.propellantKg);
@@ -230,7 +231,8 @@ function buildBoosterState(
   );
 
   const totalMassKg =
-    vehicle.stage1.dryMassKg + Math.max(0, dynamic.propellantKg);
+    vehicle.stage1.dryMassKg * (mission.dispersions?.dryMassScale ?? 1) +
+    Math.max(0, dynamic.propellantKg);
   const verticalSpeedMs = dot(vGroundRel, basis.up);
   const vGroundSq = dot(vGroundRel, vGroundRel);
   const horizontalSpeedMs = Math.sqrt(
@@ -393,10 +395,11 @@ export function runFullMission(
   const stageSepTimeS = mecoTimeS + mission.guidance.stageSepDelayS;
 
   // Initial Stage 2 & Booster states at MECO
+  const initPropScale = mission.dispersions?.propellantLoadScale ?? 1;
   let s2Dyn: BodyDynamicState = {
     positionEci: mecoState.dynamic.positionEci,
     velocityEci: mecoState.dynamic.velocityEci,
-    propellantKg: vehicle.stage2.propellantMassKg,
+    propellantKg: vehicle.stage2.propellantMassKg * initPropScale,
     attitudeEci: mecoState.dynamic.attitudeEci,
   };
   let fairingAttached = mission.hasFairing;
@@ -408,9 +411,12 @@ export function runFullMission(
     attitudeEci: mecoState.dynamic.attitudeEci,
   };
 
-  // Determine landing target (LZ-1/LZ-4 for RTLS, predicted downrange deck for ASDS)
+  // Determine landing target (LZ-1/LZ-4 for RTLS, predicted downrange deck for ASDS).
+  // For ASDS with station-keeping dispersion (±10 m), offset the actual droneship
+  // position while guidance still navigates toward the updated/actual target or
+  // experiences the offset.
   const rtlsSite = LANDING_SITES[mission.landingSiteId ?? 'LZ-1'];
-  const landingTarget: GeodeticCoord =
+  const nominalLandingTarget: GeodeticCoord =
     mission.landingMode === 'RTLS'
       ? {
           latRad: rtlsSite.latDeg * DEG_TO_RAD,
@@ -418,6 +424,24 @@ export function runFullMission(
           altitudeM: rtlsSite.elevationM,
         }
       : predictAsdsTargetCoord(mecoTimeS, bDyn, vehicle, mission);
+
+  let landingTarget: GeodeticCoord = nominalLandingTarget;
+  if (
+    mission.landingMode === 'ASDS' &&
+    mission.dispersions &&
+    ((mission.dispersions.droneshipOffsetEastM ?? 0) !== 0 ||
+      (mission.dispersions.droneshipOffsetNorthM ?? 0) !== 0)
+  ) {
+    const dE = mission.dispersions.droneshipOffsetEastM ?? 0;
+    const dN = mission.dispersions.droneshipOffsetNorthM ?? 0;
+    const dLat = dN / 6_371_000;
+    const dLon = dE / (6_371_000 * Math.max(0.1, Math.cos(nominalLandingTarget.latRad)));
+    landingTarget = {
+      latRad: nominalLandingTarget.latRad + dLat,
+      lonRad: nominalLandingTarget.lonRad + dLon,
+      altitudeM: nominalLandingTarget.altitudeM,
+    };
+  }
 
   const bMem: BoosterGuidanceMemory = {
     phase: 'MECO_COAST',
@@ -653,24 +677,42 @@ export function runFullMission(
       const bAtmo = sampleAtmosphere(bGeo.altitudeM);
 
       const disp = mission.dispersions;
-      // Optional navigation position noise fed into guidance (true state used for touchdown check)
+      // Optional navigation position (horiz + alt ±5 m) & velocity (±0.3 m/s) noise
+      // fed into guidance while true state is used for touchdown criteria.
       let sensedDyn = bDyn;
-      if (disp && disp.navNoiseM > 0 && bGeo.altitudeM > 1.0) {
-        const navScale = disp.navNoiseM * Math.min(1, 0.2 + bGeo.altitudeM / 80);
+      let sensedGeo = bGeo;
+      if (disp && bGeo.altitudeM > 1.0) {
+        const altFade = Math.min(1, 0.2 + bGeo.altitudeM / 80);
+        const navScale = disp.navNoiseM * altFade;
+        const altErrM = (disp.navAltNoiseM ?? 0) * detNoiseUnit(disp.seed, step, 3) * altFade;
+        const velErrScale = disp.navVelNoiseMs ?? 0;
         const basisNav = localEnuBasisEci(bGeo.latRad, bGeo.lonRad, prevT);
         const nE = detNoiseUnit(disp.seed, step, 1) * navScale;
         const nN = detNoiseUnit(disp.seed, step, 2) * navScale;
+        const vE = velErrScale > 0 ? detNoiseUnit(disp.seed, step, 4) * velErrScale : 0;
+        const vN = velErrScale > 0 ? detNoiseUnit(disp.seed, step, 5) * velErrScale : 0;
+        const vU = velErrScale > 0 ? detNoiseUnit(disp.seed, step, 6) * velErrScale : 0;
         sensedDyn = {
           ...bDyn,
-          positionEci: add(bDyn.positionEci, enuToEci(nE, nN, 0, basisNav)),
+          positionEci: add(bDyn.positionEci, enuToEci(nE, nN, altErrM, basisNav)),
+          velocityEci:
+            velErrScale > 0
+              ? add(bDyn.velocityEci, enuToEci(vE, vN, vU, basisNav))
+              : bDyn.velocityEci,
         };
+        if (altErrM !== 0) {
+          sensedGeo = {
+            ...bGeo,
+            altitudeM: Math.max(0.1, bGeo.altitudeM + altErrM),
+          };
+        }
       }
 
       const bCmd = computeBoosterGuidance(
         prevT,
         stageSepTimeS,
         sensedDyn,
-        bGeo,
+        sensedGeo,
         bState.totalMassKg,
         bAtmo.pressurePa,
         bAtmo.densityKgM3,

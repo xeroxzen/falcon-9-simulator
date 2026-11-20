@@ -76,6 +76,7 @@ function lerpStage(
     horizontalSpeedMs: lerp(a.horizontalSpeedMs, b.horizontalSpeedMs, t),
     mach: lerp(a.mach, b.mach, t),
     dynamicPressurePa: lerp(a.dynamicPressurePa, b.dynamicPressurePa, t),
+    qAlphaPaDeg: lerp(a.qAlphaPaDeg, b.qAlphaPaDeg, t),
     thrustN: lerp(a.thrustN, b.thrustN, t),
     throttle: lerp(a.throttle, b.throttle, t),
     axialAccelG: lerp(a.axialAccelG, b.axialAccelG, t),
@@ -86,6 +87,127 @@ function lerpStage(
     ambientPressurePa: lerp(a.ambientPressurePa, b.ambientPressurePa, t),
     ambientDensityKgM3: lerp(a.ambientDensityKgM3, b.ambientDensityKgM3, t),
   };
+}
+
+function lerpVec3Into(a: Vec3, b: Vec3, t: number, out: { x: number; y: number; z: number }): void {
+  out.x = a.x + (b.x - a.x) * t;
+  out.y = a.y + (b.y - a.y) * t;
+  out.z = a.z + (b.z - a.z) * t;
+}
+
+function lerpDirInto(a: Vec3, b: Vec3, t: number, out: { x: number; y: number; z: number }): void {
+  const x = a.x + (b.x - a.x) * t;
+  const y = a.y + (b.y - a.y) * t;
+  const z = a.z + (b.z - a.z) * t;
+  const n = Math.hypot(x, y, z);
+  if (n > 1e-9) {
+    out.x = x / n;
+    out.y = y / n;
+    out.z = z / n;
+  } else {
+    out.x = 0;
+    out.y = 0;
+    out.z = 1;
+  }
+}
+
+export interface MutableStageTransform {
+  readonly padEnuM: { x: number; y: number; z: number };
+  readonly landingEnuM: { x: number; y: number; z: number };
+  readonly attitudePadEnu: { x: number; y: number; z: number };
+  readonly attitudeLandingEnu: { x: number; y: number; z: number };
+  altitudeM: number;
+  phase: string;
+  landingLegsDeployed: boolean;
+}
+
+export interface MutableFrameTransform {
+  separated: boolean;
+  readonly stage1: MutableStageTransform;
+  readonly stage2: MutableStageTransform;
+}
+
+export function createMutableFrameTransform(): MutableFrameTransform {
+  return {
+    separated: false,
+    stage1: {
+      padEnuM: { x: 0, y: 0, z: 0 },
+      landingEnuM: { x: 0, y: 0, z: 0 },
+      attitudePadEnu: { x: 0, y: 0, z: 1 },
+      attitudeLandingEnu: { x: 0, y: 0, z: 1 },
+      altitudeM: 0,
+      phase: 'PAD',
+      landingLegsDeployed: false,
+    },
+    stage2: {
+      padEnuM: { x: 0, y: 0, z: 0 },
+      landingEnuM: { x: 0, y: 0, z: 0 },
+      attitudePadEnu: { x: 0, y: 0, z: 1 },
+      attitudeLandingEnu: { x: 0, y: 0, z: 1 },
+      altitudeM: 0,
+      phase: 'ATTACHED',
+      landingLegsDeployed: false,
+    },
+  };
+}
+
+/**
+ * Zero-allocation frame transform sampler for 60+ fps `useFrame` loops.
+ * Writes interpolated positions/attitudes directly into `out` without creating objects.
+ */
+export function sampleFrameTransformInto(
+  trajectory: MissionTrajectoryData | null,
+  timeS: number,
+  out: MutableFrameTransform
+): boolean {
+  if (!trajectory || trajectory.frames.length === 0) return false;
+  const frames = trajectory.frames;
+  let f0: PlaybackFrame;
+  let f1: PlaybackFrame;
+  let alpha = 0;
+  if (timeS <= frames[0]!.timeS) {
+    f0 = f1 = frames[0]!;
+  } else if (timeS >= frames[frames.length - 1]!.timeS) {
+    f0 = f1 = frames[frames.length - 1]!;
+  } else {
+    let lo = 0;
+    let hi = frames.length - 1;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (frames[mid]!.timeS <= timeS) lo = mid;
+      else hi = mid;
+    }
+    f0 = frames[lo]!;
+    f1 = frames[hi]!;
+    const span = f1.timeS - f0.timeS;
+    alpha = span > 1e-6 ? (timeS - f0.timeS) / span : 0;
+  }
+
+  out.separated = timeS >= trajectory.stageSepTimeS;
+
+  const s1a = f0.stage1;
+  const s1b = f1.stage1;
+  const s1n = alpha < 0.5 ? s1a : s1b;
+  lerpVec3Into(s1a.padEnuM, s1b.padEnuM, alpha, out.stage1.padEnuM);
+  lerpVec3Into(s1a.landingEnuM, s1b.landingEnuM, alpha, out.stage1.landingEnuM);
+  lerpDirInto(s1a.attitudePadEnu, s1b.attitudePadEnu, alpha, out.stage1.attitudePadEnu);
+  lerpDirInto(s1a.attitudeLandingEnu, s1b.attitudeLandingEnu, alpha, out.stage1.attitudeLandingEnu);
+  out.stage1.altitudeM = lerp(s1a.altitudeM, s1b.altitudeM, alpha);
+  out.stage1.phase = s1n.phase;
+  out.stage1.landingLegsDeployed = s1n.landingLegsDeployed;
+
+  const s2a = f0.stage2;
+  const s2b = f1.stage2;
+  const s2n = alpha < 0.5 ? s2a : s2b;
+  lerpVec3Into(s2a.padEnuM, s2b.padEnuM, alpha, out.stage2.padEnuM);
+  lerpVec3Into(s2a.landingEnuM, s2b.landingEnuM, alpha, out.stage2.landingEnuM);
+  lerpDirInto(s2a.attitudePadEnu, s2b.attitudePadEnu, alpha, out.stage2.attitudePadEnu);
+  lerpDirInto(s2a.attitudeLandingEnu, s2b.attitudeLandingEnu, alpha, out.stage2.attitudeLandingEnu);
+  out.stage2.altitudeM = lerp(s2a.altitudeM, s2b.altitudeM, alpha);
+  out.stage2.phase = s2n.phase;
+  out.stage2.landingLegsDeployed = s2n.landingLegsDeployed;
+
+  return true;
 }
 
 /**

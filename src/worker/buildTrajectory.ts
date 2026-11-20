@@ -194,6 +194,7 @@ function buildSnapshotFromAscent(
     horizontalSpeedMs: s.horizontalSpeedMs,
     mach: s.mach,
     dynamicPressurePa: s.dynamicPressurePa,
+    qAlphaPaDeg: s.qAlphaPaDeg,
     thrustN: s.thrustN,
     throttle: s.throttle,
     axialAccelG: s.axialAccelG,
@@ -238,6 +239,7 @@ function buildSnapshotFromBooster(
     horizontalSpeedMs: b.horizontalSpeedMs,
     mach: b.mach,
     dynamicPressurePa: b.dynamicPressurePa,
+    qAlphaPaDeg: 0,
     thrustN: b.thrustN,
     throttle: b.throttle,
     axialAccelG: b.axialAccelG,
@@ -282,6 +284,7 @@ function buildSnapshotFromStage2(
     mach: atmo.speedOfSoundMs > 0 ? s2.speedEarthRelMs / atmo.speedOfSoundMs : 0,
     dynamicPressurePa:
       0.5 * atmo.densityKgM3 * s2.speedEarthRelMs * s2.speedEarthRelMs,
+    qAlphaPaDeg: 0,
     thrustN: s2.thrustN,
     throttle: s2.throttle,
     axialAccelG: s2.axialAccelG,

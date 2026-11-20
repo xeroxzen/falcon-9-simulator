@@ -90,19 +90,35 @@ export function computeBoosterGuidance(
   const tiltDeg = angleBetweenRad(dynamic.attitudeEci, basis.up) * RAD_TO_DEG;
   const zeroVec: Vec3 = { x: 0, y: 0, z: 0 };
 
-  // Strict realistic touchdown check
-  if (heightAboveTarget <= 0 && timeS > stageSepTimeS + 10) {
+  // Optional ASDS deck motion (heave + roll) for realistic sea-state touchdown criteria
+  const disp = mission.dispersions;
+  const isAsdsDeck = mission.landingMode === 'ASDS' && disp !== undefined;
+  const heaveAmp = isAsdsDeck ? (disp.deckHeaveAmpM ?? 0) : 0;
+  const rollAmpDeg = isAsdsDeck ? (disp.deckRollAmpDeg ?? 0) : 0;
+  const deckPhase = disp?.deckPhaseRad ?? 0;
+  const heaveOmega = (2 * Math.PI) / 7.0; // ~7 s ocean swell period
+  const rollOmega = (2 * Math.PI) / 8.0;  // ~8 s barge roll period
+  const deckHeaveM = heaveAmp > 0 ? heaveAmp * Math.sin(heaveOmega * timeS + deckPhase) : 0;
+  const deckHeaveVelMs =
+    heaveAmp > 0 ? heaveAmp * heaveOmega * Math.cos(heaveOmega * timeS + deckPhase) : 0;
+  const deckRollDeg =
+    rollAmpDeg > 0 ? Math.abs(rollAmpDeg * Math.sin(rollOmega * timeS + deckPhase * 1.3)) : 0;
+
+  // Strict realistic touchdown check (relative to moving ASDS deck when dispersions active)
+  if (heightAboveTarget <= deckHeaveM && timeS > stageSepTimeS + 10) {
     const maxMissM = mission.landingMode === 'RTLS' ? 15.0 : 10.0;
+    const relVUp = vUp - deckHeaveVelMs;
+    const relTiltDeg = tiltDeg + deckRollDeg;
     const reasons: string[] = [];
     if (dynamic.propellantKg <= 0) reasons.push('Propellant depleted');
-    if (Math.abs(vUp) >= 2.0) {
-      reasons.push(`Vertical speed ${Math.abs(vUp).toFixed(1)} m/s (>= 2 m/s)`);
+    if (Math.abs(relVUp) >= 2.0) {
+      reasons.push(`Vertical speed ${Math.abs(relVUp).toFixed(1)} m/s (>= 2 m/s)`);
     }
     if (vHoriz >= 1.0) {
       reasons.push(`Horizontal speed ${vHoriz.toFixed(1)} m/s (>= 1 m/s)`);
     }
-    if (tiltDeg >= 5.0) {
-      reasons.push(`Tilt ${tiltDeg.toFixed(1)}° (>= 5°)`);
+    if (relTiltDeg >= 5.0) {
+      reasons.push(`Tilt ${relTiltDeg.toFixed(1)}° (>= 5°)`);
     }
     if (distHoriz >= maxMissM) {
       reasons.push(`Off-target miss ${distHoriz.toFixed(1)} m (>= ${maxMissM} m)`);

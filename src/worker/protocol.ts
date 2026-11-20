@@ -56,6 +56,7 @@ export interface StageFrameSnapshot {
   readonly horizontalSpeedMs: number;
   readonly mach: number;
   readonly dynamicPressurePa: number;
+  readonly qAlphaPaDeg: number;
   readonly thrustN: number;
   readonly throttle: number;
   readonly axialAccelG: number;

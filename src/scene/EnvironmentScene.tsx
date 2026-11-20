@@ -188,6 +188,11 @@ export function LandingPadMesh({
  * Curved Earth sphere + Rayleigh atmosphere halo + altitude-faded starfield.
  * Positioned dynamically below the active floating-origin vehicle.
  */
+const SKY_LOW = new THREE.Color('#4a86c8');
+const SKY_MID = new THREE.Color('#0c2142');
+const SKY_HIGH = new THREE.Color('#02040a');
+const SKY_SCRATCH = new THREE.Color();
+
 export function EarthAndSky({ altitudeM }: { readonly altitudeM: number }) {
   const atmoMat = useMemo(
     () =>
@@ -203,16 +208,14 @@ export function EarthAndSky({ altitudeM }: { readonly altitudeM: number }) {
   );
 
   // Smoothly transition sky background from bright launch-day blue -> deep space black
+  // Reuses pre-allocated Color constants (zero per-frame allocations)
   const spaceFactor = Math.min(1, Math.max(0, (altitudeM - 8_000) / 70_000));
-  const skyColor = useMemo(() => {
-    const low = new THREE.Color('#4a86c8');
-    const mid = new THREE.Color('#0c2142');
-    const high = new THREE.Color('#02040a');
-    if (spaceFactor < 0.45) {
-      return low.lerp(mid, spaceFactor / 0.45);
-    }
-    return mid.lerp(high, (spaceFactor - 0.45) / 0.55);
-  }, [spaceFactor]);
+  if (spaceFactor < 0.45) {
+    SKY_SCRATCH.copy(SKY_LOW).lerp(SKY_MID, spaceFactor / 0.45);
+  } else {
+    SKY_SCRATCH.copy(SKY_MID).lerp(SKY_HIGH, (spaceFactor - 0.45) / 0.55);
+  }
+  const skyHex = SKY_SCRATCH.getHex();
 
   // Scale Earth sphere cleanly when at high altitude so depth buffer stays crisp
   const showCurvedEarth = altitudeM > 6_000;
@@ -222,7 +225,7 @@ export function EarthAndSky({ altitudeM }: { readonly altitudeM: number }) {
 
   return (
     <>
-      <color attach="background" args={[skyColor.getStyle()]} />
+      <color attach="background" args={[skyHex]} />
 
       {/* Star field fades in cleanly above ~35 km (full above 100 km) */}
       {altitudeM > 25_000 && (

@@ -195,7 +195,9 @@ test.describe('Phase 5 Visual QA, Physics Integrity & GPU Performance', () => {
     console.log(
       `[Perf Split] FPS=${perfSplit.fps.toFixed(1)} | p50=${perfSplit.p50FrameMs.toFixed(2)}ms | p95=${perfSplit.p95FrameMs.toFixed(2)}ms | draws=${perfSplit.drawCalls} | tris=${perfSplit.triangles}`
     );
-    expect(await page.locator('canvas').count()).toBe(2);
+    // Single renderer, single canvas, two scissored viewports
+    expect(await page.locator('canvas').count()).toBe(1);
+    expect(await page.locator('.pane-badge').count()).toBe(2);
     await assertCanvasRendered(page);
     await page.screenshot({ path: path.join(QA_DIR, 'qa-split-view.png') });
 

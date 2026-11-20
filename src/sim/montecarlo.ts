@@ -1,3 +1,4 @@
+import { ASSUMED_MAX_Q_ALPHA_PA_DEG } from './config/constants.js';
 import { runFullMission } from './mission.js';
 import type { DispersionConfig, MissionConfig, VehicleConfig } from './types.js';
 
@@ -7,6 +8,7 @@ export interface MonteCarloTrialResult {
   readonly orbitAchieved: boolean;
   readonly missM: number;
   readonly propRemainingKg: number;
+  readonly peakQAlphaKpaDeg: number;
   readonly vzMs: number;
   readonly vhMs: number;
   readonly tiltDeg: number;
@@ -25,6 +27,8 @@ export interface MonteCarloSummary {
   readonly missP95M: number;
   readonly fuelMarginP5Kg: number;
   readonly fuelMarginP5Pct: number;
+  readonly peakQAlphaP95KpaDeg: number;
+  readonly qAlphaExceedCount: number;
   readonly failureBreakdown: Readonly<Record<string, number>>;
   readonly elapsedMs: number;
 }
@@ -54,19 +58,19 @@ function percentile(sorted: readonly number[], p: number): number {
 }
 
 /**
- * Run a seeded N-trial Monte Carlo dispersion campaign with:
- *   - Thrust ±1.0%
- *   - Isp ±0.5%
- *   - Drag coefficient Cd ±5.0%
+ * Run a seeded N-trial Monte Carlo dispersion campaign with realistic dispersions:
+ *   - Thrust ±1.0%, Isp ±0.5%, Drag Cd ±5.0%
+ *   - Propellant load ±0.5%, Dry mass ±1.0%
  *   - Base wind ±12 m/s + altitude-varying wind gusts ±10 m/s
- *   - Horizontal navigation noise 0.5–2.0 m (1-sigma)
- *   - First-order actuator lag 0.04–0.12 s
+ *   - Navigation errors: horizontal 0.5–2.0 m, altitude ±5 m, velocity ±0.3 m/s
+ *   - ASDS droneship position offset ±10 m + deck motion (heave 0–1.5 m, roll 0–2.5 deg)
+ *   - First-order actuator & throttle response lag 40–120 ms
  */
 export function runMonteCarlo(
   vehicle: VehicleConfig,
   baseMission: MissionConfig,
   trials = 200,
-  seed = 42
+  seed = 1337
 ): MonteCarloSummary {
   const t0 = performance.now();
   const rng = mulberry32(seed);
@@ -74,21 +78,30 @@ export function runMonteCarlo(
   const failureBreakdown: Record<string, number> = {};
 
   for (let i = 0; i < trials; i++) {
+    const isAsds = baseMission.landingMode === 'ASDS';
     const dispersions: DispersionConfig = {
       thrustScale: 1 + uniform(rng, -0.01, 0.01),
       ispScale: 1 + uniform(rng, -0.005, 0.005),
       cdScale: 1 + uniform(rng, -0.05, 0.05),
+      propellantLoadScale: 1 + uniform(rng, -0.005, 0.005),
+      dryMassScale: 1 + uniform(rng, -0.01, 0.01),
       windGustEastMs: uniform(rng, -10, 10),
       windGustNorthMs: uniform(rng, -10, 10),
       windGustPhaseRad: uniform(rng, 0, Math.PI * 2),
       navNoiseM: uniform(rng, 0.5, 2.0),
+      navAltNoiseM: uniform(rng, 0, 5.0),
+      navVelNoiseMs: uniform(rng, 0, 0.3),
+      droneshipOffsetEastM: isAsds ? uniform(rng, -10, 10) : 0,
+      droneshipOffsetNorthM: isAsds ? uniform(rng, -10, 10) : 0,
+      deckHeaveAmpM: isAsds ? uniform(rng, 0, 1.5) : 0,
+      deckRollAmpDeg: isAsds ? uniform(rng, 0, 2.5) : 0,
+      deckPhaseRad: uniform(rng, 0, Math.PI * 2),
       actuatorLagS: uniform(rng, 0.04, 0.12),
       seed: Math.floor(rng() * 1e9),
     };
 
     const trialMission: MissionConfig = {
       ...baseMission,
-      // Use dt = 0.02 s for fast N=200 batch runs (still RK4) if base dt is 0.01 s
       dtS: 0.02,
       wind: {
         eastMs: baseMission.wind.eastMs + uniform(rng, -12, 12),
@@ -112,6 +125,7 @@ export function runMonteCarlo(
       orbitAchieved: res.orbitAchieved,
       missM: res.boosterFinal.distanceToTargetM,
       propRemainingKg: res.boosterFinal.dynamic.propellantKg,
+      peakQAlphaKpaDeg: res.ascent.peakQAlphaPaDeg / 1000,
       vzMs: res.boosterFinal.verticalSpeedMs,
       vhMs: res.boosterFinal.horizontalSpeedMs,
       tiltDeg: res.boosterFinal.tiltFromVerticalDeg,
@@ -123,7 +137,12 @@ export function runMonteCarlo(
   const orbitCount = results.filter((r) => r.orbitAchieved).length;
   const misses = results.map((r) => r.missM).sort((a, b) => a - b);
   const props = results.map((r) => r.propRemainingKg).sort((a, b) => a - b);
+  const qAlphas = results.map((r) => r.peakQAlphaKpaDeg).sort((a, b) => a - b);
   const fuelMarginP5Kg = percentile(props, 5);
+  const limitKpaDeg = ASSUMED_MAX_Q_ALPHA_PA_DEG / 1000;
+  const qAlphaExceedCount = results.filter(
+    (r) => r.peakQAlphaKpaDeg > limitKpaDeg
+  ).length;
 
   return {
     missionId: baseMission.id,
@@ -137,6 +156,8 @@ export function runMonteCarlo(
     missP95M: percentile(misses, 95),
     fuelMarginP5Kg,
     fuelMarginP5Pct: (fuelMarginP5Kg / vehicle.stage1.propellantMassKg) * 100,
+    peakQAlphaP95KpaDeg: percentile(qAlphas, 95),
+    qAlphaExceedCount,
     failureBreakdown,
     elapsedMs: performance.now() - t0,
   };

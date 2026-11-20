@@ -92,13 +92,28 @@ export interface DispersionConfig {
   readonly ispScale: number;
   /** Multiplicative drag coefficient Cd scale (e.g., 1.0 ± 0.05) */
   readonly cdScale: number;
+  /** Multiplicative propellant load scale (e.g., 1.0 ± 0.005) */
+  readonly propellantLoadScale?: number;
+  /** Multiplicative dry mass scale (e.g., 1.0 ± 0.01) */
+  readonly dryMassScale?: number;
   /** Altitude-varying wind gust amplitude (m/s, east/north) */
   readonly windGustEastMs: number;
   readonly windGustNorthMs: number;
   readonly windGustPhaseRad: number;
   /** Horizontal navigation position noise (1-sigma meters) */
   readonly navNoiseM: number;
-  /** First-order actuator lag time constant (seconds) */
+  /** Vertical altitude navigation error (meters, e.g. ±5 m) */
+  readonly navAltNoiseM?: number;
+  /** Velocity navigation error per axis (m/s, e.g. ±0.3 m/s) */
+  readonly navVelNoiseMs?: number;
+  /** ASDS droneship station-keeping position offset (meters, e.g. ±10 m) */
+  readonly droneshipOffsetEastM?: number;
+  readonly droneshipOffsetNorthM?: number;
+  /** ASDS deck heave amplitude (m, ~7 s wave period) & roll amplitude (deg, ~8 s period) */
+  readonly deckHeaveAmpM?: number;
+  readonly deckRollAmpDeg?: number;
+  readonly deckPhaseRad?: number;
+  /** First-order actuator & throttle response lag time constant (seconds) */
   readonly actuatorLagS: number;
   /** Deterministic seed for step-level navigation noise */
   readonly seed: number;
@@ -237,6 +252,8 @@ export interface SimState {
   readonly axialAccelG: number;
   readonly pitchFromVerticalDeg: number;
   readonly angleOfAttackDeg: number;
+  /** Aerodynamic load indicator q * alpha (Pa * deg) */
+  readonly qAlphaPaDeg: number;
   readonly engines: readonly EngineState[];
   readonly atmosphere: AtmosphereSample;
 }
@@ -331,6 +348,8 @@ export interface AscentRunResult {
   readonly samples: readonly SimState[];
   readonly peakDynamicPressurePa: number;
   readonly peakDynamicPressureTimeS: number;
+  readonly peakQAlphaPaDeg: number;
+  readonly peakQAlphaTimeS: number;
   readonly peakAxialAccelG: number;
   readonly launchAzimuthDeg: number;
 }

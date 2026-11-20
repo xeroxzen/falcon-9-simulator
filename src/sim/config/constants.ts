@@ -49,3 +49,10 @@ export const AIR_GAMMA = 1.4;
 
 export const DEG_TO_RAD = Math.PI / 180.0;
 export const RAD_TO_DEG = 180.0 / Math.PI;
+
+/**
+ * ASSUMED structural aerodynamic load limit (dynamic pressure * angle of attack):
+ * 200 kPa·deg (~3.49 kPa·rad), representative of public orbital launch vehicle
+ * max-Q bending-moment envelopes (see docs/ASSUMPTIONS.md).
+ */
+export const ASSUMED_MAX_Q_ALPHA_PA_DEG = 200_000;
