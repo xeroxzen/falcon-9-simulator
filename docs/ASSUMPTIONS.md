@@ -70,6 +70,6 @@ This document tracks every `ASSUMED` parameter, modeling simplification, and emp
 
 - Thrust `±1.0%`, Isp `±0.5%`, `Cd ±5.0%`, propellant load `±0.5%`, dry mass `±1.0%`.
 - Base wind `±12 m/s` (East/North) + altitude-varying gusts `±10 m/s`.
-- Navigation errors fed into booster guidance: horizontal `0.5–2.0 m`, altitude `±5.0 m`, velocity `±0.3 m/s` per axis.
+- Navigation errors fed into booster guidance are modeled as a **first-order Gauss-Markov time-correlated bias process** (`ASSUMED` correlation time `τ = 45 s`, initialized from its stationary distribution `N(0, σ²)`): horizontal `σ = 0.5–2.0 m`, altitude `3σ = ±5.0 m` (`σ ≤ 1.67 m`), velocity `3σ = ±0.3 m/s` (`σ ≤ 0.10 m/s`) per axis. Touchdown detection, impact criteria, and reported miss distances are **always evaluated on the TRUE physical vehicle state**.
 - ASDS station-keeping offset `±10 m` + simplified ocean deck motion: heave `0–1.5 m` (`7 s` swell period) and roll `0–2.5°` (`8 s` period), enforced against relative vertical touchdown speed (`|v_z − v_heave| < 2.0 m/s`) and combined tilt (`tilt + |roll| < 5.0°`).
 - First-order actuator and throttle response lag: `40–120 ms`.

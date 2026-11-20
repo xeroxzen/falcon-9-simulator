@@ -74,12 +74,18 @@ function windEci(
   return enuToEci(eastMs, northMs, upMs, localEnuBasisEci(latRad, lonRad, timeS));
 }
 
-function detNoiseUnit(seed: number, step: number, channel: number): number {
+function detUniform01(seed: number, step: number, channel: number): number {
   let x = (seed ^ (step * 374761393) ^ (channel * 668265263)) | 0;
   x = Math.imul(x ^ (x >>> 13), 1274126177);
   x = x ^ (x >>> 16);
-  // Map uint32 -> approx Gaussian via triangular [-1, 1]
-  return ((x >>> 0) / 4294967295) * 2 - 1;
+  return ((x >>> 0) + 0.5) / 4294967296;
+}
+
+/** Deterministic standard normal N(0, 1) via Box-Muller transform. */
+function detGaussian(seed: number, step: number, channel: number): number {
+  const u1 = Math.max(1e-9, detUniform01(seed, step, channel * 2));
+  const u2 = detUniform01(seed, step, channel * 2 + 1);
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
 
 function buildStage2State(
@@ -495,6 +501,31 @@ export function runFullMission(
   let actualBoosterThrottle = 0;
   let actualGridFinDeflDeg = 0;
 
+  // First-order Gauss-Markov navigation bias state (ASSUMED correlation time tau = 45 s).
+  // Initialized from stationary distribution N(0, sigma^2) so bias is realistic at touchdown.
+  // Horizontal navNoiseM is 1-sigma (0.5-2.0 m); altitude (±5 m) and velocity (±0.3 m/s)
+  // bounds are treated as 3-sigma envelopes (sigma = bound / 3).
+  const NAV_CORR_TIME_S = 45.0;
+  const initDisp = mission.dispersions;
+  const altSigmaM = (initDisp?.navAltNoiseM ?? 0) / 3.0;
+  const velSigmaMs = (initDisp?.navVelNoiseMs ?? 0) / 3.0;
+  let navBiasEastM =
+    initDisp && initDisp.navNoiseM > 0
+      ? detGaussian(initDisp.seed, 0, 1) * initDisp.navNoiseM
+      : 0;
+  let navBiasNorthM =
+    initDisp && initDisp.navNoiseM > 0
+      ? detGaussian(initDisp.seed, 0, 2) * initDisp.navNoiseM
+      : 0;
+  let navBiasAltM =
+    altSigmaM > 0 ? detGaussian(initDisp!.seed, 0, 3) * altSigmaM : 0;
+  let navBiasVelEMs =
+    velSigmaMs > 0 ? detGaussian(initDisp!.seed, 0, 4) * velSigmaMs : 0;
+  let navBiasVelNMs =
+    velSigmaMs > 0 ? detGaussian(initDisp!.seed, 0, 5) * velSigmaMs : 0;
+  let navBiasVelUMs =
+    velSigmaMs > 0 ? detGaussian(initDisp!.seed, 0, 6) * velSigmaMs : 0;
+
   const maxPostMecoSteps = Math.round(
     Math.max(60, mission.maxSimTimeS - mecoTimeS) / dt
   );
@@ -677,37 +708,50 @@ export function runFullMission(
       const bAtmo = sampleAtmosphere(bGeo.altitudeM);
 
       const disp = mission.dispersions;
-      // Optional navigation position (horiz + alt ±5 m) & velocity (±0.3 m/s) noise
-      // fed into guidance while true state is used for touchdown criteria.
+      // Time-correlated Gauss-Markov navigation bias (tau = 45 s, ASSUMED) fed into
+      // guidance; touchdown criteria and reported miss distance ALWAYS use TRUE state bDyn.
       let sensedDyn = bDyn;
       let sensedGeo = bGeo;
-      if (disp && bGeo.altitudeM > 1.0) {
-        const altFade = Math.min(1, 0.2 + bGeo.altitudeM / 80);
-        const navScale = disp.navNoiseM * altFade;
-        const altErrM = (disp.navAltNoiseM ?? 0) * detNoiseUnit(disp.seed, step, 3) * altFade;
-        const velErrScale = disp.navVelNoiseMs ?? 0;
+      if (disp) {
+        const phi = Math.exp(-dt / NAV_CORR_TIME_S);
+        const sigmaW = Math.sqrt(Math.max(0, 1 - phi * phi));
+        if (disp.navNoiseM > 0) {
+          navBiasEastM = phi * navBiasEastM + sigmaW * disp.navNoiseM * detGaussian(disp.seed, step, 1);
+          navBiasNorthM = phi * navBiasNorthM + sigmaW * disp.navNoiseM * detGaussian(disp.seed, step, 2);
+        }
+        if (altSigmaM > 0) {
+          navBiasAltM = phi * navBiasAltM + sigmaW * altSigmaM * detGaussian(disp.seed, step, 3);
+        }
+        if (velSigmaMs > 0) {
+          navBiasVelEMs = phi * navBiasVelEMs + sigmaW * velSigmaMs * detGaussian(disp.seed, step, 4);
+          navBiasVelNMs = phi * navBiasVelNMs + sigmaW * velSigmaMs * detGaussian(disp.seed, step, 5);
+          navBiasVelUMs = phi * navBiasVelUMs + sigmaW * velSigmaMs * detGaussian(disp.seed, step, 6);
+        }
         const basisNav = localEnuBasisEci(bGeo.latRad, bGeo.lonRad, prevT);
-        const nE = detNoiseUnit(disp.seed, step, 1) * navScale;
-        const nN = detNoiseUnit(disp.seed, step, 2) * navScale;
-        const vE = velErrScale > 0 ? detNoiseUnit(disp.seed, step, 4) * velErrScale : 0;
-        const vN = velErrScale > 0 ? detNoiseUnit(disp.seed, step, 5) * velErrScale : 0;
-        const vU = velErrScale > 0 ? detNoiseUnit(disp.seed, step, 6) * velErrScale : 0;
         sensedDyn = {
           ...bDyn,
-          positionEci: add(bDyn.positionEci, enuToEci(nE, nN, altErrM, basisNav)),
+          positionEci: add(
+            bDyn.positionEci,
+            enuToEci(navBiasEastM, navBiasNorthM, navBiasAltM, basisNav)
+          ),
           velocityEci:
-            velErrScale > 0
-              ? add(bDyn.velocityEci, enuToEci(vE, vN, vU, basisNav))
+            velSigmaMs > 0
+              ? add(
+                  bDyn.velocityEci,
+                  enuToEci(navBiasVelEMs, navBiasVelNMs, navBiasVelUMs, basisNav)
+                )
               : bDyn.velocityEci,
         };
-        if (altErrM !== 0) {
+        if (altSigmaM > 0) {
           sensedGeo = {
             ...bGeo,
-            altitudeM: Math.max(0.1, bGeo.altitudeM + altErrM),
+            altitudeM: bGeo.altitudeM + navBiasAltM,
           };
         }
       }
 
+      // Touchdown detection & impact criteria ALWAYS evaluate TRUE state (bDyn, bGeo);
+      // guidance commands use the corrupted navigation estimate (sensedDyn, sensedGeo).
       const bCmd = computeBoosterGuidance(
         prevT,
         stageSepTimeS,
@@ -719,7 +763,9 @@ export function runFullMission(
         landingTarget,
         vehicle,
         mission,
-        bMem
+        bMem,
+        bDyn,
+        bGeo
       );
 
       if (bCmd.phase === 'LANDED' || bCmd.phase === 'CRASHED') {

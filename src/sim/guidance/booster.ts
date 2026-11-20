@@ -65,7 +65,9 @@ export function computeBoosterGuidance(
   targetCoord: GeodeticCoord,
   vehicle: VehicleConfig,
   mission: MissionConfig,
-  mem: BoosterGuidanceMemory
+  mem: BoosterGuidanceMemory,
+  trueDynamic?: BodyDynamicState,
+  trueGeodetic?: GeodeticCoord
 ): BoosterGuidanceCommand {
   const basis = localEnuBasisEci(geodetic.latRad, geodetic.lonRad, timeS);
   const vRot = earthRotationVelocityEci(dynamic.positionEci);
@@ -73,9 +75,8 @@ export function computeBoosterGuidance(
   const speedRel = norm(vRel);
   const vUp = dot(vRel, basis.up);
   const vHorizVec = sub(vRel, scale(basis.up, vUp));
-  const vHoriz = norm(vHorizVec);
 
-  // Target position in ECI at current time
+  // Target position in ECI at current time (sensed state used for guidance)
   const targetEci = ecefToEci(geodeticToEcef(targetCoord), timeS);
   const toTargetEci = sub(targetEci, dynamic.positionEci);
   const toTargetUp = dot(toTargetEci, basis.up);
@@ -87,8 +88,22 @@ export function computeBoosterGuidance(
   );
 
   const heightAboveTarget = geodetic.altitudeM - targetCoord.altitudeM;
-  const tiltDeg = angleBetweenRad(dynamic.attitudeEci, basis.up) * RAD_TO_DEG;
   const zeroVec: Vec3 = { x: 0, y: 0, z: 0 };
+
+  // TRUE state used exclusively for physical ground/deck contact & landing criteria
+  const tdDyn = trueDynamic ?? dynamic;
+  const tdGeo = trueGeodetic ?? geodetic;
+  const tdBasis = localEnuBasisEci(tdGeo.latRad, tdGeo.lonRad, timeS);
+  const tdVRel = sub(tdDyn.velocityEci, earthRotationVelocityEci(tdDyn.positionEci));
+  const tdVUp = dot(tdVRel, tdBasis.up);
+  const tdVHoriz = norm(sub(tdVRel, scale(tdBasis.up, tdVUp)));
+  const tdHeightAboveTarget = tdGeo.altitudeM - targetCoord.altitudeM;
+  const tdDistHoriz = horizontalDistanceToTargetM(
+    tdDyn.positionEci,
+    timeS,
+    targetCoord
+  );
+  const tdTiltDeg = angleBetweenRad(tdDyn.attitudeEci, tdBasis.up) * RAD_TO_DEG;
 
   // Optional ASDS deck motion (heave + roll) for realistic sea-state touchdown criteria
   const disp = mission.dispersions;
@@ -104,31 +119,31 @@ export function computeBoosterGuidance(
   const deckRollDeg =
     rollAmpDeg > 0 ? Math.abs(rollAmpDeg * Math.sin(rollOmega * timeS + deckPhase * 1.3)) : 0;
 
-  // Strict realistic touchdown check (relative to moving ASDS deck when dispersions active)
-  if (heightAboveTarget <= deckHeaveM && timeS > stageSepTimeS + 10) {
+  // Strict realistic touchdown check on TRUE vehicle state relative to moving ASDS deck
+  if (tdHeightAboveTarget <= deckHeaveM && timeS > stageSepTimeS + 10) {
     const maxMissM = mission.landingMode === 'RTLS' ? 15.0 : 10.0;
-    const relVUp = vUp - deckHeaveVelMs;
-    const relTiltDeg = tiltDeg + deckRollDeg;
+    const relVUp = tdVUp - deckHeaveVelMs;
+    const relTiltDeg = tdTiltDeg + deckRollDeg;
     const reasons: string[] = [];
-    if (dynamic.propellantKg <= 0) reasons.push('Propellant depleted');
+    if (tdDyn.propellantKg <= 0) reasons.push('Propellant depleted');
     if (Math.abs(relVUp) >= 2.0) {
       reasons.push(`Vertical speed ${Math.abs(relVUp).toFixed(1)} m/s (>= 2 m/s)`);
     }
-    if (vHoriz >= 1.0) {
-      reasons.push(`Horizontal speed ${vHoriz.toFixed(1)} m/s (>= 1 m/s)`);
+    if (tdVHoriz >= 1.0) {
+      reasons.push(`Horizontal speed ${tdVHoriz.toFixed(1)} m/s (>= 1 m/s)`);
     }
     if (relTiltDeg >= 5.0) {
       reasons.push(`Tilt ${relTiltDeg.toFixed(1)}° (>= 5°)`);
     }
-    if (distHoriz >= maxMissM) {
-      reasons.push(`Off-target miss ${distHoriz.toFixed(1)} m (>= ${maxMissM} m)`);
+    if (tdDistHoriz >= maxMissM) {
+      reasons.push(`Off-target miss ${tdDistHoriz.toFixed(1)} m (>= ${maxMissM} m)`);
     }
     const softLanding = reasons.length === 0;
     mem.phase = softLanding ? 'LANDED' : 'CRASHED';
     mem.failureReason = softLanding ? undefined : reasons.join('; ');
     return {
       phase: mem.phase,
-      targetAttitudeEci: basis.up,
+      targetAttitudeEci: tdBasis.up,
       activeEngineIndices: [],
       throttle: 0,
       aeroSteerDirEci: zeroVec,
