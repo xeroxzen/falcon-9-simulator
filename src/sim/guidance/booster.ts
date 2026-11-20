@@ -262,7 +262,7 @@ export function computeBoosterGuidance(
   if (mem.phase === 'ENTRY_BURN') {
     const burnDur =
       mem.entryBurnStartTimeS !== null ? timeS - mem.entryBurnStartTimeS : 0;
-    const landingReserve = s1PropTotal * 0.025;
+    const landingReserve = s1PropTotal * 0.028;
     if (
       speedRel <= 850 ||
       burnDur >= 21.0 ||
@@ -370,10 +370,33 @@ export function computeBoosterGuidance(
     };
   }
 
-  // Target gentle touchdown speed v_td = 0.25 m/s so |v_z| < 2 m/s without hover bounce
-  const vTd = 0.25;
-  const vDownExcessSq = Math.max(0, vDown * vDown - vTd * vTd);
-  const aUpCmd = G0 + vDownExcessSq / (2 * Math.max(heightAboveTarget, 0.25));
+  // Terminal vertical profile with heave & altimeter-noise margin:
+  // Brake toward a gentle v_td = 0.65 m/s at h_flare (1.4 m above nominal deck),
+  // then hold a regulated ~0.65 m/s descent through the final 1.4 m window so
+  // ±1.5 m ASDS deck heave and ±5 m altimeter noise do not cause > 2 m/s impacts
+  // without inducing hover bounce on light T/W > 1 ASDS boosters.
+  const vTd = mission.landingMode === 'RTLS' ? 0.65 : 0.42;
+  const hFlare = mission.landingMode === 'RTLS' ? 2.2 : 0.75;
+  let aUpCmd: number;
+  if (heightAboveTarget > hFlare + 0.25) {
+    const vDownExcessSq = Math.max(0, vDown * vDown - vTd * vTd);
+    aUpCmd = G0 + vDownExcessSq / (2 * Math.max(heightAboveTarget - hFlare, 0.35));
+  } else {
+    aUpCmd = G0 + 2.4 * (vDown - vTd);
+  }
+  // Prevent T/W > 1 hover-bounce on light ASDS boosters: if vertical speed
+  // reverses upward near the deck, command engine cutoff so it settles cleanly.
+  if (heightAboveTarget < 2.5 && vUp >= 0.0) {
+    return {
+      phase: 'LANDING_BURN',
+      targetAttitudeEci: basis.up,
+      activeEngineIndices: [],
+      throttle: 0,
+      aeroSteerDirEci: zeroVec,
+      gridFinDeflectionDeg: 0,
+      landingLegsDeployed: mem.landingLegsDeployed,
+    };
+  }
 
   // Exact constant-deceleration time-to-go: t_go = 2*h / (vDown + vTd)
   // Exact constant-deceleration time-to-go: t_go = 2*h / (vDown + vTd)
