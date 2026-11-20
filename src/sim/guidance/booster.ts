@@ -277,7 +277,7 @@ export function computeBoosterGuidance(
   if (mem.phase === 'ENTRY_BURN') {
     const burnDur =
       mem.entryBurnStartTimeS !== null ? timeS - mem.entryBurnStartTimeS : 0;
-    const landingReserve = s1PropTotal * 0.028;
+    const landingReserve = s1PropTotal * (mission.landingMode === 'RTLS' ? 0.028 : 0.032);
     if (
       speedRel <= 850 ||
       burnDur >= 21.0 ||
@@ -390,8 +390,8 @@ export function computeBoosterGuidance(
   // then hold a regulated ~0.65 m/s descent through the final 1.4 m window so
   // ±1.5 m ASDS deck heave and ±5 m altimeter noise do not cause > 2 m/s impacts
   // without inducing hover bounce on light T/W > 1 ASDS boosters.
-  const vTd = mission.landingMode === 'RTLS' ? 0.65 : 0.42;
-  const hFlare = mission.landingMode === 'RTLS' ? 2.2 : 0.75;
+  const vTd = mission.landingMode === 'RTLS' ? 0.65 : 0.45;
+  const hFlare = mission.landingMode === 'RTLS' ? 2.6 : 1.05;
   let aUpCmd: number;
   if (heightAboveTarget > hFlare + 0.25) {
     const vDownExcessSq = Math.max(0, vDown * vDown - vTd * vTd);
