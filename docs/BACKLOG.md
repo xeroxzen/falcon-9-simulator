@@ -1,0 +1,24 @@
+# Physics & Guidance Backlog
+
+Known model gaps identified during Phase 2.5 validation and holdout testing, tracked for future physics iterations:
+
+1. **Two-burn Stage 2 orbital insertion (SES-1 → coast → SES-2):**
+   - Current Stage 2 guidance performs a single continuous burn to circular LEO (~200 km).
+   - High-altitude polar/SSO/GTO flights (`Iridium NEXT 8` 625 km, `SAOCOM 1A` 620 km) perform a 2-burn Hohmann transfer (SES-1 to parking/transfer orbit, coast to apogee, SES-2 circularization).
+   - The worker protocol and timeline/event model are designed to support arbitrary burn/coast sequences per stage so this can be added without UI changes.
+
+2. **ASDS partial boostback burn:**
+   - Current ASDS mode assumes pure downrange ballistic entry with no boostback burn.
+   - Real ASDS missions with close-in droneship positioning (e.g., `Iridium NEXT 8`, which executed a 33 s boostback `T+166..199 s` to target JRTI with a 105 km apogee) perform a partial boostback.
+
+3. **Consistent `-4.5%` to `-6.6%` early-MECO bias:**
+   - Across `DM-1` (`-4.82%`), `Iridium NEXT 8` (`-4.46%`), and `SAOCOM 1A` (`-6.59%`), simulated MECO occurs ~6–9 s earlier than real webcast telemetry.
+   - Likely caused by a combination of: (a) slightly lower average real-flight S1 mass flow / operational throttle margin below 100% rated thrust, (b) longer real max-Q throttle bucket duration (`T+44..71 s` on DM-1, `T+52..79 s` on SAOCOM 1A), and/or (c) slightly higher actual Block 5 subcooled S1 propellant load or lower MECO reserve on specific missions.
+
+4. **Booster boostback tracking error (holdout `SAOCOM 1A`):**
+   - On zero-tuning `SAOCOM 1A`, the booster ran short of LZ-4 (`miss = 8.2 km`) because MECO occurred 9.4 s early and our baseline 14.5% RTLS propellant reserve capped the boostback burn before the ballistic impact point reached LZ-4.
+   - Needs closed-loop boostback targeting that accounts for atmospheric drag and Coriolis drift during descent, plus mission-appropriate RTLS propellant reserve sizing.
+
+5. **Stretch goals from original spec:**
+   - Convex-optimization (G-FOLD-style) powered descent guidance.
+   - 6-DOF rigid-body rotational dynamics (inertia tensor, TVC gimbal torque, RCS cold-gas thrusters, aerodynamic center-of-pressure / center-of-mass pitching moments).
