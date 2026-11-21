@@ -315,6 +315,8 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
 
   const s1GroupRef = useRef<THREE.Group>(null);
   const s2GroupRef = useRef<THREE.Group>(null);
+  const earthGroupRef = useRef<THREE.Group>(null);
+  const starsGroupRef = useRef<THREE.Group>(null);
   const frameStateRef = useRef<FrameStateSnapshot>(createFrameStateSnapshot());
 
   // Chase camera smoothed orbit angle + zoom ONLY (position rigidly locked to target + offset)
@@ -375,8 +377,24 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
     const fs = frameStateRef.current;
     if (!fs.valid) return;
 
-    // 1. Update vehicle group transforms from this frame's single source of truth
+    // 1. Update vehicle group transforms & Earth/Stars floating-origin anchors from this frame's snapshot
     applyTransformsToGroups(fs, s1GroupRef.current, s2GroupRef.current);
+    const activeAltM =
+      viewStage === 'stage1'
+        ? fs.transform.stage1.altitudeM
+        : fs.transform.stage2.altitudeM;
+    if (earthGroupRef.current) {
+      // Anchored to fs.focusPos so the nearPad -> highAlt floating-origin switch is 100% continuous
+      // and Earth descends smoothly every frame (no 10 Hz React stair-step).
+      earthGroupRef.current.position.set(
+        fs.focusPos.x,
+        fs.focusPos.y - (6_371 + activeAltM / 1000),
+        fs.focusPos.z
+      );
+    }
+    if (starsGroupRef.current) {
+      starsGroupRef.current.position.copy(fs.focusPos);
+    }
 
     // 2. Update debug/perf telemetry directly from renderer.info.render
     const footHeightAboveDeck = fs.nearLanding
@@ -386,10 +404,16 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
     const calls = gl.info.render.calls;
     const triangles = gl.info.render.triangles;
     gl.info.reset();
-    updateDebugFrame(camera, gl.domElement, footHeightAboveDeck, {
-      calls,
-      triangles,
-    });
+    updateDebugFrame(
+      camera,
+      gl.domElement,
+      footHeightAboveDeck,
+      {
+        calls,
+        triangles,
+      },
+      earthGroupRef.current
+    );
 
     // 3. Compute exact current-frame lookTarget (never lagged behind flight path)
     const activeQuat = viewStage === 'stage1' ? fs.q1 : fs.q2;
@@ -532,7 +556,11 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
 
   return (
     <>
-      <EarthAndSky altitudeM={activeSnap.altitudeM} />
+      <EarthAndSky
+        altitudeM={activeSnap.altitudeM}
+        earthGroupRef={earthGroupRef}
+        starsGroupRef={starsGroupRef}
+      />
 
       <ambientLight intensity={0.42} />
       <directionalLight

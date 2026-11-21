@@ -16,6 +16,7 @@ interface RegisteredHitbox {
 const hitboxes = new Map<string, RegisteredHitbox>();
 let activeCamera: THREE.Camera | null = null;
 let activeCanvas: HTMLCanvasElement | null = null;
+let activeEarthGroup: THREE.Object3D | null = null;
 let boosterFootHeightAboveDeckM: number | null = null;
 
 // Pre-allocated ring buffer & scratch vectors (zero per-frame heap allocations)
@@ -54,11 +55,15 @@ export function updateDebugFrame(
   camera: THREE.Camera,
   canvas: HTMLCanvasElement,
   footHeightAboveDeckM: number | null,
-  renderInfo?: { readonly calls: number; readonly triangles: number }
+  renderInfo?: { readonly calls: number; readonly triangles: number },
+  earthGroup?: THREE.Object3D | null
 ): void {
   if (!import.meta.env.DEV) return;
   activeCamera = camera;
   activeCanvas = canvas;
+  if (earthGroup !== undefined) {
+    activeEarthGroup = earthGroup;
+  }
   boosterFootHeightAboveDeckM = footHeightAboveDeckM;
   if (renderInfo) {
     lastDrawCalls = renderInfo.calls;
@@ -209,6 +214,35 @@ export function installDebugHook(): void {
       if (!activeCamera || !activeCanvas) return null;
       activeCamera.updateMatrixWorld();
       SCRATCH_WORLD_POS.set(wx, wy, wz);
+      SCRATCH_NDC.copy(SCRATCH_WORLD_POS).project(activeCamera);
+      const rect = activeCanvas.getBoundingClientRect();
+      const x = rect.left + ((SCRATCH_NDC.x + 1) / 2) * rect.width;
+      const y = rect.top + ((-SCRATCH_NDC.y + 1) / 2) * rect.height;
+      const inFront = SCRATCH_NDC.z >= -1 && SCRATCH_NDC.z <= 1;
+      const visible =
+        inFront &&
+        x >= rect.left + 4 &&
+        x <= rect.right - 4 &&
+        y >= rect.top + 4 &&
+        y <= rect.bottom - 4;
+      return { x, y, inFront, visible };
+    },
+    /**
+     * Project a point on the curved Earth surface mesh (in earthGroup local space,
+     * centered at radius 6,371 km) to viewport CSS pixel coordinates.
+     * Valid across the nearPad -> highAlt floating-origin switch and above 100 km.
+     */
+    projectEarthPointToScreen(
+      localX = 0,
+      localY = 6_371,
+      localZ = 0
+    ): { x: number; y: number; inFront: boolean; visible: boolean } | null {
+      if (!activeCamera || !activeCanvas || !activeEarthGroup) return null;
+      activeCamera.updateMatrixWorld();
+      activeEarthGroup.updateMatrixWorld();
+      SCRATCH_WORLD_POS.set(localX, localY, localZ).applyMatrix4(
+        activeEarthGroup.matrixWorld
+      );
       SCRATCH_NDC.copy(SCRATCH_WORLD_POS).project(activeCamera);
       const rect = activeCanvas.getBoundingClientRect();
       const x = rect.left + ((SCRATCH_NDC.x + 1) / 2) * rect.width;

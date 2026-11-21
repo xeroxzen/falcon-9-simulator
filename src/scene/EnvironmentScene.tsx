@@ -193,7 +193,15 @@ const SKY_MID = new THREE.Color('#0c2142');
 const SKY_HIGH = new THREE.Color('#02040a');
 const SKY_SCRATCH = new THREE.Color();
 
-export function EarthAndSky({ altitudeM }: { readonly altitudeM: number }) {
+export function EarthAndSky({
+  altitudeM,
+  earthGroupRef,
+  starsGroupRef,
+}: {
+  readonly altitudeM: number;
+  readonly earthGroupRef?: React.RefObject<THREE.Group>;
+  readonly starsGroupRef?: React.RefObject<THREE.Group>;
+}) {
   const atmoMat = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -227,21 +235,23 @@ export function EarthAndSky({ altitudeM }: { readonly altitudeM: number }) {
     <>
       <color attach="background" args={[skyHex]} />
 
-      {/* Star field fades in cleanly above ~35 km (full above 100 km) */}
-      {altitudeM > 25_000 && (
-        <Stars
-          radius={22_000}
-          depth={8_000}
-          count={2200}
-          factor={180}
-          saturation={0.2}
-          fade
-          speed={0}
-        />
-      )}
+      {/* Star field fades in cleanly above ~35 km (full above 100 km), anchored to camera/origin */}
+      <group ref={starsGroupRef}>
+        {altitudeM > 25_000 && (
+          <Stars
+            radius={22_000}
+            depth={8_000}
+            count={2200}
+            factor={180}
+            saturation={0.2}
+            fade
+            speed={0}
+          />
+        )}
+      </group>
 
       {showCurvedEarth && (
-        <group position={[0, earthCenterY, 0]}>
+        <group ref={earthGroupRef} position={[0, earthCenterY, 0]}>
           <mesh raycast={NO_RAYCAST}>
             <sphereGeometry args={[earthVisualR, 48, 32]} />
             <meshStandardMaterial
