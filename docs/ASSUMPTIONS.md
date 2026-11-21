@@ -35,9 +35,9 @@ This document tracks every `ASSUMED` parameter, modeling simplification, and emp
 Shared vehicle parameters (including `maxAxialAccelG`, fitted on the fit set only with zero holdout leakage) and per-flight pitch-kick nuisance parameters (`kick_DM1`, `kick_CRS16`, `kick_Iridium8`) were estimated jointly via RMS-normalized Levenberg-Marquardt MAP minimization through SECO-1 across the 3-flight **fit set** (`DM-1`, `SpaceX CRS-16`, `Iridium NEXT 8`) with Gaussian prior penalties anchored to published specs. Posterior marginal uncertainties ($\sigma_{\text{post}}$) come from the full Laplace covariance $\Sigma_{\text{post}} = (J^T J + \Sigma_{\text{prior}}^{-1})^{-1}$.
 
 Two liftoff-alignment variants were compared on the 7-flight holdout set:
-- **Variant (a) (Selected):** Delete the `EMPIRICAL` 2 s liftoff ramp; fit `liftoffOffsetS` (`+1.92 ± 1.31 s`) applied consistently in all validation comparisons. Holdouts: `|Max-Q Δ| = 6.03 s`, `|MECO Δ| = 2.88 s`, `S1 Alt RMS = 1.16 km`, `S1 Vel RMS = 46.7 m/s`, 5-flight matching-profile `S2 Vel RMS = 221.6 m/s`.
+- **Variant (a) (Selected for parsimony):** Delete the `EMPIRICAL` 2 s liftoff ramp; fit `liftoffOffsetS` (`+1.92 ± 1.31 s`) applied consistently in all validation comparisons. Holdouts: `|Max-Q Δ| = 6.03 s`, `|MECO Δ| = 2.88 s`, `S1 Alt RMS = 1.16 km`, `S1 Vel RMS = 46.7 m/s`, 5-flight matching-profile `S2 Vel RMS = 221.6 m/s`.
 - **Variant (b):** Keep the `EMPIRICAL` 2 s liftoff ramp; drop `liftoffOffsetS` (`0 s`). Holdouts: `|Max-Q Δ| = 6.12 s`, `|MECO Δ| = 2.96 s`, `S1 Alt RMS = 1.00 km`, `S1 Vel RMS = 50.9 m/s`, 5-flight matching-profile `S2 Vel RMS = 231.4 m/s`.
-Variant (a) wins 4 of 5 holdout metrics and eliminates the empirical liftoff throttle ramp.
+- **Selection rationale:** Variants (a) and (b) are **within noise** on the 7-flight holdout set (`0.08–0.09 s` timing difference, `0.16 km` alt, `4.2 m/s` S1 vel, `9.8 m/s` S2 vel). **Variant (a) was chosen for parsimony** because it eliminates the unphysical `EMPIRICAL` 2 s thrust ramp from the flight dynamics model and places the webcast-clock alignment cleanly in the validation comparison layer.
 
 | Parameter | Prior ($\mu \pm \sigma$) | Prior Source | MAP Fit ($\hat\theta \pm \sigma_{\text{post}}$) | Shift | $\sigma_{\text{post}}/\sigma_{\text{prior}}$ | Identifiability |
 |---|---|---|---|---|---|---|
@@ -81,18 +81,37 @@ Vehicle parameters and `liftoffOffsetS = +1.92 s` are frozen from the 3-flight f
 - **Holdout S1 averages (all 7 holdouts):** `|Max-Q Δ|`: `8.33 → 6.03 s`, `|MECO Δ|`: `7.42 → 2.88 s`, `S1 Alt RMS`: `5.24 → 1.16 km`, `S1 Vel RMS`: `109.3 → 46.7 m/s`.
 - **Holdout S2 average (5 matching-profile holdouts only — excludes `SAOCOM 1A` & `SSO-A`):** `S2 Vel RMS`: `352.0 → 221.6 m/s` (`-37%`).
 
-#### Post-Fit Monte Carlo (`N = 1,000 × 3` New Seeds, Zero Booster Guidance Changes)
+#### Fair Baseline Decomposition (Kick-Fitting vs. Vehicle-Model Improvement, Holdout Set)
+
+Giving the pre-Part-D baseline vehicle the **same** 1-DOF per-flight pitch-kick fit separates trajectory shaping from vehicle-model improvement:
+
+| Configuration (Holdout Set, `dt = 0.01 s`) | 7-flt `|Max-Q Δ|` | 7-flt `|MECO Δ|` | 7-flt S1 Alt RMS | 7-flt S1 Vel RMS | 5-flt Matching S2 Vel RMS |
+|---|---:|---:|---:|---:|---:|
+| **[1] Baseline + fixed kick** | `9.02 s` | `7.62 s` | `5.16 km` | `118.7 m/s` | `310.4 m/s` |
+| **[2] Baseline + per-flight kick** | `8.92 s` | `7.67 s` | `2.80 km` | `129.5 m/s` | `152.5 m/s` |
+| **[3] MAP Variant (a) + per-flight kick** | `6.03 s` | `2.89 s` | `1.17 km` | `46.8 m/s` | `220.9 m/s` |
+| **Kick-fitting delta (`[2] − [1]`)** | `-0.10 s` | `+0.04 s` | **`-2.36 km`** | `+10.9 m/s` | **`-158.0 m/s`** |
+| **Pure vehicle-model delta (`[3] − [2]`)** | **`-2.89 s`** | **`-4.78 s`** | **`-1.63 km`** | **`-82.8 m/s`** | `+68.5 m/s`* |
+
+*\*Note:* The `+68.5 m/s` S2 velocity delta on the 5 matching-profile holdouts comes from GTO/MEO flights (`TelStar v19`, `Eshail 2`, `GPS III SV01`) where the longer MAP Stage 1 burn + `+1.92 s` webcast offset shifts SES-1 later relative to real GTO/MEO parking-orbit ignition timing; on `Bangabandhu-1` (`70 → 46 m/s`) and all 3 fit flights (`DM-1: 129 → 106`, `CRS-16: 295 → 111`, `Iridium-8: 113 → 82 m/s`), the vehicle model improves Stage 2 as well.
+
+#### Default Mission Ascent Design & What-If Profile Rule (Mission Design, Not Tuning)
+
+- **Default mission pitch-kick solver (`src/sim/guidance/mission-design.ts`):** `solveMissionPitchKickDeg` replaces hand-picked ascent pitch kicks for default missions (`DEFAULT_LEO_ASDS_MISSION` → `1.90°`, `DEFAULT_LEO_RTLS_MISSION` → `1.80°`). Given the vehicle and mission spec (payload, target orbit, landing mode, and required MECO reserve), it selects the most gravity-loss-efficient pitchover angle that achieves the target orbit while meeting 3-sigma booster recovery fuel-margin (`>= 4,000 kg` ASDS / `>= 7,500 kg` RTLS) and grid-fin saturation (`<= 15%`) constraints. This is **mission design** (matching how real launch providers shape ascent loft per mission), not vehicle parameter tuning.
+- **What-If profile-based default kick rule (`defaultWhatIfPitchKickDeg`):** Derived from the Part D per-flight fitted kicks: `LEO direct` (`<= 250 km`) = **`1.30°`**, `LEO two-burn` (`> 250 km`) = **`1.70°`**, `GTO` = **`2.45°`**.
+
+#### Post-Fit Monte Carlo (`N = 1,000 × 3` Fresh Unseen Seeds, Post-RTLS Fix & Mission-Design Solver)
 
 | Mode | Seed | Landed | Orbit | Miss p50 / p95 | Fuel Margin p5 | Peak $q\cdot\alpha$ p95 (`>200` exceed) |
 |---|---:|---:|---:|---:|---:|---:|
-| **ASDS** | `51001` | `989/1000 (98.9%)` | `100.0%` | `1.83 / 4.68 m` | `2,552 kg (0.60%)` | `95.0 kPa·deg (0/1000)` |
-| **ASDS** | `62002` | `989/1000 (98.9%)` | `100.0%` | `1.84 / 4.80 m` | `2,664 kg (0.63%)` | `98.3 kPa·deg (0/1000)` |
-| **ASDS** | `73003` | `993/1000 (99.3%)` | `100.0%` | `1.83 / 4.77 m` | `2,621 kg (0.62%)` | `98.8 kPa·deg (0/1000)` |
-| **ASDS Combined** | `3 seeds` | **`2,971/3,000 (99.03%)`** | **`100.0%`** | — | — | **`0/3,000`** |
-| **RTLS** | `51001` | `964/1000 (96.4%)` | `100.0%` | `1.54 / 5.26 m` | `4,296 kg (1.02%)` | `100.7 kPa·deg (0/1000)` |
-| **RTLS** | `62002` | `968/1000 (96.8%)` | `100.0%` | `1.48 / 4.71 m` | `4,313 kg (1.02%)` | `97.7 kPa·deg (0/1000)` |
-| **RTLS** | `73003` | `964/1000 (96.4%)` | `100.0%` | `1.46 / 4.75 m` | `4,246 kg (1.00%)` | `101.9 kPa·deg (0/1000)` |
-| **RTLS Combined** | `3 seeds` | **`2,896/3,000 (96.53%)`** | **`100.0%`** | — | — | **`0/3,000`** |
+| **ASDS** | `117007` | `999/1000 (99.9%)` | `100.0%` | `1.69 / 4.13 m` | `3,041 kg (0.72%)` | `98.8 kPa·deg (0/1000)` |
+| **ASDS** | `128008` | `999/1000 (99.9%)` | `100.0%` | `1.71 / 4.20 m` | `3,081 kg (0.73%)` | `99.5 kPa·deg (0/1000)` |
+| **ASDS** | `139009` | `1000/1000 (100.0%)` | `100.0%` | `1.66 / 4.05 m` | `3,138 kg (0.74%)` | `98.2 kPa·deg (0/1000)` |
+| **ASDS Combined** | `3 seeds` | **`2,998/3,000 (99.93%)`** | **`100.0%`** | — | — | **`0/3,000`** |
+| **RTLS** | `117007` | `1000/1000 (100.0%)` | `100.0%` | `1.36 / 3.59 m` | `5,594 kg (1.32%)` | `101.5 kPa·deg (0/1000)` |
+| **RTLS** | `128008` | `1000/1000 (100.0%)` | `100.0%` | `1.37 / 3.56 m` | `5,686 kg (1.35%)` | `97.8 kPa·deg (0/1000)` |
+| **RTLS** | `139009` | `1000/1000 (100.0%)` | `100.0%` | `1.37 / 3.88 m` | `5,615 kg (1.33%)` | `100.3 kPa·deg (0/1000)` |
+| **RTLS Combined** | `3 seeds` | **`3,000/3,000 (100.00%)`** | **`100.0%`** | — | — | **`0/3,000`** |
 
 ## 4. Aerodynamics
 

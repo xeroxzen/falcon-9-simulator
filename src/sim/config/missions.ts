@@ -8,8 +8,8 @@ import { LAUNCH_SITES } from './falcon9.js';
 const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
   /** ASSUMED: Clear tower (~150 m) before pitchover */
   pitchKickAltitudeM: 150,
-  /** ASSUMED: Standard LEO gravity-turn pitchover kick (~63-68 km MECO) */
-  pitchKickAngleDeg: 2.00,
+  /** Mission-design pitchover kick solved by solveMissionPitchKickDeg (meets orbit + >=4,000 kg ASDS 3-sigma margin) */
+  pitchKickAngleDeg: 1.90,
   /** ASSUMED: Smooth pitchover duration */
   pitchKickDurationS: 8.0,
   /** ASSUMED: Max-Q throttle bucket entry threshold (triggers ~T+46-52 s) */
@@ -27,8 +27,8 @@ const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
 
 const BASELINE_RTLS_GUIDANCE: AscentGuidanceConfig = {
   ...BASELINE_ASDS_GUIDANCE,
-  /** ASSUMED: Per-mission RTLS pitchover kick (~61-68 km MECO, ~125-135 km booster apogee) */
-  pitchKickAngleDeg: 1.85,
+  /** Mission-design pitchover kick solved by solveMissionPitchKickDeg (meets orbit + >=7,500 kg RTLS 3-sigma margin) */
+  pitchKickAngleDeg: 1.80,
   /** ASSUMED: 15.5% S1 propellant reserve for boostback + entry + landing (compensates for +11.7 t MAP S1 prop load) */
   mecoPropellantReserveFraction: 0.155,
 };
