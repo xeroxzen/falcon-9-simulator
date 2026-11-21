@@ -1,13 +1,23 @@
 import { expect, test } from '@playwright/test';
 import { waitForSimReady } from './helpers.js';
 
-test.describe('Chase Camera Jitter Regression Test', () => {
-  test('keeps vehicle screen-space jitter (second difference) below 2 px p95 over 5 s at 1x during ascent', async ({
+function quantile(sorted: readonly number[], q: number): number {
+  if (sorted.length === 0) return 0;
+  const idx = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.floor(sorted.length * q))
+  );
+  return sorted[idx]!;
+}
+
+test.describe('Chase Camera Smoothness & Frame Pacing QA', () => {
+  test('maintains smooth screen-space motion of world-fixed pad marker and steady frame pacing during chase-mode ascent', async ({
     page,
   }) => {
     await waitForSimReady(page);
 
-    // Position at T+45 s (~300 m/s ascent) in chase mode at 1x playback
+    // Position at T+25 s (~150–250 m/s ascent, nearPad floating origin active so
+    // world-fixed launch pad marker (0, 0, 0) moves continuously in screen space).
     await page.evaluate(() => {
       const dbg = (
         window as unknown as {
@@ -22,15 +32,15 @@ test.describe('Chase Camera Jitter Regression Test', () => {
       ).__f9debug;
       dbg.setCameraMode('chase');
       dbg.setFocusStage('stage1');
-      dbg.setTimeS(45);
+      dbg.setTimeS(25);
       dbg.setPlaybackSpeed(1);
       dbg.setPlaying(true);
     });
 
-    // Let camera settle for 300 ms before recording
-    await page.waitForTimeout(300);
+    // Let camera and RAF loop settle for 500 ms before recording
+    await page.waitForTimeout(500);
 
-    // Record screen-space vehicle position every animation frame for 5 seconds
+    // Record world-fixed pad marker (0, 0, 0) screen-space coordinates + frame timestamps for 5 s
     const samples = await page.evaluate(async () => {
       const pts: { t: number; x: number; y: number }[] = [];
       const start = performance.now();
@@ -40,14 +50,21 @@ test.describe('Chase Camera Jitter Regression Test', () => {
           const dbg = (
             window as unknown as {
               __f9debug: {
-                projectHitboxToScreen: (
-                  id: string
-                ) => { x: number; y: number; visible: boolean } | null;
+                projectWorldPointToScreen: (
+                  wx: number,
+                  wy: number,
+                  wz: number
+                ) => {
+                  x: number;
+                  y: number;
+                  inFront: boolean;
+                  visible: boolean;
+                } | null;
               };
             }
           ).__f9debug;
-          const p = dbg.projectHitboxToScreen('stage1');
-          if (p && p.visible) {
+          const p = dbg.projectWorldPointToScreen(0, 0, 0);
+          if (p && p.inFront) {
             pts.push({ t: now - start, x: p.x, y: p.y });
           }
           if (now - start >= 5000) resolve(pts);
@@ -59,6 +76,13 @@ test.describe('Chase Camera Jitter Regression Test', () => {
 
     expect(samples.length).toBeGreaterThan(20);
 
+    // Confirm the world-fixed reference genuinely moves in screen space (non-trivial test)
+    const first = samples[0]!;
+    const last = samples[samples.length - 1]!;
+    const totalTravelPx = Math.hypot(last.x - first.x, last.y - first.y);
+    expect(totalTravelPx).toBeGreaterThan(5.0);
+
+    // 1. World-fixed reference screen-space motion smoothness (second difference)
     const secondDiffs: number[] = [];
     for (let i = 1; i < samples.length - 1; i++) {
       const ddx = samples[i + 1]!.x - 2 * samples[i]!.x + samples[i - 1]!.x;
@@ -67,14 +91,30 @@ test.describe('Chase Camera Jitter Regression Test', () => {
     }
     secondDiffs.sort((a, b) => a - b);
 
-    const p50 = secondDiffs[Math.floor(secondDiffs.length * 0.5)] ?? 0;
-    const p95 = secondDiffs[Math.floor(secondDiffs.length * 0.95)] ?? 0;
-    const max = secondDiffs[secondDiffs.length - 1] ?? 0;
+    const refP50 = quantile(secondDiffs, 0.5);
+    const refP95 = quantile(secondDiffs, 0.95);
+    const refMax = secondDiffs[secondDiffs.length - 1] ?? 0;
+
+    // 2. Frame pacing (frame-interval p95 / p50 ratio)
+    const intervalsMs: number[] = [];
+    for (let i = 1; i < samples.length; i++) {
+      const dt = samples[i]!.t - samples[i - 1]!.t;
+      if (dt > 0) intervalsMs.push(dt);
+    }
+    intervalsMs.sort((a, b) => a - b);
+
+    const dtP50 = quantile(intervalsMs, 0.5);
+    const dtP95 = quantile(intervalsMs, 0.95);
+    const dtMax = intervalsMs[intervalsMs.length - 1] ?? 0;
+    const pacingRatio = dtP50 > 0 ? dtP95 / dtP50 : Infinity;
 
     console.log(
-      `[Jitter QA] 5 s @ 1x (~300 m/s ascent, ${samples.length} frames) — p50=${p50.toFixed(3)} px | p95=${p95.toFixed(3)} px | max=${max.toFixed(3)} px`
+      `[Smoothness QA] 5 s @ 1x ascent (${samples.length} frames, pad travel=${totalTravelPx.toFixed(1)} px) — ` +
+        `world-ref 2nd-diff p50=${refP50.toFixed(3)} px | p95=${refP95.toFixed(3)} px | max=${refMax.toFixed(3)} px | ` +
+        `frame dt p50=${dtP50.toFixed(2)} ms | p95=${dtP95.toFixed(2)} ms | max=${dtMax.toFixed(2)} ms | p95/p50=${pacingRatio.toFixed(2)}x`
     );
 
-    expect(p95).toBeLessThan(2.0);
+    expect(refP95).toBeLessThan(2.0);
+    expect(pacingRatio).toBeLessThan(2.0);
   });
 });

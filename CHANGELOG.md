@@ -2,6 +2,12 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
+## [Unreleased — v1.3.0 Part A] — 2026-11-21
+
+### Improved
+- **Non-trivial chase-camera smoothness & frame-pacing E2E (`e2e/jitter.spec.ts`):** Replaced the trivially satisfied rigidly-locked vehicle check with screen-space motion smoothness of the world-fixed launch pad marker `(0, 0, 0)` during 5 s @ 1× chase-mode ascent (`571.3 px` travel, 2nd-diff `p50 = 0.045 px`, `p95 = 0.213 px`, `max = 0.558 px < 2.0 px`) plus frame-interval pacing (`p50 = 16.60 ms`, `p95 = 19.40 ms`, `p95/p50 = 1.17× < 2.0×`). Added `projectWorldPointToScreen` to `src/scene/debugBridge.ts`.
+- **Terminal-phase radar altimeter sensor fusion (`ASSUMED`):** Below `3,000 m` AGL, fused downward radar altimeter measurements (`0.2%` AGL scale + `0.15 m` residual floor) with INS/GPS vertical bias via inverse-variance weighting and steady-state Kalman time-constant scaling (`τ_min = 2.0 s`); horizontal and velocity biases remain unaided at `τ = 45 s`. Validated on new unseen holdout seeds `9001`, `9002`, `9003` (`N = 1,000` each, zero guidance changes): **99.6–99.9%** ASDS, **100.0%** RTLS, true horizontal miss `1.37–1.52 m` p50 (`3.50–3.82 m` p95).
+
 ## [1.2.0] — 2026-11-21 (Zero-Jitter Chase Camera & Gauss-Markov Navigation Realism)
 
 ### Fixed

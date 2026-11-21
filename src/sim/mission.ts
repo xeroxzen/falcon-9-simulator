@@ -505,7 +505,16 @@ export function runFullMission(
   // Initialized from stationary distribution N(0, sigma^2) so bias is realistic at touchdown.
   // Horizontal navNoiseM is 1-sigma (0.5-2.0 m); altitude (±5 m) and velocity (±0.3 m/s)
   // bounds are treated as 3-sigma envelopes (sigma = bound / 3).
+  // Below NAV_ALT_AID_ACQ_M (3,000 m AGL, ASSUMED), a downward-looking radar altimeter
+  // fuses with INS/GPS via inverse-variance weighting:
+  //   sigma_rad(h) = sqrt(sigma_floor^2 + (eps_scale * h)^2)
+  //   sigma_eff(h) = 1 / sqrt(sigma_ins^-2 + sigma_rad(h)^-2)
+  // with closed-loop filter time constant tau_eff = max(2.0 s, tau_ins * (sigma_eff/sigma_ins)^2).
   const NAV_CORR_TIME_S = 45.0;
+  const NAV_ALT_AID_ACQ_M = 3_000.0;
+  const NAV_ALT_RADAR_FLOOR_M = 0.15;
+  const NAV_ALT_RADAR_SCALE = 0.002;
+  const NAV_ALT_AID_MIN_TAU_S = 2.0;
   const initDisp = mission.dispersions;
   const altSigmaM = (initDisp?.navAltNoiseM ?? 0) / 3.0;
   const velSigmaMs = (initDisp?.navVelNoiseMs ?? 0) / 3.0;
@@ -720,7 +729,28 @@ export function runFullMission(
           navBiasNorthM = phi * navBiasNorthM + sigmaW * disp.navNoiseM * detGaussian(disp.seed, step, 2);
         }
         if (altSigmaM > 0) {
-          navBiasAltM = phi * navBiasAltM + sigmaW * altSigmaM * detGaussian(disp.seed, step, 3);
+          // Terminal-phase radar altimeter aiding (ASSUMED sensor-fusion model):
+          // Below 3,000 m AGL, inverse-variance fusion of INS/GPS (altSigmaM) with a
+          // downward radar altimeter (0.2% AGL scale error + 0.15 m residual floor)
+          // smoothly reduces effective altitude bias sigma and filter time constant.
+          const aglM = Math.max(0, bGeo.altitudeM - landingTarget.altitudeM);
+          let effAltSigmaM = altSigmaM;
+          let effAltTauS = NAV_CORR_TIME_S;
+          if (aglM <= NAV_ALT_AID_ACQ_M) {
+            const radSigmaM = Math.hypot(
+              NAV_ALT_RADAR_FLOOR_M,
+              NAV_ALT_RADAR_SCALE * aglM
+            );
+            effAltSigmaM =
+              1 / Math.sqrt(1 / (altSigmaM * altSigmaM) + 1 / (radSigmaM * radSigmaM));
+            const varRatio = (effAltSigmaM * effAltSigmaM) / (altSigmaM * altSigmaM);
+            effAltTauS = Math.max(NAV_ALT_AID_MIN_TAU_S, NAV_CORR_TIME_S * varRatio);
+          }
+          const phiAlt = Math.exp(-dt / effAltTauS);
+          const sigmaWAlt = Math.sqrt(Math.max(0, 1 - phiAlt * phiAlt));
+          navBiasAltM =
+            phiAlt * navBiasAltM +
+            sigmaWAlt * effAltSigmaM * detGaussian(disp.seed, step, 3);
         }
         if (velSigmaMs > 0) {
           navBiasVelEMs = phi * navBiasVelEMs + sigmaW * velSigmaMs * detGaussian(disp.seed, step, 4);

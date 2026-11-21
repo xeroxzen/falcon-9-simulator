@@ -196,5 +196,31 @@ export function installDebugHook(): void {
         y <= rect.bottom - 4;
       return { x, y, visible };
     },
+    /**
+     * Project an arbitrary world-space point (e.g., launch pad origin (0, 0, 0))
+     * through the active Three.js camera to viewport CSS pixel coordinates (x, y).
+     * Used to measure world-fixed reference motion smoothness during chase-mode flight.
+     */
+    projectWorldPointToScreen(
+      wx: number,
+      wy: number,
+      wz: number
+    ): { x: number; y: number; inFront: boolean; visible: boolean } | null {
+      if (!activeCamera || !activeCanvas) return null;
+      activeCamera.updateMatrixWorld();
+      SCRATCH_WORLD_POS.set(wx, wy, wz);
+      SCRATCH_NDC.copy(SCRATCH_WORLD_POS).project(activeCamera);
+      const rect = activeCanvas.getBoundingClientRect();
+      const x = rect.left + ((SCRATCH_NDC.x + 1) / 2) * rect.width;
+      const y = rect.top + ((-SCRATCH_NDC.y + 1) / 2) * rect.height;
+      const inFront = SCRATCH_NDC.z >= -1 && SCRATCH_NDC.z <= 1;
+      const visible =
+        inFront &&
+        x >= rect.left + 4 &&
+        x <= rect.right - 4 &&
+        y >= rect.top + 4 &&
+        y <= rect.bottom - 4;
+      return { x, y, inFront, visible };
+    },
   };
 }
