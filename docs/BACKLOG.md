@@ -19,6 +19,18 @@ Known model gaps identified during Phase 2.5 validation and holdout testing, tra
    - On zero-tuning `SAOCOM 1A`, the booster ran short of LZ-4 (`miss = 8.2 km`) because MECO occurred 9.4 s early and our baseline 14.5% RTLS propellant reserve capped the boostback burn before the ballistic impact point reached LZ-4.
    - Needs closed-loop boostback targeting that accounts for atmospheric drag and Coriolis drift during descent, plus mission-appropriate RTLS propellant reserve sizing.
 
-5. **Stretch goals from original spec:**
+5. **Heavy GTO / polar Max-Q timing gap (`-10` to `-13.5 s` early):**
+   - Across Part D holdouts, heavy GTO/polar flights (`Bangabandhu-1: -13.5 s`, `TelStar v19: -10.8 s`, `Iridium NEXT 7: -9.7 s`) peak at Max-Q ~10–13.5 s earlier in the sim than in webcast events, while LEO flights (`DM-1: +1.7 s`, `Iridium NEXT 8: +0.3 s`, `SAOCOM 1A: +1.9 s`, `Eshail 2: +1.8 s`) align within ~2 s.
+   - **Throttle-bucket hypothesis:** Our ascent guidance uses a single fixed transonic throttle bucket (`22 kPa`, `Mach 1.02–1.38`, `72%` min throttle). Real GTO and high-dynamic-pressure launches tailor throttle-bucket entry/depth/duration (and sometimes fly flatter/slower transonic profiles or different weather/upper-level wind profiles), shifting real Max-Q to `T+70–75 s`. Modeling mission-class throttle buckets (or upper-level wind shear) should close this gap.
+
+6. **Recovery efficiency gap (solver `~1.9–2.05°` vs real fitted `~1.3°` LEO pitch kick):**
+   - For comparable recoverable LEO missions, our mission-design solver requires `~1.90°` (ASDS) / `~1.40°` (RTLS) pitch kicks to preserve 3-sigma landing fuel margins, whereas real recoverable LEO flights (`DM-1: 1.28°`, `CRS-16: 1.37°`, `SAOCOM 1A: 1.22°`) fly steeper/more efficient profiles.
+   - Investigate our entry-burn (3-engine fixed `850 m/s / 21 s` cutoff) and landing-burn propellant consumption vs real telemetry to close the recovery propellant-efficiency gap.
+
+7. **Unify 3-to-1 landing-burn engine handoff logic (remove mode-specific branch):**
+   - In `src/sim/guidance/booster.ts`, the landing-burn ignition altitude ceiling (`6,000 m` RTLS vs `4,500 m` ASDS) and 3-to-1 engine handoff thresholds (`30 m / 15 m/s / 0.78×` RTLS vs `150 m / 45 m/s / 0.92×` ASDS) currently use a mode-specific branch.
+   - Replace with a single unified physical thrust-margin / deceleration-envelope handoff law shared across ASDS and RTLS.
+
+8. **Stretch goals from original spec:**
    - Convex-optimization (G-FOLD-style) powered descent guidance.
    - 6-DOF rigid-body rotational dynamics (inertia tensor, TVC gimbal torque, RCS cold-gas thrusters, aerodynamic center-of-pressure / center-of-mass pitching moments).

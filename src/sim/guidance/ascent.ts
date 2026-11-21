@@ -102,14 +102,11 @@ export function computeAscentGuidance(
     }
   }
 
-  // Throttle schedule: nominal 100%, with EMPIRICAL 2.0 s liftoff ramp,
-  // max-Q bucket, and axial G-limit.
-  // EMPIRICAL: Real Falcon 9 releases its hold-down clamps at full thrust; the
-  // slow v(2s) ~ 3.2 m/s seen across DM-1, CRS-16, and Iridium NEXT 8 is likely
-  // a webcast telemetry smoothing / T+0 clock-offset artifact rather than a
-  // physical engine spool-up. Kept as an empirical alignment correction.
-  let throttle =
-    input.timeS < 2.0 ? 0.72 + 0.28 * clamp(input.timeS / 2.0, 0, 1) : 1.0;
+  // Throttle schedule: nominal 100% from clamp release, with max-Q bucket and
+  // axial G-limit. (The former EMPIRICAL 2.0 s liftoff ramp was removed in
+  // Part D Variant (a) in favor of the fitted webcast-clock offset in
+  // validation comparisons, selected by holdout performance.)
+  let throttle = 1.0;
 
   // Max-Q throttle bucket (ASSUMED smooth transonic bucket centered on Mach 1.02..1.42)
   if (

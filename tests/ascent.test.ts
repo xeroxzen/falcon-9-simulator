@@ -4,6 +4,10 @@ import {
   DEFAULT_LEO_ASDS_MISSION,
   DEFAULT_LEO_RTLS_MISSION,
 } from '../src/sim/config/missions.js';
+import {
+  defaultWhatIfPitchKickDeg,
+  solveMissionPitchKickDeg,
+} from '../src/sim/guidance/mission-design.js';
 import { runAscentToMeco } from '../src/sim/simulation.js';
 
 describe('Stage 1 ascent through MECO', () => {
@@ -70,5 +74,40 @@ describe('Stage 1 ascent through MECO', () => {
     expect(engineOut.finalState.geodetic.altitudeM).toBeLessThan(
       nominal.finalState.geodetic.altitudeM
     );
+  });
+
+  it('solves default ASDS and RTLS mission-design pitch kicks + RTLS reserve and maps What-If profile defaults', () => {
+    const asds = solveMissionPitchKickDeg(FALCON9_BLOCK5, DEFAULT_LEO_ASDS_MISSION);
+    expect(asds.feasible).toBe(true);
+    expect(asds.orbitAchieved).toBe(true);
+    expect(asds.boosterOutcome).toBe('LANDED');
+    expect(asds.pitchKickAngleDeg).toBeCloseTo(
+      DEFAULT_LEO_ASDS_MISSION.guidance.pitchKickAngleDeg,
+      2
+    );
+
+    const rtls = solveMissionPitchKickDeg(FALCON9_BLOCK5, DEFAULT_LEO_RTLS_MISSION);
+    expect(rtls.feasible).toBe(true);
+    expect(rtls.orbitAchieved).toBe(true);
+    expect(rtls.boosterOutcome).toBe('LANDED');
+    expect(rtls.pitchKickAngleDeg).toBeCloseTo(
+      DEFAULT_LEO_RTLS_MISSION.guidance.pitchKickAngleDeg,
+      2
+    );
+    expect(rtls.mecoPropellantReserveFraction).toBeCloseTo(
+      DEFAULT_LEO_RTLS_MISSION.guidance.mecoPropellantReserveFraction,
+      3
+    );
+
+    const exp = solveMissionPitchKickDeg(FALCON9_BLOCK5, {
+      ...DEFAULT_LEO_ASDS_MISSION,
+      landingMode: 'EXPENDABLE',
+    });
+    expect(exp.pitchKickAngleDeg).toBeCloseTo(1.3, 2);
+    expect(exp.mecoPropellantReserveFraction).toBeCloseTo(0.005, 4);
+
+    expect(defaultWhatIfPitchKickDeg(200_000)).toBeCloseTo(1.3, 2);
+    expect(defaultWhatIfPitchKickDeg(625_000)).toBeCloseTo(1.7, 2);
+    expect(defaultWhatIfPitchKickDeg(200_000, true)).toBeCloseTo(2.45, 2);
   });
 });

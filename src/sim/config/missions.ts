@@ -8,8 +8,8 @@ import { LAUNCH_SITES } from './falcon9.js';
 const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
   /** ASSUMED: Clear tower (~150 m) before pitchover */
   pitchKickAltitudeM: 150,
-  /** ASSUMED: Standard LEO gravity-turn pitchover kick */
-  pitchKickAngleDeg: 2.35,
+  /** Mission-design pitchover kick solved by solveMissionPitchKickDeg (meets orbit + >=4,000 kg ASDS 3-sigma margin) */
+  pitchKickAngleDeg: 1.90,
   /** ASSUMED: Smooth pitchover duration */
   pitchKickDurationS: 8.0,
   /** ASSUMED: Max-Q throttle bucket entry threshold (triggers ~T+46-52 s) */
@@ -27,9 +27,8 @@ const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
 
 const BASELINE_RTLS_GUIDANCE: AscentGuidanceConfig = {
   ...BASELINE_ASDS_GUIDANCE,
-  /** ASSUMED: Matches real RTLS loft (~65-73 km MECO, ~125-135 km booster apogee) */
-  pitchKickAngleDeg: 2.30,
-  /** ASSUMED: 14.5% S1 propellant reserve for boostback + entry + landing */
+  /** Mission-design pitchover kick & MECO reserve solved jointly by solveMissionAscentDesign (meets orbit + >=7,500 kg RTLS 3-sigma margin) */
+  pitchKickAngleDeg: 1.40,
   mecoPropellantReserveFraction: 0.145,
 };
 
@@ -93,8 +92,8 @@ export const DM1_MISSION: MissionConfig = {
   engineOuts: [],
   guidance: {
     ...BASELINE_ASDS_GUIDANCE,
-    /** ASSUMED: Steeper crew-abort-safe loft */
-    pitchKickAngleDeg: 1.25,
+    /** Part D MAP Variant A per-flight nuisance pitch-kick estimate (replaces hard-coded 1.25 deg) */
+    pitchKickAngleDeg: 1.28,
     /** ASSUMED: Human-rated max-Q bucket & 3.0 g axial cap */
     maxQThrottleStartPa: 21_500,
     maxQThrottleEndMach: 1.42,

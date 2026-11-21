@@ -82,6 +82,14 @@ function makeDelta(real: number, sim: number): EventDelta {
 }
 
 /**
+ * Part D MAP Variant (a) webcast-clock offset (s), fitted jointly on the
+ * 3-flight fit set (DM-1, CRS-16, Iridium NEXT 8) after removing the
+ * EMPIRICAL 2.0 s liftoff ramp. Applied consistently in all validation
+ * comparisons against SpaceX webcast telemetry (+1.92 ± 1.31 s).
+ */
+export const WEBCAST_LIFTOFF_OFFSET_S = 1.92;
+
+/**
  * Compare a simulated full mission against real SpaceX webcast telemetry.
  *
  * Velocity frame: SpaceX webcast telemetry reports Earth-relative (ECEF) speed
@@ -107,24 +115,27 @@ export function compareMissionToTelemetry(
     throw new Error(`No usable telemetry samples in ${real.missionName}`);
   }
 
-  // Build unified simulated ascent + stage 2 timeline in Earth-relative velocity
+  // Build unified simulated ascent + stage 2 timeline in Earth-relative velocity,
+  // shifted by WEBCAST_LIFTOFF_OFFSET_S to align with the webcast T+0 clock.
+  const tOff = WEBCAST_LIFTOFF_OFFSET_S;
   const simTimeline: TelemetryPointSI[] = [];
   for (const s of sim.ascent.samples) {
     simTimeline.push({
-      timeS: s.timeS,
+      timeS: s.timeS + tOff,
       altitudeM: s.geodetic.altitudeM,
       velocityMs: s.speedAirRelMs,
     });
   }
   for (const s2 of sim.stage2Samples) {
+    const tt = s2.timeS + tOff;
     if (
       simTimeline.length > 0 &&
-      s2.timeS <= simTimeline[simTimeline.length - 1]!.timeS
+      tt <= simTimeline[simTimeline.length - 1]!.timeS
     ) {
       continue;
     }
     simTimeline.push({
-      timeS: s2.timeS,
+      timeS: tt,
       altitudeM: s2.geodetic.altitudeM,
       velocityMs: s2.speedEarthRelMs,
     });
@@ -184,7 +195,7 @@ export function compareMissionToTelemetry(
 
   const maxQTimeDelta =
     real.events?.maxq != null
-      ? makeDelta(real.events.maxq, sim.ascent.peakDynamicPressureTimeS)
+      ? makeDelta(real.events.maxq, sim.ascent.peakDynamicPressureTimeS + tOff)
       : null;
 
   const realAtMeco =
@@ -193,7 +204,7 @@ export function compareMissionToTelemetry(
       : null;
   const mecoTimeDelta =
     real.events?.meco != null
-      ? makeDelta(real.events.meco, sim.ascent.finalState.timeS)
+      ? makeDelta(real.events.meco, sim.ascent.finalState.timeS + tOff)
       : null;
   const mecoAltDelta =
     realAtMeco != null
@@ -244,7 +255,7 @@ export function compareBoosterToTelemetry(
   if (!realS1 || realS1.length === 0) return null;
 
   const simBooster: TelemetryPointSI[] = sim.boosterSamples.map((b) => ({
-    timeS: b.timeS,
+    timeS: b.timeS + WEBCAST_LIFTOFF_OFFSET_S,
     altitudeM: b.geodetic.altitudeM,
     velocityMs: b.speedAirRelMs,
   }));

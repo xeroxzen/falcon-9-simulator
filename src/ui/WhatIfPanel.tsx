@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FALCON9_BLOCK5 } from '../sim/config/falcon9.js';
+import { defaultWhatIfPitchKickDeg } from '../sim/guidance/mission-design.js';
 import type { LandingMode, MissionConfig } from '../sim/types.js';
 import { AVAILABLE_MISSIONS, useSimStore } from '../store/simStore.js';
 import { BottomSheet } from './BottomSheet.js';
@@ -63,7 +64,7 @@ export function WhatIfPanel() {
   if (!show) return null;
 
   const handleRun = () => {
-    const reserveFraction =
+    const initialReserveFraction =
       landingMode === 'EXPENDABLE'
         ? 0.005
         : landingMode === 'RTLS'
@@ -73,6 +74,7 @@ export function WhatIfPanel() {
             : 0.075;
 
     const isTwoBurnTarget = targetAltKm > 250;
+    const profilePitchKickDeg = defaultWhatIfPitchKickDeg(targetAltKm * 1000);
     const customMission: MissionConfig = {
       ...baseMission,
       payloadMassKg,
@@ -92,8 +94,10 @@ export function WhatIfPanel() {
         : [],
       guidance: {
         ...baseMission.guidance,
+        pitchKickAngleDeg: profilePitchKickDeg,
         twoBurn: undefined,
-        mecoPropellantReserveFraction: reserveFraction,
+        mecoPropellantReserveFraction: initialReserveFraction,
+        autoDesignAscent: true,
       },
     };
     runMission(customMission, true);

@@ -152,6 +152,8 @@ export interface AscentGuidanceConfig {
   readonly twoBurn?: boolean;
   /** ASSUMED parking/transfer perigee altitude (m) for two-burn SES-1 (default 185,000 m) */
   readonly transferPerigeeAltitudeM?: number;
+  /** When true (What-If), run solveMissionAscentDesign in the worker before simulating */
+  readonly autoDesignAscent?: boolean;
 }
 
 export interface MissionConfig {

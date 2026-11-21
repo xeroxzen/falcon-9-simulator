@@ -18,17 +18,102 @@ This document tracks every `ASSUMED` parameter, modeling simplification, and emp
 
 ## 3. Propulsion & Mass Budget
 
-- **Choked-nozzle $I_{sp}$ consistency:** SpaceX publicly lists Falcon 9 Block 5 total sea-level thrust as $7{,}607\ \text{kN}$ and vacuum thrust as $8{,}227\ \text{kN}$, with vacuum $I_{sp} = 311\ \text{s}$. From $T(p) = T_{\text{vac}} - p_{\text{amb}} A_{\text{exit}}$, the derived nozzle exit area is $0.6799\ \text{m}^2$ ($d_e \approx 0.93\ \text{m}$), and choked-flow consistency gives sea-level $I_{sp} = 287.56\ \text{s}$.
-- **Liftoff 2.0 s throttle ramp (`EMPIRICAL`):** Across `DM-1`, `SpaceX CRS-16`, and `Iridium NEXT 8` webcast telemetry, $v(2\ \text{s}) \approx 3.1\text{–}3.3\ \text{m/s}$ (vs $\approx 7.5\ \text{m/s}$ for full liftoff thrust from $T+0$). In reality, Falcon 9 ignites at T-3 s and releases its hold-down clamps at full thrust; the slow early speed is most likely a webcast display smoothing / T+0 clock-sync artifact rather than a physical engine ramp. We keep a linear $72\% \to 100\%$ ramp over $t \in [0, 2.0]\ \text{s}$ as an `EMPIRICAL` alignment term.
-- **Throttle range (`ASSUMED`):** Merlin 1D throttle is clamped to $40\%\text{–}100\%$ (MVac $39\%\text{–}100\%$). Instantaneous throttle response is assumed (no turbopump spool lag).
+- **Choked-nozzle $I_{sp}$ consistency:** SpaceX publicly lists Falcon 9 Block 5 total sea-level thrust as $7{,}607\ \text{kN}$ and vacuum thrust as $8{,}227\ \text{kN}$, with vacuum $I_{sp} = 311\ \text{s}$ ($A_{\text{exit}} = 0.680\ \text{m}^2$, $d_e \approx 0.930\ \text{m}$). Using the Part D Variant (a) joint MAP estimates below ($T_{\text{vac}} = 908.72\ \text{kN/engine}$, $A_{\text{exit}} = 0.680\ \text{m}^2 \Rightarrow d_e = 0.931\ \text{m}$, $I_{sp,\text{vac}} = 311.04\ \text{s}$), choked-flow consistency algebraically enforces $T_{\text{sl}} = T_{\text{vac}} - p_0 A_{\text{exit}} = 839.82\ \text{kN/engine}$ ($9\times = 7{,}558\ \text{kN}$, $-0.6\%$ from spec) and $I_{sp,\text{sl}} = I_{sp,\text{vac}}(T_{\text{sl}}/T_{\text{vac}}) = 287.46\ \text{s}$.
+- **Liftoff clock model (Variant (a) selected by holdout performance):** The former `EMPIRICAL` $2.0\ \text{s}$ liftoff throttle ramp has been **deleted** from `src/sim/guidance/ascent.ts`; Stage 1 now commands full $100\%$ thrust from clamp release ($t = 0$). Instead, a single fitted webcast-clock offset (`WEBCAST_LIFTOFF_OFFSET_S = +1.92 ± 1.31 s`) is applied consistently in `src/validation/compare.ts` for all telemetry comparisons, capturing the webcast display smoothing / $T+0$ clock-sync offset observed across SpaceX broadcasts. (In v1.4 Part B, negative-time hold-down ignition from $T-3\ \text{s}$ will replace the $t = 0$ release step.)
+- **Throttle range (`ASSUMED`):** Merlin 1D throttle is clamped to $40\%\text{–}100\%$ (MVac $39\%\text{–}100\%$). Instantaneous throttle response is assumed in nominal runs (`40–120 ms` first-order lag in Monte Carlo).
 - **Liftoff mass budget vs. SpaceX's sourced `549,054 kg` figure:**
-  SpaceX's Falcon 9 spec page lists a single headline liftoff mass of `549,054 kg` (originally published for Full Thrust v1.2, without breaking down per-stage wet/dry masses or payload). Our Block 5 subcooled mass budget sums to:
-  - Stage 1 dry (`ASSUMED`, reusable Block 5 w/ Ti grid fins, legs, octaweb shield): `27,200 kg`
-  - Stage 1 propellant (`ASSUMED/est.`, Block 5 densified LOX/RP-1): `411,000 kg`
-  - Stage 2 dry (`ASSUMED/est.`): `4,500 kg`
-  - Stage 2 propellant (`ASSUMED/est.`, Block 5 densified LOX/RP-1): `111,500 kg`
+  SpaceX's Falcon 9 spec page lists a single headline liftoff mass of `549,054 kg` (originally published for Full Thrust v1.2, without breaking down per-stage wet/dry masses or payload). Our Part D MAP-fitted Block 5 subcooled mass budget sums to:
+  - Stage 1 dry (`MAP fit`, prior `25,600 ± 2,000 kg`): `26,955 kg`
+  - Stage 1 propellant (`MAP fit`, prior `411,000 ± 8,000 kg`): `422,671 kg`
+  - Stage 2 dry (`MAP fit`, prior `4,200 ± 400 kg`): `4,234 kg`
+  - Stage 2 propellant (`MAP fit`, prior `109,500 ± 3,000 kg`): `111,310 kg`
   - Fairing (`Sourced`, both halves): `1,900 kg` (`0 kg` for Crew Dragon DM-1)
-  - **Vehicle subtotal (no payload):** `556,100 kg` (`554,200 kg` without fairing) — **+1.28% (+7,046 kg)** above the headline `549,054 kg` spec, reflecting Block 5's heavier reusable hardware and higher subcooled propellant load. With a `12,000 kg` LEO payload, liftoff mass is `568,100 kg` (`566,255 kg` for DM-1).
+  - **Vehicle subtotal (no payload):** `567,070 kg` (`565,170 kg` without fairing) — **+3.3% (+18,016 kg)** above the legacy v1.2 `549,054 kg` headline figure, reflecting Block 5's heavier reusable hardware and densified subcooled propellant loads.
+
+### Fitted Parameters (Part D MAP System Identification — Leak-Free)
+
+Shared vehicle parameters (including `maxAxialAccelG`, fitted on the fit set only with zero holdout leakage) and per-flight pitch-kick nuisance parameters (`kick_DM1`, `kick_CRS16`, `kick_Iridium8`) were estimated jointly via RMS-normalized Levenberg-Marquardt MAP minimization through SECO-1 across the 3-flight **fit set** (`DM-1`, `SpaceX CRS-16`, `Iridium NEXT 8`) with Gaussian prior penalties anchored to published specs. Posterior marginal uncertainties ($\sigma_{\text{post}}$) come from the full Laplace covariance $\Sigma_{\text{post}} = (J^T J + \Sigma_{\text{prior}}^{-1})^{-1}$.
+
+Two liftoff-alignment variants were compared on the 7-flight holdout set:
+- **Variant (a) (Selected for parsimony):** Delete the `EMPIRICAL` 2 s liftoff ramp; fit `liftoffOffsetS` (`+1.92 ± 1.31 s`) applied consistently in all validation comparisons. Holdouts: `|Max-Q Δ| = 6.03 s`, `|MECO Δ| = 2.88 s`, `S1 Alt RMS = 1.16 km`, `S1 Vel RMS = 46.7 m/s`, 5-flight matching-profile `S2 Vel RMS = 221.6 m/s`.
+- **Variant (b):** Keep the `EMPIRICAL` 2 s liftoff ramp; drop `liftoffOffsetS` (`0 s`). Holdouts: `|Max-Q Δ| = 6.12 s`, `|MECO Δ| = 2.96 s`, `S1 Alt RMS = 1.00 km`, `S1 Vel RMS = 50.9 m/s`, 5-flight matching-profile `S2 Vel RMS = 231.4 m/s`.
+- **Selection rationale:** Variants (a) and (b) are **within noise** on the 7-flight holdout set (`0.08–0.09 s` timing difference, `0.16 km` alt, `4.2 m/s` S1 vel, `9.8 m/s` S2 vel). **Variant (a) was chosen for parsimony** because it eliminates the unphysical `EMPIRICAL` 2 s thrust ramp from the flight dynamics model and places the webcast-clock alignment cleanly in the validation comparison layer.
+
+| Parameter | Prior ($\mu \pm \sigma$) | Prior Source | MAP Fit ($\hat\theta \pm \sigma_{\text{post}}$) | Shift | $\sigma_{\text{post}}/\sigma_{\text{prior}}$ | Identifiability |
+|---|---|---|---|---|---|---|
+| `s1PropKg` | `411,000 ± 8,000 kg` | Spaceflight101 / Wikipedia F9 FT–B5 | **`422,671 ± 6,148 kg`** | `+1.46σ` | `0.77` | Moderately constrained |
+| `s1DryKg` | `25,600 ± 2,000 kg` | Public reusable B5 estimates (~22.2–27.2 t) | **`26,955 ± 1,857 kg`** | `+0.68σ` | `0.93` | Poorly constrained (prior-dominated) |
+| `s2PropKg` | `109,500 ± 3,000 kg` | Spaceflight101 / Wikipedia F9 FT–B5 (~107.5–111.5 t) | **`111,310 ± 1,668 kg`** | `+0.60σ` | `0.56` | Moderately constrained |
+| `s2DryKg` | `4,200 ± 400 kg` | Public F9 S2 estimates (~3.9–4.5 t) | **`4,234 ± 398 kg`** | `+0.08σ` | `0.99` | Poorly constrained (prior-dominated) |
+| `m1dThrustVacN` | `914.11 ± 6.00 kN` | SpaceX spec (`8,227 kN / 9`) | **`908.72 ± 5.63 kN`** | `-0.90σ` | `0.94` | Poorly constrained (prior-dominated) |
+| `m1dNozzleAreaM2` | `0.680 ± 0.015 m²` | SpaceX spec `(T_vac − T_sl)/p0` (`d ≈ 0.93 m`) | **`0.680 ± 0.015 m²`** | `+0.03σ` | `0.99` | Poorly constrained (prior-dominated) |
+| `m1dIspVacS` | `311.0 ± 2.0 s` | SpaceX spec (`311 s`) | **`311.04 ± 1.91 s`** | `+0.02σ` | `0.96` | Poorly constrained (prior-dominated) |
+| `mvacThrustVacN` | `981.0 ± 10.0 kN` | SpaceX spec (`981 kN`) | **`983.17 ± 9.26 kN`** | `+0.22σ` | `0.93` | Poorly constrained (prior-dominated) |
+| `mvacIspVacS` | `348.0 ± 2.0 s` | SpaceX spec (`348 s`) | **`347.90 ± 1.98 s`** | `-0.05σ` | `0.99` | Poorly constrained (prior-dominated) |
+| `cdScale` | `1.00 ± 0.15` | `ASSUMED` `ASCENT_CD_MACH_TABLE` multiplier | **`1.041 ± 0.149`** | `+0.27σ` | `1.00` | Poorly constrained (prior-dominated) |
+| `maxAxialAccelG` | `4.00 ± 0.50 g` | Public unmanned F9 axial load limit (~3.5–4.5 g) | **`3.69 ± 0.45 g`** | `-0.63σ` | `0.91` | Poorly constrained (fit set only) |
+| `liftoffOffsetS` | `0.00 ± 1.50 s` | Webcast $T+0$ clock sync (validation only) | **`+1.92 ± 1.31 s`** | `+1.28σ` | `0.87` | Poorly constrained (prior-dominated) |
+| `kick_DM1` (nuisance) | `2.00 ± 0.80°` | Per-flight trajectory shaping | **`1.28 ± 0.16°`** | `-0.90σ` | `0.19` | Well constrained |
+| `kick_CRS16` (nuisance) | `2.00 ± 0.80°` | Per-flight trajectory shaping | **`1.37 ± 0.20°`** | `-0.78σ` | `0.25` | Well constrained |
+| `kick_Iridium8` (nuisance) | `2.00 ± 0.80°` | Per-flight trajectory shaping | **`1.73 ± 0.42°`** | `-0.34σ` | `0.52` | Moderately constrained |
+
+- **Strongest physical degeneracies:** `s1PropKg ↔ m1dThrustVacN` ($r \approx +0.92$, T/W & burn-time ridge) and `s2PropKg ↔ mvacThrustVacN` ($r \approx +0.86$). With realistic RMS-normalized weighting, most individual engine/mass specs remain prior-dominated; only the combined S1/S2 propellant budgets and per-flight pitch kicks are tightened substantially by webcast telemetry.
+- **Early-MECO bias mechanism:** Pre-fit MECO occurred `−7` to `−12.6 s` early across Block 5 flights due to (1) under-estimated Block 5 subcooled Stage 1 propellant (`411 t` vs `422.7 t`), (2) an `ASSUMED` `4.5 g` Stage 1 axial cap vs `3.69 g` fitted on the fit set, and (3) the `+1.92 s` webcast clock offset. Together these cut mean 7-flight holdout `|MECO Δ|` from `7.42 → 2.88 s` (`GPS III SV01`: `−12.6 → −1.0 s`; `Bangabandhu-1`: `−8.6 → −0.1 s`; `Eshail 2`: `−8.7 → −0.3 s`).
+- **DM-1-specific guidance audit:** The former hard-coded `pitchKickAngleDeg: 1.25°` was **`ASSUMED`** (replaced by the MAP per-flight nuisance fit `1.28°`, cutting DM-1 S1 alt RMS from `5.32 → 0.31 km`). The `3.2 g` Stage 2 cap (`stage2MaxAccelG: 3.2`) is also **`ASSUMED`** and active for `60 / 396 s = 15.2%` of DM-1's Stage 2 burn (min throttle `0.580`).
+
+#### Per-Flight Validation Tables (`dt = 0.01 s`, Variant (a) vs v1.2 Baseline)
+
+Vehicle parameters and `liftoffOffsetS = +1.92 s` are frozen from the 3-flight fit set; on holdout flights only the 1-DOF per-flight `pitchKickAngleDeg` nuisance parameter is fitted (real Falcon 9 trajectories are shaped per mission). Stage 2 RMS is reported **only** for flights where the simulator flies the same ascent profile through SECO-1.
+
+| Flight | Group | Real Profile | Fitted Kick | Max-Q $\Delta t$ (B → A) | MECO $\Delta t$ (B → A) | S1 Alt RMS (B → A) | S1 Vel RMS (B → A) | S2 Vel RMS (B → A) | SECO-1 (Real / B / A) |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|
+| **DM-1** | FIT | LEO direct | `1.28°` | `-2.3 → +1.7 s` | `-7.6 → -1.7 s` | `5.32 → 0.31 km` | `95 → 55 m/s` | `327 → 106 m/s` | `549 / 558 / 550` |
+| **SpaceX CRS-16** | FIT | LEO direct | `1.37°` | `+2.6 → +6.4 s` | `-12.3 → -5.8 s` | `3.47 → 2.13 km` | `178 → 91 m/s` | `295 → 112 m/s` | `538 / 509 / 522` |
+| **Iridium NEXT 8** | FIT | LEO two-burn | `1.73°` | `-3.6 → +0.3 s` | `-6.7 → +1.5 s` | `2.51 → 1.16 km` | `168 → 83 m/s` | `125 → 83 m/s` | `526 / 522 / 531` |
+| **Bangabandhu-1** | HOLDOUT | GTO | `2.52°` | `-17.6 → -13.5 s` | `-8.6 → -0.1 s` | `8.53 → 0.57 km` | `56 → 16 m/s` | `263 → 47 m/s` | `495 / 500 / 500` |
+| **TelStar v19** | HOLDOUT | GTO | `2.41°` | `-15.0 → -10.8 s` | `-9.7 → -1.4 s` | `7.96 → 0.39 km` | `62 → 17 m/s` | `402 → 298 m/s` | `499 / 509 / 511` |
+| **Iridium NEXT 7** | HOLDOUT | LEO two-burn | `1.71°` | `-13.6 → -9.7 s` | `-2.7 → +5.5 s` | `2.63 → 0.60 km` | `124 → 31 m/s` | `189 → 237 m/s` | `524 / 525 / 534` |
+| **Eshail 2** | HOLDOUT | GTO | `2.44°` | `-2.3 → +1.8 s` | `-8.7 → -0.3 s` | `6.72 → 2.49 km` | `60 → 87 m/s` | `490 → 324 m/s` | `495 / 503 / 504` |
+| **GPS III SV01** | HOLDOUT | MEO two-burn | `2.23°` | `-6.5 → -2.4 s` | `-12.6 → -1.0 s` | `10.02 → 1.23 km` | `136 → 62 m/s` | `416 → 202 m/s` | `520 / 505 / 503` |
+| **SAOCOM 1A** | HOLDOUT | LEO direct | `1.21°` | `-1.8 → +1.9 s` | `-9.4 → -2.8 s` | `0.43 → 1.56 km` | `143 → 53 m/s` | S1 only *(real 620 km direct vs sim two-burn)* | `607 / n/a` |
+| **SSO-A** | HOLDOUT | LEO direct | `1.19°` | `-1.6 → +2.1 s` | `+0.3 → +9.1 s` | `0.37 → 1.28 km` | `184 → 62 m/s` | S1 only *(real 575 km direct vs sim two-burn)* | `600 / n/a` |
+
+- **Holdout S1 averages (all 7 holdouts):** `|Max-Q Δ|`: `8.33 → 6.03 s`, `|MECO Δ|`: `7.42 → 2.88 s`, `S1 Alt RMS`: `5.24 → 1.16 km`, `S1 Vel RMS`: `109.3 → 46.7 m/s`.
+- **Holdout S2 average (5 matching-profile holdouts only — excludes `SAOCOM 1A` & `SSO-A`):** `S2 Vel RMS`: `352.0 → 221.6 m/s` (`-37%`).
+
+#### Fair Baseline Decomposition (Kick-Fitting vs. Vehicle-Model Improvement, Holdout Set)
+
+Giving the pre-Part-D baseline vehicle the **same** 1-DOF per-flight pitch-kick fit separates trajectory shaping from vehicle-model improvement:
+
+| Configuration (Holdout Set, `dt = 0.01 s`) | 7-flt `|Max-Q Δ|` | 7-flt `|MECO Δ|` | 7-flt S1 Alt RMS | 7-flt S1 Vel RMS | 5-flt Matching S2 Vel RMS |
+|---|---:|---:|---:|---:|---:|
+| **[1] Baseline + fixed kick** | `9.02 s` | `7.62 s` | `5.16 km` | `118.7 m/s` | `310.4 m/s` |
+| **[2] Baseline + per-flight kick** | `8.92 s` | `7.67 s` | `2.80 km` | `129.5 m/s` | `152.5 m/s` |
+| **[3] MAP Variant (a) + per-flight kick** | `6.03 s` | `2.89 s` | `1.17 km` | `46.8 m/s` | `220.9 m/s` |
+| **Kick-fitting delta (`[2] − [1]`)** | `-0.10 s` | `+0.04 s` | **`-2.36 km`** | `+10.9 m/s` | **`-158.0 m/s`** |
+| **Pure vehicle-model delta (`[3] − [2]`)** | **`-2.89 s`** | **`-4.78 s`** | **`-1.63 km`** | **`-82.8 m/s`** | `+68.5 m/s`* |
+
+*\*Note:* The `+68.5 m/s` S2 velocity delta on the 5 matching-profile holdouts comes from GTO/MEO flights (`TelStar v19`, `Eshail 2`, `GPS III SV01`) where the longer MAP Stage 1 burn + `+1.92 s` webcast offset shifts SES-1 later relative to real GTO/MEO parking-orbit ignition timing; on `Bangabandhu-1` (`70 → 46 m/s`) and all 3 fit flights (`DM-1: 129 → 106`, `CRS-16: 295 → 111`, `Iridium-8: 113 → 82 m/s`), the vehicle model improves Stage 2 as well.
+
+#### Default Mission Ascent Design & What-If Profile Rule (Mission Design, Not Tuning)
+
+- **Default mission ascent solver (`src/sim/guidance/mission-design.ts`):** `solveMissionAscentDesign` replaces hand-picked ascent pitch kicks and RTLS MECO reserves for default missions (`DEFAULT_LEO_ASDS_MISSION` → `1.90°` at `7.5%` reserve; `DEFAULT_LEO_RTLS_MISSION` → `1.40°` at `14.5%` reserve). Given the vehicle and mission spec (payload, target orbit, landing mode), it starts from the profile default kick as initial guess and solves for the most gravity-loss-efficient pitchover angle (and minimum feasible RTLS MECO reserve) that achieves the target orbit while meeting 3-sigma booster recovery fuel-margin (`>= 4,000 kg` ASDS / `>= 7,500 kg` RTLS) and grid-fin saturation (`<= 15%`) constraints. This is **mission design**, not vehicle parameter tuning.
+- **What-If profile-based default kick rule (`defaultWhatIfPitchKickDeg`):** Derived from the Part D per-flight fitted kicks: `LEO direct` (`<= 250 km`) = **`1.30°`**, `LEO two-burn` (`> 250 km`) = **`1.70°`**, `GTO` = **`2.45°`**. Applied **directly for `EXPENDABLE`** missions (`0.5%` reserve), and used as the **initial guess** for `solveMissionAscentDesign` inside the Web Worker whenever recovery (`ASDS` or `RTLS`) is enabled.
+
+#### Post-Fit Monte Carlo (`N = 1,000 × 3` Fresh Unseen Seeds, Post-RTLS Fix & Mission-Design Solver)
+
+| Mode | Seed | Landed | Orbit | Miss p50 / p95 | Fuel Margin p5 | Peak $q\cdot\alpha$ p95 (`>200` exceed) |
+|---|---:|---:|---:|---:|---:|---:|
+| **ASDS** | `117007` | `999/1000 (99.9%)` | `100.0%` | `1.69 / 4.13 m` | `3,041 kg (0.72%)` | `98.8 kPa·deg (0/1000)` |
+| **ASDS** | `128008` | `999/1000 (99.9%)` | `100.0%` | `1.71 / 4.20 m` | `3,081 kg (0.73%)` | `99.5 kPa·deg (0/1000)` |
+| **ASDS** | `139009` | `1000/1000 (100.0%)` | `100.0%` | `1.66 / 4.05 m` | `3,138 kg (0.74%)` | `98.2 kPa·deg (0/1000)` |
+| **ASDS Combined** | `3 seeds` | **`2,998/3,000 (99.93%)`** | **`100.0%`** | — | — | **`0/3,000`** |
+| **RTLS** | `141010` | `1000/1000 (100.0%)` | `100.0%` | `1.46 / 3.67 m` | `6,561 kg (1.55%)` | `98.7 kPa·deg (0/1000)` |
+| **RTLS** | `152011` | `1000/1000 (100.0%)` | `100.0%` | `1.39 / 3.48 m` | `6,559 kg (1.55%)` | `100.2 kPa·deg (0/1000)` |
+| **RTLS** | `163012` | `1000/1000 (100.0%)` | `100.0%` | `1.43 / 3.87 m` | `6,556 kg (1.55%)` | `99.5 kPa·deg (0/1000)` |
+| **RTLS Combined** | `3 seeds` | **`3,000/3,000 (100.00%)`** | **`100.0%`** | — | — | **`0/3,000`** |
+
+*Failure breakdown across all 3,000 RTLS trials (`141010`, `152011`, `163012`, solver `1.40° / 14.5%`): `v_z: 0`, `v_h: 0`, `miss: 0`, `propellant: 0`, `tilt: 0`. Across all 3,000 ASDS trials (`117007`, `128008`, `139009`, solver `1.90° / 7.5%`): `v_z: 1`, `v_h: 1`, `miss: 0`, `propellant: 0`, `tilt: 0`.*
 
 ## 4. Aerodynamics
 
@@ -37,7 +122,7 @@ This document tracks every `ASSUMED` parameter, modeling simplification, and emp
 
 ## 5. Ascent & Stage 2 Guidance
 
-- **Stage 1 pitchover & gravity turn (`ASSUMED`):** Smooth pitchover kick at $150\ \text{m}$ height **above the launch pad** (accounting for pad elevation such as Vandenberg SLC-4E at $114\ \text{m}$ AMSL) over $8\ \text{s}$ toward the Earth-rotation-compensated launch azimuth (supporting both ascending northeast Cape launches and descending southward Vandenberg launches), followed by zero-AoA gravity turn, smooth transonic max-Q throttle bucket ($M \in [0.92, 1.38]$), and axial G-limit ($4.5\ g$ nominal, $3.0\ g$ `ASSUMED` for human-rated DM-1).
+- **Stage 1 pitchover & gravity turn (`ASSUMED`):** Smooth pitchover kick at $150\ \text{m}$ height **above the launch pad** (accounting for pad elevation such as Vandenberg SLC-4E at $114\ \text{m}$ AMSL) over $8\ \text{s}$ toward the Earth-rotation-compensated launch azimuth (supporting both ascending northeast Cape launches and descending southward Vandenberg launches), followed by zero-AoA gravity turn, smooth transonic max-Q throttle bucket ($M \in [0.92, 1.38]$), and axial G-limit ($3.69\ g$ MAP-fitted on the fit set for unmanned flights, $3.0\ g$ `ASSUMED` for human-rated DM-1).
 - **Stage 2 closed-loop guidance (`ASSUMED`):** Optimal radial boundary-value / linear-tangent steering in the orbital plane with cross-track yaw plane steering:
   $$a_{r,\text{cmd}} = \left(\frac{\mu}{r^2} - \frac{v_h^2}{r}\right) + \frac{6(h_{\text{target}} - h)}{t_{\text{go}}^2} - \frac{4 v_r}{t_{\text{go}}}, \qquad \sin\theta = \text{clamp}\left(\frac{a_{r,\text{cmd}}}{a_T},\ -0.45,\ 0.72\right)$$
   plus cross-track yaw along $\pm\hat{\mathbf{n}} = \mathbf{h}/|\mathbf{h}|$ to drive final inclination within $<0.05^\circ$ of target.
