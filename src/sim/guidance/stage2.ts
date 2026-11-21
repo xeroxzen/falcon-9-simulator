@@ -26,10 +26,13 @@ import {
 /** Default ASSUMED parking/transfer perigee altitude for two-burn Hohmann insertions (185 km). */
 export const DEFAULT_TRANSFER_PERIGEE_ALT_M = 185_000;
 
-/** Target orbit altitude threshold above which two-burn transfer is selected automatically. */
+/** Target orbit altitude threshold used ONLY as the What-If default when ascentProfile is omitted. */
 export const AUTO_TWO_BURN_ALTITUDE_M = 250_000;
 
 export function isTwoBurnMission(mission: MissionConfig): boolean {
+  if (mission.ascentProfile !== undefined) {
+    return mission.ascentProfile === 'TWO_BURN';
+  }
   return mission.guidance.twoBurn ?? mission.targetOrbitAltitudeM > AUTO_TWO_BURN_ALTITUDE_M;
 }
 
@@ -155,10 +158,24 @@ export function computeStage2Guidance(
   };
 
   // ============================================================================
-  // SINGLE-BURN PATH (bit-identical to v1.2 for <= 250 km LEO missions)
+  // SINGLE-BURN DIRECT INSERTION PATH (PEG variable-mass linear-tangent BVP)
+  // Supports both standard ~200 km LEO and lofted ~620 km direct circular SSO.
   // ============================================================================
   if (!twoBurn) {
-    if (dynamic.propellantKg <= 0 || currentEnergy >= targetCircEnergy) {
+    const vCirc = Math.sqrt(EARTH_MU / rTarget);
+    const altErr = mission.targetOrbitAltitudeM - altitudeM;
+
+    // Cutoff when propellant is exhausted OR specific orbital energy reaches
+    // circular target energy (once altitude & radial velocity have converged
+    // for high-altitude direct insertions, preventing premature energy cutoff
+    // while still steeply climbing below target altitude).
+    const energyReached = currentEnergy >= targetCircEnergy;
+    const highAltLoft = mission.targetOrbitAltitudeM > 250_000;
+    const convergedForCutoff = highAltLoft
+      ? Math.abs(altErr) < 25_000 && Math.abs(vRadial) < 120
+      : true;
+
+    if (dynamic.propellantKg <= 0 || (energyReached && convergedForCutoff)) {
       if (memory) {
         memory.phase = 'SECO';
         memory.seco1Done = true;
@@ -175,19 +192,54 @@ export function computeStage2Guidance(
       };
     }
 
-    const vCirc = Math.sqrt(EARTH_MU / rTarget);
-    const dvRem = Math.max(20, vCirc - vHoriz);
-    const tGoEst =
-      mdot > 0
-        ? (totalMassKg / mdot) * (1 - Math.exp(-dvRem / vEx))
-        : dvRem / Math.max(0.1, aThrust);
-    const tGo = Math.max(25.0, tGoEst);
+    // Variable-mass Powered Explicit Guidance (PEG) radial BVP law:
+    // Estimate remaining burn time tGo including climb potential energy & steering
+    // cosine loss, then solve the exact 2x2 rocket-equation integral system
+    // (b0, b1, c0, c1) for radial steering coefficients (A, B) driving
+    // r(tGo) -> rTarget and vRadial(tGo) -> 0.
+    const dvHorizRem = Math.max(15, vCirc - vHoriz);
+    const climbDvEst = altErr > 0 ? Math.sqrt(2 * 8.6 * altErr) * 0.35 : 0;
+    const dvTotalEst = Math.sqrt(dvHorizRem * dvHorizRem + climbDvEst * climbDvEst);
+    const tau = mdot > 1e-6 ? totalMassKg / mdot : 1_000;
+    const tGoRaw =
+      mdot > 1e-6
+        ? tau * (1 - Math.exp(-dvTotalEst / vEx))
+        : dvTotalEst / Math.max(0.1, aThrust);
+    const tGo = clamp(tGoRaw, highAltLoft ? 8.0 : 25.0, tau * 0.96);
 
+    let aRadCmd: number;
     const gEff = EARTH_MU / (r * r) - (vHoriz * vHoriz) / r;
-    const altErr = mission.targetOrbitAltitudeM - altitudeM;
-    const aRadCmd = gEff + (6.0 * altErr) / (tGo * tGo) - (4.0 * vRadial) / tGo;
+    if (highAltLoft && tGo > 10.0) {
+      // Exact variable-mass PEG integrals over [0, tGo]
+      const b0 = -vEx * Math.log(Math.max(1e-4, 1 - tGo / tau));
+      const b1 = b0 * tau - vEx * tGo;
+      const c0 = b0 * tGo - b1;
+      const c1 = c0 * tau - 0.5 * vEx * tGo * tGo;
+      const det = b0 * c1 - b1 * c0;
 
-    const sinTheta = clamp(aRadCmd / Math.max(0.1, aThrust), -0.45, 0.72);
+      // Target radial velocity = 0, target altitude change = altErr,
+      // accounting for average effective gravity along the climb
+      const gEffEnd = EARTH_MU / (rTarget * rTarget) - (vCirc * vCirc) / rTarget; // = 0 for circular
+      const gEffAvg = 0.5 * (gEff + gEffEnd);
+      const rhsV = -vRadial + gEffAvg * tGo;
+      const rhsR = altErr - vRadial * tGo + 0.5 * gEffAvg * tGo * tGo;
+
+      if (Math.abs(det) > 1e-6) {
+        const A = (c1 * rhsV - b1 * rhsR) / det;
+        // A is the initial commanded radial thrust-to-mass ratio (A_r / a_T)
+        aRadCmd = A * aThrust;
+      } else {
+        aRadCmd = gEff + (6.0 * altErr) / (tGo * tGo) - (4.0 * vRadial) / tGo;
+      }
+    } else {
+      aRadCmd = gEff + (6.0 * altErr) / (tGo * tGo) - (4.0 * vRadial) / tGo;
+    }
+
+    const sinTheta = clamp(
+      aRadCmd / Math.max(0.1, aThrust),
+      highAltLoft ? -0.75 : -0.45,
+      highAltLoft ? 0.90 : 0.72
+    );
     const cosTheta = Math.sqrt(Math.max(0, 1 - sinTheta * sinTheta));
 
     const horizSteered = computeYawSteeredHoriz(26.0, 0.35);

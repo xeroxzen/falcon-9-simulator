@@ -77,6 +77,7 @@ export function WhatIfPanel() {
     const profilePitchKickDeg = defaultWhatIfPitchKickDeg(targetAltKm * 1000);
     const customMission: MissionConfig = {
       ...baseMission,
+      ascentProfile: undefined, // What-If falls back to >250 km two-burn default
       payloadMassKg,
       landingMode,
       landingSiteId:

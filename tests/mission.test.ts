@@ -63,7 +63,7 @@ describe('Full Falcon 9 mission (Stage 2 to orbit + Booster recovery)', () => {
     expect(res.events.some((e) => e.type === 'SES_2')).toBe(false);
   });
 
-  it('executes two-burn Hohmann transfer (SES-1 -> coast -> SES-2) on Iridium NEXT 8 (625 km polar) and SAOCOM 1A (620 km SSO)', () => {
+  it('executes sourced TWO_BURN Hohmann on Iridium NEXT 8 (625 km polar) and DIRECT lofted insertion on SAOCOM 1A (620 km SSO)', () => {
     const ir = runFullMission(FALCON9_BLOCK5, IRIDIUM_NEXT_8_MISSION, 5.0);
     expect(ir.orbitAchieved).toBe(true);
     expect(ir.events.some((e) => e.type === 'SECO_1')).toBe(true);
@@ -76,10 +76,11 @@ describe('Full Falcon 9 mission (Stage 2 to orbit + Booster recovery)', () => {
     const sa = runFullMission(FALCON9_BLOCK5, SAOCOM_1A_MISSION, 5.0);
     expect(sa.orbitAchieved).toBe(true);
     expect(sa.events.some((e) => e.type === 'SECO_1')).toBe(true);
-    expect(sa.events.some((e) => e.type === 'SES_2')).toBe(true);
-    expect(sa.events.some((e) => e.type === 'SECO_2')).toBe(true);
+    expect(sa.events.some((e) => e.type === 'SES_2')).toBe(false);
+    expect(sa.events.some((e) => e.type === 'SECO_2')).toBe(false);
     expect(sa.orbit.perigeeAltitudeM).toBeGreaterThan(600_000);
     expect(sa.orbit.apogeeAltitudeM).toBeLessThan(640_000);
     expect(Math.abs(sa.orbit.inclinationDeg - 97.89)).toBeLessThan(0.05);
+    expect(sa.boosterOutcome).toBe('LANDED');
   });
 });
