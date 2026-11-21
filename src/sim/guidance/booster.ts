@@ -304,7 +304,7 @@ export function computeBoosterGuidance(
   // so atmospheric drag sheds energy down to ~2.2-3.5 km before ignition.
   const merlin = vehicle.stage1.engine;
   const nomThrottle = mission.landingMode === 'RTLS' ? 0.85 : 0.88;
-  const nomEngEquiv = mission.landingMode === 'RTLS' ? 1.15 : 1.0;
+  const nomEngEquiv = mission.landingMode === 'RTLS' ? 1.55 : 1.0;
   const nomThrust = Math.max(
     1,
     nomEngEquiv *
@@ -317,7 +317,7 @@ export function computeBoosterGuidance(
   // 6. Aerodynamic descent with titanium grid fins
   if (mem.phase === 'AERO_DESCENT') {
     if (
-      heightAboveTarget <= 6_000 &&
+      heightAboveTarget <= 4_500 &&
       vUp < -5 &&
       heightAboveTarget <= hIgnition &&
       dynamic.propellantKg > 0
@@ -459,7 +459,7 @@ export function computeBoosterGuidance(
   const maxThrust1 =
     merlin.thrustVacuumN - ambientPressurePa * merlin.exitAreaM2;
   const useThreeEngines =
-    vDown > 15 && heightAboveTarget > 30 && reqThrustN > 0.78 * maxThrust1;
+    vDown > 45 && heightAboveTarget > 150 && reqThrustN > 0.92 * maxThrust1;
   const activeEngines = useThreeEngines ? [0, 1, 5] : [0];
   const nEng = activeEngines.length;
 

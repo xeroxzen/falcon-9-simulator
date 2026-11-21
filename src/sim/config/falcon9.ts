@@ -16,28 +16,26 @@ import { SEA_LEVEL_PRESSURE_PA } from './constants.js';
 // ---------------------------------------------------------------------------
 // Merlin 1D (Stage 1, sea-level variant)
 // ---------------------------------------------------------------------------
-// Prior sources: SpaceX Falcon User's Guide & SpaceX Falcon 9 spec page:
+// Source: SpaceX Falcon User's Guide & SpaceX Falcon 9 spec page:
 //   - 9x Merlin 1D total sea-level thrust = 7,607 kN -> 845.222 kN/engine
 //   - 9x Merlin 1D total vacuum thrust   = 8,227 kN -> 914.111 kN/engine
-//   - Nozzle exit area A_exit = (T_vac - T_sl) / p0 = 0.680 m^2 (d ~ 0.930 m)
-//   - Vacuum Isp = 311 s
+//   - Vacuum Isp = 311 s (public SpaceX / aerospace reference value)
 //
-// Values below are the joint MAP system-identification estimates (Part D, fit
-// on DM-1, CRS-16, and Iridium NEXT 8 with Gaussian priors on published specs;
-// validated on 7 holdout Block 5 flights). See docs/ASSUMPTIONS.md.
-//
-// Physics consistency:
+// Physics consistency note:
 //   For a choked nozzle at fixed chamber pressure, mass flow mdot is
 //   independent of ambient pressure: mdot = T_vac / (Isp_vac * g0).
-//   T_sl = T_vac - p0 * A_exit and Isp_sl = Isp_vac * (T_sl / T_vac) are
-//   enforced algebraically (d_exit = 0.921 m, matching ~0.92 m Merlin 1D).
-const MERLIN_1D_THRUST_VAC_N = 908_631; // MAP fit: 908.63 ± 2.72 kN/engine (9x = 8,178 kN)
-const MERLIN_1D_EXIT_AREA_M2 = 0.667; // MAP fit: 0.667 ± 0.014 m^2 (d_exit = 0.921 m)
-const MERLIN_1D_THRUST_SL_N =
-  MERLIN_1D_THRUST_VAC_N - SEA_LEVEL_PRESSURE_PA * MERLIN_1D_EXIT_AREA_M2; // 841.05 kN/engine (9x = 7,569 kN)
-const MERLIN_1D_ISP_VAC_S = 309.63; // MAP fit: 309.63 ± 1.97 s
+//   Using T_sl = 7,607/9 kN and T_vac = 8,227/9 kN gives:
+//     A_exit = (T_vac - T_sl) / p0 = 0.67988 m^2 (exit diameter ~0.930 m,
+//     matching the publicly reported ~0.92 m Merlin 1D nozzle diameter).
+//   The corresponding choked-flow sea-level Isp is:
+//     Isp_sl = Isp_vac * (T_sl / T_vac) = 287.56 s.
+const MERLIN_1D_THRUST_SL_N = 7_607_000 / 9; // 845,222.22 N per engine
+const MERLIN_1D_THRUST_VAC_N = 8_227_000 / 9; // 914,111.11 N per engine
+const MERLIN_1D_EXIT_AREA_M2 =
+  (MERLIN_1D_THRUST_VAC_N - MERLIN_1D_THRUST_SL_N) / SEA_LEVEL_PRESSURE_PA;
+const MERLIN_1D_ISP_VAC_S = 311.0;
 const MERLIN_1D_ISP_SL_S =
-  MERLIN_1D_ISP_VAC_S * (MERLIN_1D_THRUST_SL_N / MERLIN_1D_THRUST_VAC_N); // 286.60 s
+  MERLIN_1D_ISP_VAC_S * (MERLIN_1D_THRUST_SL_N / MERLIN_1D_THRUST_VAC_N);
 
 export const MERLIN_1D_SPEC: EngineSpec = {
   name: 'Merlin 1D (Block 5)',
@@ -54,14 +52,15 @@ export const MERLIN_1D_SPEC: EngineSpec = {
 // ---------------------------------------------------------------------------
 // Merlin 1D Vacuum (Stage 2, MVac)
 // ---------------------------------------------------------------------------
-// Prior source: SpaceX Falcon 9 spec page (981 kN vac thrust, 348 s vac Isp).
-// Values below are Part D MAP estimates (see docs/ASSUMPTIONS.md).
+// Source: SpaceX Falcon 9 spec page:
+//   - Vacuum thrust = 981 kN (220,500 lbf)
+//   - Vacuum Isp    = 348 s
 export const MVAC_SPEC: EngineSpec = {
   name: 'Merlin 1D Vacuum (MVac)',
   thrustSeaLevelN: 0,
-  thrustVacuumN: 992_835, // MAP fit: 992.84 ± 8.63 kN
+  thrustVacuumN: 981_000,
   ispSeaLevelS: 0,
-  ispVacuumS: 347.15, // MAP fit: 347.15 ± 1.96 s
+  ispVacuumS: 348.0,
   /** ASSUMED: ~3.3 m MVac radiatively cooled nozzle extension */
   exitAreaM2: Math.PI * 1.65 * 1.65,
   /** ASSUMED: MVac minimum throttle ~39-40% */
@@ -87,10 +86,10 @@ export const FALCON9_BLOCK5: VehicleConfig = {
   referenceAreaM2: Math.PI * (CORE_DIAMETER_M / 2) * (CORE_DIAMETER_M / 2),
   stage1: {
     name: 'Falcon 9 Stage 1 (Booster)',
-    /** MAP fit (prior 25,600 ± 2,000 kg): Block 5 reusable dry mass with legs, octaweb shield & Ti grid fins */
-    dryMassKg: 27_301,
-    /** MAP fit (prior 411,000 ± 8,000 kg): Subcooled LOX/RP-1 Block 5 propellant load */
-    propellantMassKg: 421_011,
+    /** ASSUMED: Block 5 reusable dry mass with landing legs, octaweb thermal shield & Ti grid fins (~27.2 t) */
+    dryMassKg: 27_200,
+    /** ASSUMED/Sourced est.: Subcooled LOX/RP-1 Block 5 load (~395.7-411 t) */
+    propellantMassKg: 411_000,
     diameterM: CORE_DIAMETER_M,
     /** Source: Public Falcon 9 Block 5 geometry (~42.6 m incl. interstage) */
     lengthM: 42.6,
@@ -99,18 +98,18 @@ export const FALCON9_BLOCK5: VehicleConfig = {
   },
   stage2: {
     name: 'Falcon 9 Stage 2',
-    /** MAP fit (prior 4,200 ± 400 kg): Stage 2 dry mass */
-    dryMassKg: 4_189,
-    /** MAP fit (prior 109,500 ± 3,000 kg): Subcooled LOX/RP-1 Block 5 Stage 2 propellant load */
-    propellantMassKg: 113_412,
+    /** ASSUMED/Sourced est.: Publicly cited ~4,000-4,500 kg dry mass */
+    dryMassKg: 4_500,
+    /** ASSUMED/Sourced est.: Subcooled LOX/RP-1 Block 5 load (publicly cited ~111,500 kg) */
+    propellantMassKg: 111_500,
     diameterM: CORE_DIAMETER_M,
     /** Source: Public Falcon 9 Block 5 geometry (~12.6 m) */
     lengthM: 12.6,
     engineCount: 1,
     engine: MVAC_SPEC,
   },
-  /** ASSUMED (grounded in telemetry): Observed Block 5 cargo S1 axial acceleration cap (~3.4-3.8 g) */
-  maxAxialAccelG: 3.6,
+  /** ASSUMED: Typical Falcon 9 S1 axial acceleration limit (~4.5 g before MECO) */
+  maxAxialAccelG: 4.5,
   /** ASSUMED: Simplified 3-DOF ascent attitude slew rate limit (5 deg/s) */
   maxAttitudeSlewRateRadS: (5.0 * Math.PI) / 180.0,
   /** ASSUMED: Simplified cold-gas RCS booster flip slew rate (12 deg/s -> ~15 s for 180 deg flip) */
@@ -168,27 +167,28 @@ export const LANDING_SITES: Record<'LZ-1' | 'LZ-4', LandingSiteConfig> = {
 
 /**
  * ASSUMED Mach-dependent drag coefficient Cd(M) for Falcon 9 ascent stack
- * referenced to core cross-sectional area (10.7521 m^2), scaled by the
- * Part D MAP drag scale factor (1.149 ± 0.146; poorly constrained / prior-dominated).
+ * referenced to core cross-sectional area (10.7521 m^2).
+ *
+ * Accounts for the 5.2 m hammerhead fairing (21.24 m^2 = 1.98x core area),
+ * folded landing legs, and stowed grid fins:
+ *  - Subsonic Cd_core ~ 0.48 (equivalent to Cd_fairing ~ 0.24)
+ *  - Transonic wave-drag peak ~ 0.88 at M = 1.05
+ *  - Supersonic decay toward ~ 0.36 at M >= 4.0
  */
-const ASCENT_CD_MAP_SCALE = 1.149;
-
-export const ASCENT_CD_MACH_TABLE: readonly (readonly [number, number])[] = (
-  [
-    [0.0, 0.48],
-    [0.5, 0.48],
-    [0.8, 0.56],
-    [0.95, 0.76],
-    [1.05, 0.88],
-    [1.2, 0.80],
-    [1.5, 0.66],
-    [2.0, 0.52],
-    [3.0, 0.42],
-    [4.0, 0.36],
-    [6.0, 0.32],
-    [10.0, 0.30],
-  ] as const
-).map(([m, cd]) => [m, Number((cd * ASCENT_CD_MAP_SCALE).toFixed(4))] as const);
+export const ASCENT_CD_MACH_TABLE: readonly (readonly [number, number])[] = [
+  [0.0, 0.48],
+  [0.5, 0.48],
+  [0.8, 0.56],
+  [0.95, 0.76],
+  [1.05, 0.88],
+  [1.2, 0.80],
+  [1.5, 0.66],
+  [2.0, 0.52],
+  [3.0, 0.42],
+  [4.0, 0.36],
+  [6.0, 0.32],
+  [10.0, 0.30],
+];
 
 /**
  * ASSUMED Mach-dependent drag coefficient Cd(M) for tail-first descending

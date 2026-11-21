@@ -18,41 +18,17 @@ This document tracks every `ASSUMED` parameter, modeling simplification, and emp
 
 ## 3. Propulsion & Mass Budget
 
-- **Choked-nozzle $I_{sp}$ consistency:** SpaceX publicly lists Falcon 9 Block 5 total sea-level thrust as $7{,}607\ \text{kN}$ and vacuum thrust as $8{,}227\ \text{kN}$, with vacuum $I_{sp} = 311\ \text{s}$ ($A_{\text{exit}} = 0.680\ \text{m}^2$, $d_e \approx 0.930\ \text{m}$). Using the Part D joint MAP estimates below ($T_{\text{vac}} = 908.63\ \text{kN/engine}$, $A_{\text{exit}} = 0.667\ \text{m}^2 \Rightarrow d_e = 0.921\ \text{m}$, $I_{sp,\text{vac}} = 309.63\ \text{s}$), choked-flow consistency algebraically enforces $T_{\text{sl}} = T_{\text{vac}} - p_0 A_{\text{exit}} = 841.05\ \text{kN/engine}$ ($9\times = 7{,}569\ \text{kN}$, $-0.5\%$ from spec) and $I_{sp,\text{sl}} = I_{sp,\text{vac}}(T_{\text{sl}}/T_{\text{vac}}) = 286.60\ \text{s}$.
-- **Liftoff 2.0 s throttle ramp (`EMPIRICAL`):** Across `DM-1`, `SpaceX CRS-16`, and `Iridium NEXT 8` webcast telemetry, $v(2\ \text{s}) \approx 3.1\text{–}3.3\ \text{m/s}$ (vs $\approx 7.5\ \text{m/s}$ for full liftoff thrust from $T+0$). In reality, Falcon 9 ignites at T-3 s and releases its hold-down clamps at full thrust; the slow early speed is most likely a webcast display smoothing / T+0 clock-sync artifact rather than a physical engine ramp. We keep a linear $72\% \to 100\%$ ramp over $t \in [0, 2.0]\ \text{s}$ as an `EMPIRICAL` alignment term (to be replaced by the hold-down clamp ignition sequence in v1.4 Part B).
-- **Throttle range (`ASSUMED`):** Merlin 1D throttle is clamped to $40\%\text{–}100\%$ (MVac $39\%\text{–}100\%$). Instantaneous throttle response is assumed in nominal runs (`40–120 ms` first-order lag in Monte Carlo).
+- **Choked-nozzle $I_{sp}$ consistency:** SpaceX publicly lists Falcon 9 Block 5 total sea-level thrust as $7{,}607\ \text{kN}$ and vacuum thrust as $8{,}227\ \text{kN}$, with vacuum $I_{sp} = 311\ \text{s}$. From $T(p) = T_{\text{vac}} - p_{\text{amb}} A_{\text{exit}}$, the derived nozzle exit area is $0.6799\ \text{m}^2$ ($d_e \approx 0.93\ \text{m}$), and choked-flow consistency gives sea-level $I_{sp} = 287.56\ \text{s}$.
+- **Liftoff 2.0 s throttle ramp (`EMPIRICAL`):** Across `DM-1`, `SpaceX CRS-16`, and `Iridium NEXT 8` webcast telemetry, $v(2\ \text{s}) \approx 3.1\text{–}3.3\ \text{m/s}$ (vs $\approx 7.5\ \text{m/s}$ for full liftoff thrust from $T+0$). In reality, Falcon 9 ignites at T-3 s and releases its hold-down clamps at full thrust; the slow early speed is most likely a webcast display smoothing / T+0 clock-sync artifact rather than a physical engine ramp. We keep a linear $72\% \to 100\%$ ramp over $t \in [0, 2.0]\ \text{s}$ as an `EMPIRICAL` alignment term.
+- **Throttle range (`ASSUMED`):** Merlin 1D throttle is clamped to $40\%\text{–}100\%$ (MVac $39\%\text{–}100\%$). Instantaneous throttle response is assumed (no turbopump spool lag).
 - **Liftoff mass budget vs. SpaceX's sourced `549,054 kg` figure:**
-  SpaceX's Falcon 9 spec page lists a single headline liftoff mass of `549,054 kg` (originally published for Full Thrust v1.2, without breaking down per-stage wet/dry masses or payload). Our Part D MAP-fitted Block 5 subcooled mass budget sums to:
-  - Stage 1 dry (`MAP fit`, prior `25,600 ± 2,000 kg`): `27,301 kg`
-  - Stage 1 propellant (`MAP fit`, prior `411,000 ± 8,000 kg`): `421,011 kg`
-  - Stage 2 dry (`MAP fit`, prior `4,200 ± 400 kg`): `4,189 kg`
-  - Stage 2 propellant (`MAP fit`, prior `109,500 ± 3,000 kg`): `113,412 kg`
+  SpaceX's Falcon 9 spec page lists a single headline liftoff mass of `549,054 kg` (originally published for Full Thrust v1.2, without breaking down per-stage wet/dry masses or payload). Our Block 5 subcooled mass budget sums to:
+  - Stage 1 dry (`ASSUMED`, reusable Block 5 w/ Ti grid fins, legs, octaweb shield): `27,200 kg`
+  - Stage 1 propellant (`ASSUMED/est.`, Block 5 densified LOX/RP-1): `411,000 kg`
+  - Stage 2 dry (`ASSUMED/est.`): `4,500 kg`
+  - Stage 2 propellant (`ASSUMED/est.`, Block 5 densified LOX/RP-1): `111,500 kg`
   - Fairing (`Sourced`, both halves): `1,900 kg` (`0 kg` for Crew Dragon DM-1)
-  - **Vehicle subtotal (no payload):** `567,813 kg` (`565,913 kg` without fairing) — **+3.4% (+18,759 kg)** above the legacy v1.2 `549,054 kg` headline figure, reflecting Block 5's heavier reusable hardware and densified subcooled propellant loads.
-
-### Fitted Parameters (Part D MAP System Identification)
-
-All 11 vehicle-level parameters were estimated jointly via damped Gauss-Newton (Levenberg-Marquardt) MAP minimization of weighted altitude + velocity time-series residuals through SECO-1 across the 3-flight **fit set** (`DM-1`, `SpaceX CRS-16`, `Iridium NEXT 8`) with Gaussian prior penalties anchored to published specifications. Posterior marginal uncertainties ($\sigma_{\text{post}}$) come from the full $11\times 11$ Laplace covariance $\Sigma_{\text{post}} = (J^T J + \Sigma_{\text{prior}}^{-1})^{-1}$.
-
-| Parameter | Prior ($\mu \pm \sigma$) | Prior Source | MAP Fit ($\hat\theta \pm \sigma_{\text{post}}$) | Shift | $\sigma_{\text{post}}/\sigma_{\text{prior}}$ | Identifiability |
-|---|---|---|---|---|---|---|
-| `s1PropKg` | `411,000 ± 8,000 kg` | Spaceflight101 / Wikipedia F9 FT–B5 | **`421,011 ± 3,493 kg`** | `+1.25σ` | `0.44` | Well constrained |
-| `s1DryKg` | `25,600 ± 2,000 kg` | Public reusable B5 estimates (~22.2–27.2 t) | **`27,301 ± 1,416 kg`** | `+0.85σ` | `0.71` | Moderately constrained |
-| `s2PropKg` | `109,500 ± 3,000 kg` | Spaceflight101 / Wikipedia F9 FT–B5 (~107.5–111.5 t) | **`113,412 ± 1,230 kg`** | `+1.30σ` | `0.41` | Well constrained |
-| `s2DryKg` | `4,200 ± 400 kg` | Public F9 S2 estimates (~3.9–4.5 t) | **`4,189 ± 392 kg`** | `-0.03σ` | `0.98` | Poorly constrained (prior-dominated) |
-| `m1dThrustVacN` | `914.11 ± 6.00 kN` | SpaceX spec (`8,227 kN / 9`) | **`908.63 ± 2.72 kN`** | `-0.91σ` | `0.45` | Well constrained |
-| `m1dNozzleAreaM2` | `0.680 ± 0.015 m²` | SpaceX spec `(T_vac − T_sl)/p0` (`d ≈ 0.93 m`) | **`0.667 ± 0.014 m²`** | `-0.88σ` | `0.95` | Poorly constrained (prior-dominated) |
-| `m1dIspVacS` | `311.0 ± 2.0 s` | SpaceX spec (`311 s`) | **`309.63 ± 1.97 s`** | `-0.68σ` | `0.98` | Poorly constrained (prior-dominated) |
-| `mvacThrustVacN` | `981.0 ± 10.0 kN` | SpaceX spec (`981 kN`) | **`992.84 ± 8.63 kN`** | `+1.18σ` | `0.86` | Poorly constrained (prior-dominated) |
-| `mvacIspVacS` | `348.0 ± 2.0 s` | SpaceX spec (`348 s`) | **`347.15 ± 1.96 s`** | `-0.42σ` | `0.98` | Poorly constrained (prior-dominated) |
-| `cdScale` | `1.00 ± 0.15` | `ASSUMED` `ASCENT_CD_MACH_TABLE` multiplier | **`1.149 ± 0.146`** | `+0.99σ` | `0.97` | Poorly constrained (prior-dominated) |
-| `liftoffOffsetS` | `0.00 ± 1.00 s` | Webcast T+0 clock sync (diagnostic only; `0 s` in sim) | **`+2.43 ± 0.68 s`** | `+2.43σ` | `0.67` | Moderately constrained |
-
-- **Strongest physical degeneracies:** `s1PropKg ↔ m1dThrustVacN` ($r \approx +0.92$, T/W & burn-time ridge) and `s2PropKg ↔ mvacThrustVacN` ($r \approx +0.86$).
-- **Early-MECO bias mechanism:** Pre-fit MECO occurred `−7` to `−12.6 s` early across Block 5 flights due to (1) under-estimated Stage 1 propellant (`411 t` vs `421 t` subcooled) and (2) an `ASSUMED` `4.5 g` Stage 1 axial acceleration cap that never engaged on cargo flights, whereas real cargo telemetry (`Iridium NEXT 8`, `GPS III SV01`) shows `~3.4–3.8 g` axial throttling before MECO. Lowering `maxAxialAccelG` to `3.6 g` plus the MAP parameters cuts mean `|MECO Δ|` from `8.88 → 5.85 s` (fit) and `7.42 → 4.35 s` (7-flight holdout, with expendable `GPS III SV01` improving from `−12.6 → −3.6 s`).
-- **DM-1-specific guidance audit:** Both `pitchKickAngleDeg: 1.25°` (which puts sim `+14.4 km` above real at `T+160 s`, `102.5` vs `88.1 km`, for crew-abort loft) and `stage2MaxAccelG: 3.2` (active for `60 / 396 s = 15.2%` of DM-1's Stage 2 burn, min throttle `0.580`) are **`ASSUMED`**, not directly sourced from SpaceX press kits.
-- **Holdout validation (`N = 7` remaining pure Block 5 flights: `Bangabandhu-1`, `TelStar v19`, `Iridium NEXT 7`, `SAOCOM 1A`, `Eshail 2`, `SSO-A`, `GPS III SV01`, `dt = 0.01 s`, `tOffset = 0`):** Mean `|Max-Q Δ|` improved `8.33 → 6.30 s`, `|MECO Δ|` improved `7.42 → 4.35 s`, S1 velocity RMS improved `109.3 → 73.5 m/s`, and S2 velocity RMS improved `707.4 → 686.2 m/s`. Fit-set (`N = 3`) S2 velocity RMS improved `248.8 → 162.9 m/s` (`DM-1`: `327 → 149 m/s`).
-- **Post-fit Monte Carlo (`N = 200`, new seed `42026`):** ASDS `197/200 (98.5%)`, miss p50/p95 `2.53 / 5.59 m`, fuel p5 `2,203 kg (0.52%)`; RTLS `199/200 (99.5%)`, miss p50/p95 `1.54 / 3.98 m`, fuel p5 `4,290 kg (1.02%)`.
+  - **Vehicle subtotal (no payload):** `556,100 kg` (`554,200 kg` without fairing) — **+1.28% (+7,046 kg)** above the headline `549,054 kg` spec, reflecting Block 5's heavier reusable hardware and higher subcooled propellant load. With a `12,000 kg` LEO payload, liftoff mass is `568,100 kg` (`566,255 kg` for DM-1).
 
 ## 4. Aerodynamics
 

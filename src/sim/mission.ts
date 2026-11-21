@@ -334,15 +334,10 @@ function predictAsdsTargetCoord(
       vUp < 0 &&
       geo.altitudeM <= 70_000 &&
       speedRel >= 1_300 &&
-      dyn.propellantKg > s1PropTotal * 0.032
+      dyn.propellantKg > s1PropTotal * 0.025
     ) {
       if (entryBurnStart === null) entryBurnStart = t;
-      if (
-        speedRel > 850 &&
-        t - entryBurnStart < 21.0 &&
-        geo.altitudeM > 30_000 &&
-        dyn.propellantKg > s1PropTotal * 0.032
-      ) {
+      if (speedRel > 850 && t - entryBurnStart < 22.0) {
         activeEngines = [0, 1, 5];
       } else {
         entryBurnDone = true;

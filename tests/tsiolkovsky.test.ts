@@ -69,21 +69,18 @@ describe('Tsiolkovsky rocket equation validation', () => {
   it('produces exact sea-level and vacuum thrust totals and handles engine-out', () => {
     const stage = FALCON9_BLOCK5.stage1;
 
-    const expectedSl = stage.engineCount * stage.engine.thrustSeaLevelN;
-    const expectedVac = stage.engineCount * stage.engine.thrustVacuumN;
-
     const sl = evaluateStagePropulsion(stage, 1.0, 101_325, 0, 100_000, []);
-    expect(sl.totalThrustN).toBeCloseTo(expectedSl, -1);
+    expect(sl.totalThrustN).toBeCloseTo(7_607_000, -1);
     expect(sl.activeEngineCount).toBe(9);
 
     const vac = evaluateStagePropulsion(stage, 1.0, 0, 0, 100_000, []);
-    expect(vac.totalThrustN).toBeCloseTo(expectedVac, -1);
-    expect(vac.effectiveIspS).toBeCloseTo(stage.engine.ispVacuumS, 6);
+    expect(vac.totalThrustN).toBeCloseTo(8_227_000, -1);
+    expect(vac.effectiveIspS).toBeCloseTo(311.0, 6);
 
     const eo = evaluateStagePropulsion(stage, 1.0, 0, 50, 100_000, [
       { timeS: 40, engineIndex: 3 },
     ]);
     expect(eo.activeEngineCount).toBe(8);
-    expect(eo.totalThrustN).toBeCloseTo((8 / 9) * expectedVac, -1);
+    expect(eo.totalThrustN).toBeCloseTo((8 / 9) * 8_227_000, -1);
   });
 });
