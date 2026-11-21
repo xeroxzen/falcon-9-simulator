@@ -104,7 +104,6 @@ export const DM1_MISSION: MissionConfig = {
     maxAxialAccelG: 3.0,
     /** Sourced: DM-1 events.json (MECO 158 s -> SES-1 169 s = 11 s) */
     ses1DelayFromMecoS: 11.0,
-    stage2MaxAccelG: 3.2,
   },
 };
 

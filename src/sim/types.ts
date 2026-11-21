@@ -66,6 +66,7 @@ export interface VehicleConfig {
   readonly stage1: StageSpec;
   readonly stage2: StageSpec;
   readonly maxAxialAccelG: number;
+  readonly stage2MaxAccelG: number;
   readonly maxAttitudeSlewRateRadS: number;
   /** ASSUMED booster RCS/cold-gas flip slew rate (rad/s) */
   readonly boosterFlipSlewRateRadS: number;

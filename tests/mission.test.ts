@@ -14,9 +14,9 @@ describe('Full Falcon 9 mission (Stage 2 to orbit + Booster recovery)', () => {
     const res = runFullMission(FALCON9_BLOCK5, DEFAULT_LEO_ASDS_MISSION, 5.0);
 
     expect(res.orbitAchieved).toBe(true);
-    expect(res.orbit.perigeeAltitudeM).toBeGreaterThan(170_000);
-    expect(res.orbit.apogeeAltitudeM).toBeLessThan(240_000);
-    expect(res.orbit.eccentricity).toBeLessThan(0.02);
+    expect(Math.abs(res.orbit.perigeeAltitudeM - 200_000)).toBeLessThanOrEqual(5_000);
+    expect(Math.abs(res.orbit.apogeeAltitudeM - 200_000)).toBeLessThanOrEqual(5_000);
+    expect(res.orbit.eccentricity).toBeLessThan(0.002);
     expect(Math.abs(res.orbit.inclinationDeg - 51.6)).toBeLessThan(0.05);
 
     expect(res.boosterOutcome).toBe('LANDED');
@@ -31,6 +31,8 @@ describe('Full Falcon 9 mission (Stage 2 to orbit + Booster recovery)', () => {
     const res = runFullMission(FALCON9_BLOCK5, DEFAULT_LEO_RTLS_MISSION, 5.0);
 
     expect(res.orbitAchieved).toBe(true);
+    expect(Math.abs(res.orbit.perigeeAltitudeM - 200_000)).toBeLessThanOrEqual(5_000);
+    expect(Math.abs(res.orbit.apogeeAltitudeM - 200_000)).toBeLessThanOrEqual(5_000);
     expect(Math.abs(res.orbit.inclinationDeg - 28.6)).toBeLessThan(0.05);
     expect(res.events.some((e) => e.type === 'BOOSTBACK_START')).toBe(true);
     expect(res.events.some((e) => e.type === 'ENTRY_BURN_START')).toBe(true);
@@ -53,6 +55,8 @@ describe('Full Falcon 9 mission (Stage 2 to orbit + Booster recovery)', () => {
     const res = runFullMission(FALCON9_BLOCK5, DM1_MISSION, 5.0);
 
     expect(res.orbitAchieved).toBe(true);
+    expect(Math.abs(res.orbit.perigeeAltitudeM - 198_000)).toBeLessThanOrEqual(5_000);
+    expect(Math.abs(res.orbit.apogeeAltitudeM - 198_000)).toBeLessThanOrEqual(5_000);
     expect(Math.abs(res.orbit.inclinationDeg - 51.66)).toBeLessThan(0.05);
     expect(res.stage2Final.fairingAttached).toBe(false);
     expect(res.boosterOutcome).toBe('LANDED');
@@ -69,8 +73,8 @@ describe('Full Falcon 9 mission (Stage 2 to orbit + Booster recovery)', () => {
     expect(ir.events.some((e) => e.type === 'SECO_1')).toBe(true);
     expect(ir.events.some((e) => e.type === 'SES_2')).toBe(true);
     expect(ir.events.some((e) => e.type === 'SECO_2')).toBe(true);
-    expect(ir.orbit.perigeeAltitudeM).toBeGreaterThan(605_000);
-    expect(ir.orbit.apogeeAltitudeM).toBeLessThan(645_000);
+    expect(Math.abs(ir.orbit.perigeeAltitudeM - 625_000)).toBeLessThanOrEqual(5_000);
+    expect(Math.abs(ir.orbit.apogeeAltitudeM - 625_000)).toBeLessThanOrEqual(5_000);
     expect(Math.abs(ir.orbit.inclinationDeg - 86.6)).toBeLessThan(0.05);
 
     const sa = runFullMission(FALCON9_BLOCK5, SAOCOM_1A_MISSION, 5.0);
@@ -78,8 +82,8 @@ describe('Full Falcon 9 mission (Stage 2 to orbit + Booster recovery)', () => {
     expect(sa.events.some((e) => e.type === 'SECO_1')).toBe(true);
     expect(sa.events.some((e) => e.type === 'SES_2')).toBe(false);
     expect(sa.events.some((e) => e.type === 'SECO_2')).toBe(false);
-    expect(sa.orbit.perigeeAltitudeM).toBeGreaterThan(600_000);
-    expect(sa.orbit.apogeeAltitudeM).toBeLessThan(640_000);
+    expect(Math.abs(sa.orbit.perigeeAltitudeM - 620_000)).toBeLessThanOrEqual(5_000);
+    expect(Math.abs(sa.orbit.apogeeAltitudeM - 620_000)).toBeLessThanOrEqual(5_000);
     expect(Math.abs(sa.orbit.inclinationDeg - 97.89)).toBeLessThan(0.05);
     expect(sa.boosterOutcome).toBe('LANDED');
   });
