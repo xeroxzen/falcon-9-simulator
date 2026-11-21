@@ -2,13 +2,16 @@ import { useEffect, useState } from 'react';
 import { FALCON9_BLOCK5 } from '../sim/config/falcon9.js';
 import type { LandingMode, MissionConfig } from '../sim/types.js';
 import { useSimStore } from '../store/simStore.js';
+import { BottomSheet } from './BottomSheet.js';
 import { fmtSignedDelta } from './format.js';
+import { useViewport } from './useViewport.js';
 
 function formatDelta(val: number, unit: string, digits = 1): string {
   return fmtSignedDelta(val, unit, digits);
 }
 
 export function WhatIfPanel() {
+  const { isPhone } = useViewport();
   const show = useSimStore((s) => s.showWhatIfPanel);
   const baseMission = useSimStore((s) => s.baseMission);
   const mission = useSimStore((s) => s.mission);
@@ -107,22 +110,8 @@ export function WhatIfPanel() {
       100
     : 0;
 
-  return (
-    <aside className="whatif-panel" data-testid="whatif-panel">
-      <div className="insp-header">
-        <div>
-          <div className="insp-kicker">SCENARIO LAB</div>
-          <h2 className="insp-title">What-If Scenarios</h2>
-        </div>
-        <button
-          className="insp-close"
-          onClick={toggleWhatIfPanel}
-          aria-label="Close what-if panel"
-        >
-          ✕
-        </button>
-      </div>
-
+  const body = (
+    <>
       {/* Controls */}
       <div className="whatif-controls">
         {/* Engine Out */}
@@ -465,6 +454,38 @@ export function WhatIfPanel() {
           </div>
         </section>
       )}
+    </>
+  );
+
+  if (isPhone) {
+    return (
+      <BottomSheet
+        kicker="SCENARIO LAB"
+        title="What-If Scenarios"
+        onClose={toggleWhatIfPanel}
+        testId="whatif-panel"
+      >
+        {body}
+      </BottomSheet>
+    );
+  }
+
+  return (
+    <aside className="whatif-panel" data-testid="whatif-panel">
+      <div className="insp-header">
+        <div>
+          <div className="insp-kicker">SCENARIO LAB</div>
+          <h2 className="insp-title">What-If Scenarios</h2>
+        </div>
+        <button
+          className="insp-close"
+          onClick={toggleWhatIfPanel}
+          aria-label="Close what-if panel"
+        >
+          ✕
+        </button>
+      </div>
+      {body}
     </aside>
   );
 }

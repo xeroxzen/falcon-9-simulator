@@ -26,6 +26,42 @@ export type CameraMode =
 
 export type FocusStage = 'stage1' | 'stage2';
 
+export type QualityTier = 'low' | 'med' | 'high';
+
+export interface QualityPreset {
+  readonly dpr: number | [number, number];
+  readonly bloom: boolean;
+  readonly starCount: number;
+  readonly shadows: boolean;
+}
+
+export const QUALITY_PRESETS: Record<QualityTier, QualityPreset> = {
+  low: { dpr: 1, bloom: false, starCount: 700, shadows: false },
+  med: { dpr: [1, 1.25], bloom: true, starCount: 1400, shadows: false },
+  high: { dpr: [1, 1.5], bloom: true, starCount: 2200, shadows: true },
+};
+
+function detectDefaultQualityTier(): QualityTier {
+  if (typeof window === 'undefined') return 'high';
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const isPhone = w <= 600 || (h <= 500 && w <= 950);
+  const coarse =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(pointer: coarse)').matches;
+  if (isPhone) return 'low';
+  if (coarse || w <= 1024) return 'med';
+  return 'high';
+}
+
+function detectInitialShowEngineerPanel(): boolean {
+  if (typeof window === 'undefined') return true;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const isPhone = w <= 600 || (h <= 500 && w <= 950);
+  return !isPhone;
+}
+
 export interface ComponentSelection {
   readonly componentId: string;
   /** Optional 0-based engine index for Merlin 1D (#1..#9) */
@@ -269,6 +305,7 @@ interface SimStoreState {
   playbackSpeed: number;
   cameraMode: CameraMode;
   focusStage: FocusStage;
+  qualityTier: QualityTier;
   showEngineerPanel: boolean;
   showWhatIfPanel: boolean;
   showHotspots: boolean;
@@ -285,6 +322,7 @@ interface SimStoreState {
   setPlaybackSpeed: (speed: number) => void;
   setCameraMode: (mode: CameraMode) => void;
   setFocusStage: (stage: FocusStage) => void;
+  setQualityTier: (tier: QualityTier) => void;
   toggleEngineerPanel: () => void;
   toggleWhatIfPanel: () => void;
   toggleHotspots: () => void;
@@ -320,7 +358,8 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   playbackSpeed: 1,
   cameraMode: 'chase',
   focusStage: 'stage1',
-  showEngineerPanel: true,
+  qualityTier: detectDefaultQualityTier(),
+  showEngineerPanel: detectInitialShowEngineerPanel(),
   showWhatIfPanel: false,
   showHotspots: false,
   selectedComponent: null,
@@ -459,18 +498,46 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   setPlaybackSpeed: (playbackSpeed) => set({ playbackSpeed }),
   setCameraMode: (cameraMode) => set({ cameraMode }),
   setFocusStage: (focusStage) => set({ focusStage }),
+  setQualityTier: (qualityTier) => set({ qualityTier }),
   toggleEngineerPanel: () =>
-    set((s) => ({ showEngineerPanel: !s.showEngineerPanel })),
+    set((s) => {
+      const next = !s.showEngineerPanel;
+      const isPhone =
+        typeof window !== 'undefined' &&
+        (window.innerWidth <= 600 ||
+          (window.innerHeight <= 500 && window.innerWidth <= 950));
+      return {
+        showEngineerPanel: next,
+        showWhatIfPanel: isPhone && next ? false : s.showWhatIfPanel,
+        selectedComponent: isPhone && next ? null : s.selectedComponent,
+      };
+    }),
   toggleWhatIfPanel: () =>
-    set((s) => ({
-      showWhatIfPanel: !s.showWhatIfPanel,
-      selectedComponent: !s.showWhatIfPanel ? null : s.selectedComponent,
-    })),
+    set((s) => {
+      const next = !s.showWhatIfPanel;
+      const isPhone =
+        typeof window !== 'undefined' &&
+        (window.innerWidth <= 600 ||
+          (window.innerHeight <= 500 && window.innerWidth <= 950));
+      return {
+        showWhatIfPanel: next,
+        selectedComponent: next ? null : s.selectedComponent,
+        showEngineerPanel: isPhone && next ? false : s.showEngineerPanel,
+      };
+    }),
   toggleHotspots: () => set((s) => ({ showHotspots: !s.showHotspots })),
   selectComponent: (selectedComponent) =>
-    set((s) => ({
-      selectedComponent,
-      showWhatIfPanel: selectedComponent ? false : s.showWhatIfPanel,
-    })),
+    set((s) => {
+      const isPhone =
+        typeof window !== 'undefined' &&
+        (window.innerWidth <= 600 ||
+          (window.innerHeight <= 500 && window.innerWidth <= 950));
+      return {
+        selectedComponent,
+        showWhatIfPanel: selectedComponent ? false : s.showWhatIfPanel,
+        showEngineerPanel:
+          isPhone && selectedComponent ? false : s.showEngineerPanel,
+      };
+    }),
   hoverComponent: (hoveredComponent) => set({ hoveredComponent }),
 }));

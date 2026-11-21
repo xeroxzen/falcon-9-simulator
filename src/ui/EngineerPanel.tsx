@@ -1,8 +1,12 @@
 import { sampleFrameAt, useSimStore } from '../store/simStore.js';
+import { BottomSheet } from './BottomSheet.js';
 import { fmtFixed } from './format.js';
+import { useViewport } from './useViewport.js';
 
 export function EngineerPanel() {
+  const { isPhone } = useViewport();
   const show = useSimStore((s) => s.showEngineerPanel);
+  const toggleEngineerPanel = useSimStore((s) => s.toggleEngineerPanel);
   const trajectory = useSimStore((s) => s.trajectory);
   const timeS = useSimStore((s) => s.timeS);
   const focusStage = useSimStore((s) => s.focusStage);
@@ -15,13 +19,8 @@ export function EngineerPanel() {
   const stageTitle =
     focusStage === 'stage2' && frame.separated ? 'STAGE 2 (MVac)' : 'STAGE 1 (9× Merlin 1D)';
 
-  return (
-    <aside className="engineer-panel">
-      <div className="eng-header">
-        <span>ENGINEER TELEMETRY</span>
-        <span className="eng-stage-tag">{stageTitle}</span>
-      </div>
-
+  const content = (
+    <>
       <div className="eng-grid">
         <div className="eng-row">
           <span>Dynamic Pressure (q)</span>
@@ -104,6 +103,29 @@ export function EngineerPanel() {
           style={{ width: `${Math.max(0, Math.min(100, snap.propellantFraction * 100))}%` }}
         />
       </div>
+    </>
+  );
+
+  if (isPhone) {
+    return (
+      <BottomSheet
+        kicker="ENGINEER TELEMETRY"
+        title={stageTitle}
+        onClose={toggleEngineerPanel}
+        testId="engineer-sheet"
+      >
+        {content}
+      </BottomSheet>
+    );
+  }
+
+  return (
+    <aside className="engineer-panel" data-testid="engineer-panel">
+      <div className="eng-header">
+        <span>ENGINEER TELEMETRY</span>
+        <span className="eng-stage-tag">{stageTitle}</span>
+      </div>
+      {content}
     </aside>
   );
 }

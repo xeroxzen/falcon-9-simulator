@@ -1,5 +1,6 @@
 import { sampleFrameAt, useSimStore } from '../store/simStore.js';
 import { fmtFixed } from './format.js';
+import { useViewport } from './useViewport.js';
 
 function formatMissionClock(timeS: number): string {
   const total = Math.max(0, Math.floor(timeS));
@@ -9,8 +10,10 @@ function formatMissionClock(timeS: number): string {
 }
 
 export function WebcastHud() {
+  const { isPhone } = useViewport();
   const trajectory = useSimStore((s) => s.trajectory);
   const timeS = useSimStore((s) => s.timeS);
+  const focusStage = useSimStore((s) => s.focusStage);
   const frame = sampleFrameAt(trajectory, timeS);
 
   if (!frame || !trajectory) return null;
@@ -19,6 +22,26 @@ export function WebcastHud() {
   const s1Km = fmtFixed(Math.max(0, frame.stage1.altitudeM) / 1000, 1);
   const s2Kmh = Math.round(Math.max(0, frame.stage2.speedEarthRelMs * 3.6));
   const s2Km = fmtFixed(Math.max(0, frame.stage2.altitudeM) / 1000, 1);
+
+  if (isPhone) {
+    const activeKmh = focusStage === 'stage2' && frame.separated ? s2Kmh : s1Kmh;
+    const activeKm = focusStage === 'stage2' && frame.separated ? s2Km : s1Km;
+    return (
+      <div className="webcast-hud mobile-hud" data-testid="webcast-hud">
+        <div className="mobile-hud-item">
+          <span className="hud-key">SPEED</span>
+          <span className="mobile-hud-val">{activeKmh.toLocaleString()}</span>
+          <span className="hud-unit">KM/H</span>
+        </div>
+        <div className="mobile-hud-clock">{formatMissionClock(timeS)}</div>
+        <div className="mobile-hud-item">
+          <span className="hud-key">ALT</span>
+          <span className="mobile-hud-val">{activeKm}</span>
+          <span className="hud-unit">KM</span>
+        </div>
+      </div>
+    );
+  }
 
   const s1Phase = frame.stage1.phase;
   const s2Phase = frame.stage2.phase;

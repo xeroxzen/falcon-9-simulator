@@ -60,12 +60,14 @@ export function InteractableHitbox({
   };
 
   const handleOver = (e: ThreeEvent<PointerEvent>) => {
+    if (e.pointerType !== 'mouse') return;
     e.stopPropagation();
     hoverComponent({ componentId, engineIndex });
     document.body.style.cursor = 'pointer';
   };
 
   const handleOut = (e: ThreeEvent<PointerEvent>) => {
+    if (e.pointerType !== 'mouse') return;
     e.stopPropagation();
     hoverComponent(null);
     document.body.style.cursor = 'auto';

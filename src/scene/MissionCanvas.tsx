@@ -6,12 +6,14 @@ import * as THREE from 'three';
 import {
   createMutableFrameTransform,
   liveSimClock,
+  QUALITY_PRESETS,
   sampleFrameAt,
   sampleFrameTransformInto,
   useSimStore,
   type CameraMode,
   type FocusStage,
   type MutableFrameTransform,
+  type QualityTier,
 } from '../store/simStore.js';
 import type { Vec3 } from '../sim/types.js';
 import { installDebugHook, updateDebugFrame } from './debugBridge.js';
@@ -301,14 +303,29 @@ function SplitScissorPass({
   return null;
 }
 
+interface TouchCameraAdjust {
+  yawOffset: number;
+  elevOffset: number;
+  zoomScale: number;
+}
+
 interface SceneContentProps {
   readonly viewStage: FocusStage;
   readonly cameraMode: CameraMode;
   readonly isSplit: boolean;
+  readonly qualityTier: QualityTier;
+  readonly touchAdjustRef: React.RefObject<TouchCameraAdjust>;
 }
 
-function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
+function SceneContent({
+  viewStage,
+  cameraMode,
+  isSplit,
+  qualityTier,
+  touchAdjustRef,
+}: SceneContentProps) {
   const { camera, gl } = useThree();
+  const qCfg = QUALITY_PRESETS[qualityTier];
   const trajectory = useSimStore((s) => s.trajectory);
   // Synced at ~10 Hz during playback (immediately on scrub) for low-GC HUD & mesh state
   const timeS = useSimStore((s) => s.timeS);
@@ -432,9 +449,16 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
 
     if (cameraMode === 'chase') {
       // Critically damped smoothing ONLY on orbit angle & zoom distance
-      const targetDist = fs.transform.separated ? 82 : 142;
-      const targetYaw = Math.PI / 4;
-      const targetElev = Math.atan2(0.16, Math.hypot(0.72, 0.72));
+      const adj = touchAdjustRef.current;
+      const zoomScale = adj ? adj.zoomScale : 1;
+      const yawOff = adj ? adj.yawOffset : 0;
+      const elevOff = adj ? adj.elevOffset : 0;
+      const targetDist = (fs.transform.separated ? 82 : 142) * zoomScale;
+      const targetYaw = Math.PI / 4 + yawOff;
+      const targetElev = Math.max(
+        -0.75,
+        Math.min(1.2, Math.atan2(0.16, Math.hypot(0.72, 0.72)) + elevOff)
+      );
 
       if (scrubbed) {
         chaseDistRef.current = targetDist;
@@ -560,6 +584,7 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
         altitudeM={activeSnap.altitudeM}
         earthGroupRef={earthGroupRef}
         starsGroupRef={starsGroupRef}
+        starCount={qCfg.starCount}
       />
 
       <ambientLight intensity={0.42} />
@@ -567,7 +592,7 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
         position={[300, 450, 220]}
         intensity={2.4}
         color="#fff8ee"
-        castShadow
+        castShadow={qCfg.shadows}
       />
       <directionalLight
         position={[-200, -80, -150]}
@@ -597,6 +622,7 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
           dampingFactor={0.08}
           minDistance={18}
           maxDistance={600}
+          touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
         />
       )}
 
@@ -606,7 +632,7 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
           s1GroupRef={s1GroupRef}
           s2GroupRef={s2GroupRef}
         />
-      ) : (
+      ) : qCfg.bloom ? (
         <EffectComposer multisampling={0}>
           <Bloom
             luminanceThreshold={0.85}
@@ -615,7 +641,7 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
             radius={0.6}
           />
         </EffectComposer>
-      )}
+      ) : null}
     </>
   );
 }
@@ -623,8 +649,111 @@ function SceneContent({ viewStage, cameraMode, isSplit }: SceneContentProps) {
 export function MissionCanvas() {
   const cameraMode = useSimStore((s) => s.cameraMode);
   const focusStage = useSimStore((s) => s.focusStage);
+  const qualityTier = useSimStore((s) => s.qualityTier);
+  const setCameraMode = useSimStore((s) => s.setCameraMode);
   const trajectory = useSimStore((s) => s.trajectory);
   const timeS = useSimStore((s) => s.timeS);
+
+  const qCfg = QUALITY_PRESETS[qualityTier];
+  const touchAdjustRef = useRef<TouchCameraAdjust>({
+    yawOffset: 0,
+    elevOffset: 0,
+    zoomScale: 1,
+  });
+
+  // Touch gesture state (one-finger orbit, two-finger pinch zoom, double-tap camera reset)
+  const gestureRef = useRef<{
+    mode: 'none' | 'orbit' | 'pinch';
+    lastX: number;
+    lastY: number;
+    lastPinchDist: number;
+    lastTapMs: number;
+    lastTapX: number;
+    lastTapY: number;
+    moved: boolean;
+  }>({
+    mode: 'none',
+    lastX: 0,
+    lastY: 0,
+    lastPinchDist: 0,
+    lastTapMs: 0,
+    lastTapX: 0,
+    lastTapY: 0,
+    moved: false,
+  });
+
+  const resetTouchCamera = () => {
+    touchAdjustRef.current.yawOffset = 0;
+    touchAdjustRef.current.elevOffset = 0;
+    touchAdjustRef.current.zoomScale = 1;
+    if (cameraMode === 'orbit') {
+      setCameraMode('chase');
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (cameraMode === 'orbit') return;
+    const g = gestureRef.current;
+    if (e.touches.length === 1) {
+      const t = e.touches[0]!;
+      g.mode = 'orbit';
+      g.lastX = t.clientX;
+      g.lastY = t.clientY;
+      g.moved = false;
+    } else if (e.touches.length === 2) {
+      const t0 = e.touches[0]!;
+      const t1 = e.touches[1]!;
+      g.mode = 'pinch';
+      g.lastPinchDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+      g.moved = true;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (cameraMode === 'orbit') return;
+    const g = gestureRef.current;
+    const adj = touchAdjustRef.current;
+    if (g.mode === 'orbit' && e.touches.length === 1) {
+      const t = e.touches[0]!;
+      const dx = t.clientX - g.lastX;
+      const dy = t.clientY - g.lastY;
+      if (Math.hypot(dx, dy) > 4) g.moved = true;
+      adj.yawOffset -= dx * 0.008;
+      adj.elevOffset = Math.max(-0.75, Math.min(1.0, adj.elevOffset + dy * 0.006));
+      g.lastX = t.clientX;
+      g.lastY = t.clientY;
+    } else if (g.mode === 'pinch' && e.touches.length === 2) {
+      const t0 = e.touches[0]!;
+      const t1 = e.touches[1]!;
+      const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+      if (g.lastPinchDist > 10 && dist > 10) {
+        const ratio = g.lastPinchDist / dist;
+        adj.zoomScale = Math.max(0.45, Math.min(2.5, adj.zoomScale * ratio));
+      }
+      g.lastPinchDist = dist;
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    const g = gestureRef.current;
+    if (!g.moved && e.touches.length === 0 && e.changedTouches.length === 1) {
+      const t = e.changedTouches[0]!;
+      const now = performance.now();
+      const dt = now - g.lastTapMs;
+      const dist = Math.hypot(t.clientX - g.lastTapX, t.clientY - g.lastTapY);
+      if (dt > 40 && dt < 340 && dist < 32) {
+        resetTouchCamera();
+        g.lastTapMs = 0;
+      } else {
+        g.lastTapMs = now;
+        g.lastTapX = t.clientX;
+        g.lastTapY = t.clientY;
+      }
+    }
+    if (e.touches.length === 0) {
+      g.mode = 'none';
+    }
+  };
 
   const isSplit =
     cameraMode === 'split' &&
@@ -639,16 +768,24 @@ export function MissionCanvas() {
         : focusStage;
 
   return (
-    <div className="single-viewport">
+    <div
+      className="single-viewport"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onDoubleClick={resetTouchCamera}
+    >
       <Canvas
         gl={{ preserveDrawingBuffer: true }}
         camera={{ fov: 48, near: 0.5, far: 45_000, position: [100, 45, 115] }}
-        dpr={[1, 1.5]}
+        dpr={qCfg.dpr}
       >
         <SceneContent
           viewStage={effectiveStage}
           cameraMode={cameraMode}
           isSplit={isSplit}
+          qualityTier={qualityTier}
+          touchAdjustRef={touchAdjustRef}
         />
       </Canvas>
       {isSplit && (

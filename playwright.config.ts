@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 const isHeadless = process.env.HEADLESS === '1';
 const isUncapped = process.env.UNCAPPED === '1';
@@ -30,13 +30,39 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:5173',
-    viewport: { width: 1280, height: 800 },
     browserName: 'chromium',
     headless: isHeadless,
     launchOptions: {
       args: launchArgs,
     },
   },
+  projects: [
+    {
+      name: 'desktop',
+      testIgnore: /mobile\.spec\.ts/,
+      use: {
+        viewport: { width: 1280, height: 800 },
+      },
+    },
+    {
+      name: 'iphone-13',
+      testMatch: /mobile\.spec\.ts/,
+      use: {
+        ...devices['iPhone 13'],
+        defaultBrowserType: 'chromium',
+        browserName: 'chromium',
+      },
+    },
+    {
+      name: 'pixel-7',
+      testMatch: /mobile\.spec\.ts/,
+      use: {
+        ...devices['Pixel 7'],
+        defaultBrowserType: 'chromium',
+        browserName: 'chromium',
+      },
+    },
+  ],
   webServer: process.env.BASE_URL
     ? undefined
     : {

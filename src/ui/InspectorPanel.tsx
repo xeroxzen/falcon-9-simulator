@@ -1,7 +1,9 @@
 import { getComponentContent } from '../content/registry.js';
 import { sampleFrameAt, useSimStore } from '../store/simStore.js';
 import type { PlaybackFrame } from '../worker/protocol.js';
+import { BottomSheet } from './BottomSheet.js';
 import { fmtFixed } from './format.js';
+import { useViewport } from './useViewport.js';
 
 type TelemetryOrigin = 'SIM' | 'DERIVED';
 
@@ -167,6 +169,7 @@ function buildHonestTelemetry(
 }
 
 export function InspectorPanel() {
+  const { isPhone } = useViewport();
   const selected = useSimStore((s) => s.selectedComponent);
   const selectComponent = useSimStore((s) => s.selectComponent);
   const trajectory = useSimStore((s) => s.trajectory);
@@ -192,25 +195,8 @@ export function InspectorPanel() {
       ? ` #${selected.engineIndex + 1}`
       : '';
 
-  return (
-    <aside className="inspector-panel" data-testid="inspector-panel" data-component-id={content.id}>
-      <div className="insp-header">
-        <div>
-          <div className="insp-kicker">COMPONENT INSPECTOR</div>
-          <h2 className="insp-title">
-            {content.name}
-            {titleSuffix}
-          </h2>
-        </div>
-        <button
-          className="insp-close"
-          onClick={() => selectComponent(null)}
-          aria-label="Close inspector"
-        >
-          ✕
-        </button>
-      </div>
-
+  const body = (
+    <>
       <p className="insp-summary">{content.summary}</p>
 
       {/* Honest Live Telemetry */}
@@ -281,6 +267,42 @@ export function InspectorPanel() {
           ))}
         </ul>
       </section>
+    </>
+  );
+
+  if (isPhone) {
+    return (
+      <BottomSheet
+        kicker="COMPONENT INSPECTOR"
+        title={`${content.name}${titleSuffix}`}
+        onClose={() => selectComponent(null)}
+        testId="inspector-panel"
+        dataComponentId={content.id}
+      >
+        {body}
+      </BottomSheet>
+    );
+  }
+
+  return (
+    <aside className="inspector-panel" data-testid="inspector-panel" data-component-id={content.id}>
+      <div className="insp-header">
+        <div>
+          <div className="insp-kicker">COMPONENT INSPECTOR</div>
+          <h2 className="insp-title">
+            {content.name}
+            {titleSuffix}
+          </h2>
+        </div>
+        <button
+          className="insp-close"
+          onClick={() => selectComponent(null)}
+          aria-label="Close inspector"
+        >
+          ✕
+        </button>
+      </div>
+      {body}
     </aside>
   );
 }

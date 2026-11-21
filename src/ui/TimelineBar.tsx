@@ -1,8 +1,10 @@
 import { useSimStore } from '../store/simStore.js';
+import { useViewport } from './useViewport.js';
 
 const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 5, 10, 25, 50, 100] as const;
 
 export function TimelineBar() {
+  const { isPhone } = useViewport();
   const trajectory = useSimStore((s) => s.trajectory);
   const timeS = useSimStore((s) => s.timeS);
   const playing = useSimStore((s) => s.playing);
@@ -14,11 +16,38 @@ export function TimelineBar() {
   if (!trajectory) return null;
 
   const duration = Math.max(1, trajectory.durationS);
+
+  if (isPhone) {
+    return (
+      <div className="timeline-bar mobile-timeline" data-testid="timeline-bar">
+        <button
+          className="mobile-play-btn"
+          onClick={togglePlay}
+          aria-label={playing ? 'Pause' : 'Play'}
+          data-testid="mobile-play-btn"
+        >
+          {playing ? '❚❚' : '▶'}
+        </button>
+        <input
+          className="scrubber-input mobile-scrubber"
+          type="range"
+          min={0}
+          max={duration}
+          step={0.1}
+          value={timeS}
+          aria-label="Mission timeline scrubber"
+          onChange={(e) => setTimeS(Number(e.target.value))}
+          data-testid="mobile-scrubber"
+        />
+      </div>
+    );
+  }
+
   const s1Segments = trajectory.segments.filter((seg) => seg.stage === 'STAGE1');
   const s2Segments = trajectory.segments.filter((seg) => seg.stage === 'STAGE2');
 
   return (
-    <div className="timeline-bar">
+    <div className="timeline-bar" data-testid="timeline-bar">
       {/* Controls row */}
       <div className="timeline-controls">
         <button className="play-btn" onClick={togglePlay}>

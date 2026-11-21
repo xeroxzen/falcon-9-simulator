@@ -5,6 +5,7 @@ import {
   useSimStore,
   type CameraMode,
   type FocusStage,
+  type QualityTier,
 } from '../store/simStore.js';
 
 interface RegisteredHitbox {
@@ -142,6 +143,7 @@ export function installDebugHook(): void {
         playbackSpeed: s.playbackSpeed,
         cameraMode: s.cameraMode,
         focusStage: s.focusStage,
+        qualityTier: s.qualityTier,
         showHotspots: s.showHotspots,
         selectedComponent: s.selectedComponent,
         separated: frame?.separated ?? false,
@@ -167,6 +169,9 @@ export function installDebugHook(): void {
     },
     setFocusStage(st: FocusStage) {
       useSimStore.getState().setFocusStage(st);
+    },
+    setQualityTier(tier: QualityTier) {
+      useSimStore.getState().setQualityTier(tier);
     },
     setHotspots(v: boolean) {
       useSimStore.setState({ showHotspots: v });

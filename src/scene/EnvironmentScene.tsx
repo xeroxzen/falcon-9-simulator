@@ -197,10 +197,12 @@ export function EarthAndSky({
   altitudeM,
   earthGroupRef,
   starsGroupRef,
+  starCount = 2200,
 }: {
   readonly altitudeM: number;
   readonly earthGroupRef?: React.RefObject<THREE.Group>;
   readonly starsGroupRef?: React.RefObject<THREE.Group>;
+  readonly starCount?: number;
 }) {
   const atmoMat = useMemo(
     () =>
@@ -241,7 +243,7 @@ export function EarthAndSky({
           <Stars
             radius={22_000}
             depth={8_000}
-            count={2200}
+            count={starCount}
             factor={180}
             saturation={0.2}
             fade
