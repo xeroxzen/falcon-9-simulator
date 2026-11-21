@@ -29,8 +29,8 @@ const BASELINE_RTLS_GUIDANCE: AscentGuidanceConfig = {
   ...BASELINE_ASDS_GUIDANCE,
   /** ASSUMED: Per-mission RTLS pitchover kick (~61-68 km MECO, ~125-135 km booster apogee) */
   pitchKickAngleDeg: 1.85,
-  /** ASSUMED: 14.5% S1 propellant reserve for boostback + entry + landing */
-  mecoPropellantReserveFraction: 0.145,
+  /** ASSUMED: 15.5% S1 propellant reserve for boostback + entry + landing (compensates for +11.7 t MAP S1 prop load) */
+  mecoPropellantReserveFraction: 0.155,
 };
 
 export const DEFAULT_LEO_ASDS_MISSION: MissionConfig = {
