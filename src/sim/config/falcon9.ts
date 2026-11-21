@@ -31,13 +31,13 @@ import { SEA_LEVEL_PRESSURE_PA } from './constants.js';
 //   independent of ambient pressure: mdot = T_vac / (Isp_vac * g0).
 //   T_sl = T_vac - p0 * A_exit and Isp_sl = Isp_vac * (T_sl / T_vac) are
 //   enforced algebraically (d_exit = 0.921 m, matching ~0.92 m Merlin 1D).
-const MERLIN_1D_THRUST_VAC_N = 908_631; // MAP fit: 908.63 ± 2.72 kN/engine (9x = 8,178 kN)
-const MERLIN_1D_EXIT_AREA_M2 = 0.667; // MAP fit: 0.667 ± 0.014 m^2 (d_exit = 0.921 m)
+const MERLIN_1D_THRUST_VAC_N = 908_722; // MAP Variant A: 908.72 ± 5.63 kN/engine (9x = 8,178 kN)
+const MERLIN_1D_EXIT_AREA_M2 = 0.680; // MAP Variant A: 0.680 ± 0.015 m^2 (d_exit = 0.931 m)
 const MERLIN_1D_THRUST_SL_N =
-  MERLIN_1D_THRUST_VAC_N - SEA_LEVEL_PRESSURE_PA * MERLIN_1D_EXIT_AREA_M2; // 841.05 kN/engine (9x = 7,569 kN)
-const MERLIN_1D_ISP_VAC_S = 309.63; // MAP fit: 309.63 ± 1.97 s
+  MERLIN_1D_THRUST_VAC_N - SEA_LEVEL_PRESSURE_PA * MERLIN_1D_EXIT_AREA_M2; // 839.82 kN/engine (9x = 7,558 kN)
+const MERLIN_1D_ISP_VAC_S = 311.04; // MAP Variant A: 311.04 ± 1.91 s
 const MERLIN_1D_ISP_SL_S =
-  MERLIN_1D_ISP_VAC_S * (MERLIN_1D_THRUST_SL_N / MERLIN_1D_THRUST_VAC_N); // 286.60 s
+  MERLIN_1D_ISP_VAC_S * (MERLIN_1D_THRUST_SL_N / MERLIN_1D_THRUST_VAC_N); // 287.46 s
 
 export const MERLIN_1D_SPEC: EngineSpec = {
   name: 'Merlin 1D (Block 5)',
@@ -59,9 +59,9 @@ export const MERLIN_1D_SPEC: EngineSpec = {
 export const MVAC_SPEC: EngineSpec = {
   name: 'Merlin 1D Vacuum (MVac)',
   thrustSeaLevelN: 0,
-  thrustVacuumN: 992_835, // MAP fit: 992.84 ± 8.63 kN
+  thrustVacuumN: 983_169, // MAP Variant A: 983.17 ± 9.26 kN
   ispSeaLevelS: 0,
-  ispVacuumS: 347.15, // MAP fit: 347.15 ± 1.96 s
+  ispVacuumS: 347.90, // MAP Variant A: 347.90 ± 1.98 s
   /** ASSUMED: ~3.3 m MVac radiatively cooled nozzle extension */
   exitAreaM2: Math.PI * 1.65 * 1.65,
   /** ASSUMED: MVac minimum throttle ~39-40% */
@@ -87,10 +87,10 @@ export const FALCON9_BLOCK5: VehicleConfig = {
   referenceAreaM2: Math.PI * (CORE_DIAMETER_M / 2) * (CORE_DIAMETER_M / 2),
   stage1: {
     name: 'Falcon 9 Stage 1 (Booster)',
-    /** MAP fit (prior 25,600 ± 2,000 kg): Block 5 reusable dry mass with legs, octaweb shield & Ti grid fins */
-    dryMassKg: 27_301,
-    /** MAP fit (prior 411,000 ± 8,000 kg): Subcooled LOX/RP-1 Block 5 propellant load */
-    propellantMassKg: 421_011,
+    /** MAP Variant A (prior 25,600 ± 2,000 kg): Block 5 reusable dry mass with legs, octaweb shield & Ti grid fins */
+    dryMassKg: 26_955,
+    /** MAP Variant A (prior 411,000 ± 8,000 kg): Subcooled LOX/RP-1 Block 5 propellant load */
+    propellantMassKg: 422_671,
     diameterM: CORE_DIAMETER_M,
     /** Source: Public Falcon 9 Block 5 geometry (~42.6 m incl. interstage) */
     lengthM: 42.6,
@@ -99,18 +99,18 @@ export const FALCON9_BLOCK5: VehicleConfig = {
   },
   stage2: {
     name: 'Falcon 9 Stage 2',
-    /** MAP fit (prior 4,200 ± 400 kg): Stage 2 dry mass */
-    dryMassKg: 4_189,
-    /** MAP fit (prior 109,500 ± 3,000 kg): Subcooled LOX/RP-1 Block 5 Stage 2 propellant load */
-    propellantMassKg: 113_412,
+    /** MAP Variant A (prior 4,200 ± 400 kg): Stage 2 dry mass */
+    dryMassKg: 4_234,
+    /** MAP Variant A (prior 109,500 ± 3,000 kg): Subcooled LOX/RP-1 Block 5 Stage 2 propellant load */
+    propellantMassKg: 111_310,
     diameterM: CORE_DIAMETER_M,
     /** Source: Public Falcon 9 Block 5 geometry (~12.6 m) */
     lengthM: 12.6,
     engineCount: 1,
     engine: MVAC_SPEC,
   },
-  /** ASSUMED (grounded in telemetry): Observed Block 5 cargo S1 axial acceleration cap (~3.4-3.8 g) */
-  maxAxialAccelG: 3.6,
+  /** MAP Variant A (prior 4.0 ± 0.5 g, fit set only): Stage 1 axial acceleration limit */
+  maxAxialAccelG: 3.69,
   /** ASSUMED: Simplified 3-DOF ascent attitude slew rate limit (5 deg/s) */
   maxAttitudeSlewRateRadS: (5.0 * Math.PI) / 180.0,
   /** ASSUMED: Simplified cold-gas RCS booster flip slew rate (12 deg/s -> ~15 s for 180 deg flip) */
@@ -171,7 +171,7 @@ export const LANDING_SITES: Record<'LZ-1' | 'LZ-4', LandingSiteConfig> = {
  * referenced to core cross-sectional area (10.7521 m^2), scaled by the
  * Part D MAP drag scale factor (1.149 ± 0.146; poorly constrained / prior-dominated).
  */
-const ASCENT_CD_MAP_SCALE = 1.149;
+const ASCENT_CD_MAP_SCALE = 1.041;
 
 export const ASCENT_CD_MACH_TABLE: readonly (readonly [number, number])[] = (
   [
