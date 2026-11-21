@@ -69,6 +69,7 @@ export function WhatIfPanel() {
             ? baseMission.guidance.mecoPropellantReserveFraction
             : 0.075;
 
+    const isTwoBurnTarget = targetAltKm > 250;
     const customMission: MissionConfig = {
       ...baseMission,
       payloadMassKg,
@@ -79,12 +80,16 @@ export function WhatIfPanel() {
           : baseMission.landingSiteId,
       targetOrbitAltitudeM: targetAltKm * 1000,
       targetInclinationDeg: targetInclDeg,
+      maxSimTimeS: isTwoBurnTarget
+        ? Math.max(baseMission.maxSimTimeS, 4_200)
+        : baseMission.maxSimTimeS,
       wind: { eastMs: windEastMs, northMs: windNorthMs, upMs: 0 },
       engineOuts: engineOutEnabled
         ? [{ engineIndex: engineOutIndex, timeS: engineOutTimeS }]
         : [],
       guidance: {
         ...baseMission.guidance,
+        twoBurn: undefined,
         mecoPropellantReserveFraction: reserveFraction,
       },
     };

@@ -2,7 +2,14 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
-## [Unreleased — v1.3.0 Part A] — 2026-11-21
+## [Unreleased — v1.3.0 Parts A–B] — 2026-11-21
+
+### Added
+- **Two-burn Stage 2 Hohmann transfer (`SES-1 → transfer coast → SES-2 → SECO-2`):**
+  - Automatically activates for target orbits `> 250 km` (including What-If scenarios and holdouts `Iridium NEXT 8` & `SAOCOM 1A`), while `<= 250 km` missions (`DM-1`, default `200 km` ASDS/RTLS) stay bit-identical single-burn.
+  - Inserts into a `185 km` (`ASSUMED`) perigee transfer orbit with apogee at target altitude, coasts ballistically with analytic Keplerian time-to-apoapsis ignition centering (`t_to_apo <= 0.5 * t_burn2`), and circularizes at apoapsis. Dynamic timeline segments (`MVac Burn`, `Transfer Coast`, `SES-2 Burn`, `Orbit`) render automatically with zero UI timeline changes.
+  - **Holdout validation (zero retuning):** `Iridium NEXT 8` Stage 2 RMS dropped from `310.10 km / 963.1 m/s` to **`6.03 km / 103.8 m/s`**, achieving **`623.0 × 627.5 km, 86.60°`** (vs published `625 km`, `86.6°`; `SECO-1 = 521.8 s` vs published `526 s`, `SES-2 = 3,259.2 s` vs published `3,108 s`, `2.8 s` vs `3.0 s` burn). `SAOCOM 1A` achieves **`618.5 × 619.8 km, 97.89°`** (vs published `620 km`, `97.89°` SSO).
+- **Floating-origin switch & >100 km smoothness E2E (`e2e/jitter.spec.ts`):** Added a second smoothness window covering `nearPad → highAlt` (`11.2 → 13.2 km`, Earth-ref 2nd-diff `p95 = 0.003 px`, `p95/p50 = 1.18×`) and `> 100 km` (`125.6 → 129.7 km`, `p95 = 0.028 px`, `p95/p50 = 1.15×`), and anchored `EarthAndSky` directly to the priority `0` `useFrame` single source of truth.
 
 ### Improved
 - **Non-trivial chase-camera smoothness & frame-pacing E2E (`e2e/jitter.spec.ts`):** Replaced the trivially satisfied rigidly-locked vehicle check with screen-space motion smoothness of the world-fixed launch pad marker `(0, 0, 0)` during 5 s @ 1× chase-mode ascent (`571.3 px` travel, 2nd-diff `p50 = 0.045 px`, `p95 = 0.213 px`, `max = 0.558 px < 2.0 px`) plus frame-interval pacing (`p50 = 16.60 ms`, `p95 = 19.40 ms`, `p95/p50 = 1.17× < 2.0×`). Added `projectWorldPointToScreen` to `src/scene/debugBridge.ts`.

@@ -144,6 +144,14 @@ export interface AscentGuidanceConfig {
   readonly fairingSepAltitudeM: number;
   /** Optional override for S2 max axial acceleration (g) */
   readonly stage2MaxAccelG?: number;
+  /**
+   * Optional explicit Stage 2 burn profile override.
+   * When omitted, targetOrbitAltitudeM > 250,000 m automatically selects two-burn
+   * Hohmann transfer (SES-1 -> transfer coast -> SES-2 circularization at apoapsis).
+   */
+  readonly twoBurn?: boolean;
+  /** ASSUMED parking/transfer perigee altitude (m) for two-burn SES-1 (default 185,000 m) */
+  readonly transferPerigeeAltitudeM?: number;
 }
 
 export interface MissionConfig {
@@ -180,6 +188,8 @@ export type Stage2Phase =
   | 'ATTACHED'
   | 'COAST_TO_SES1'
   | 'STAGE2_BURN'
+  | 'COAST_TO_SES2'
+  | 'STAGE2_BURN_2'
   | 'SECO'
   | 'ORBIT';
 
@@ -322,6 +332,8 @@ export type MissionEventType =
   | 'SES_1'
   | 'FAIRING_SEP'
   | 'SECO_1'
+  | 'SES_2'
+  | 'SECO_2'
   | 'FLIP_START'
   | 'BOOSTBACK_START'
   | 'BOOSTBACK_END'

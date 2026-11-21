@@ -166,10 +166,20 @@ export function compareMissionToTelemetry(
     };
   };
 
+  const seco1Event = sim.events.find((e) => e.type === 'SECO_1');
+  const seco1End = Math.min(
+    maxOverlapTime,
+    real.events?.seco1 ?? (seco1Event ? Math.ceil(seco1Event.timeS + 10) : maxOverlapTime)
+  );
   const phaseErrors: PhaseErrorStats[] = [
     computePhaseRms('Ascent to Max-Q', 0, realMaxQ),
     computePhaseRms('Max-Q to MECO', realMaxQ, realMeco),
-    computePhaseRms('Stage 2 Ascent', realSes1, maxOverlapTime),
+    ...(seco1End < maxOverlapTime - 60
+      ? [
+          computePhaseRms('Stage 2 (to SECO-1)', realSes1, seco1End),
+          computePhaseRms('Stage 2 (all)', realSes1, maxOverlapTime),
+        ]
+      : [computePhaseRms('Stage 2 Ascent', realSes1, maxOverlapTime)]),
   ];
 
   const maxQTimeDelta =

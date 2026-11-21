@@ -39,7 +39,11 @@ import {
 import { sampleAtmosphere } from './models/atmosphere.js';
 import { gravitationalAccelerationEci } from './models/gravity.js';
 import { evaluateEngine } from './models/propulsion.js';
-import { computeStage2Guidance } from './guidance/stage2.js';
+import {
+  computeStage2Guidance,
+  createStage2GuidanceMemory,
+  isTwoBurnMission,
+} from './guidance/stage2.js';
 import {
   computeBoosterGuidance,
   type BoosterGuidanceMemory,
@@ -485,9 +489,14 @@ export function runFullMission(
   const stage2Samples: Stage2State[] = [s2State];
   const boosterSamples: BoosterState[] = [bState];
 
+  const s2Mem = createStage2GuidanceMemory();
+  const twoBurn = isTwoBurnMission(mission);
+
   let stageSepDone = false;
   let ses1Recorded = false;
-  let secoRecorded = false;
+  let seco1Recorded = false;
+  let ses2Recorded = false;
+  let stage2Done = false;
   let fairingSepRecorded = false;
   let flipRecorded = false;
   let boostbackStartRecorded = false;
@@ -535,13 +544,29 @@ export function runFullMission(
   let navBiasVelUMs =
     velSigmaMs > 0 ? detGaussian(initDisp!.seed, 0, 6) * velSigmaMs : 0;
 
-  const maxPostMecoSteps = Math.round(
-    Math.max(60, mission.maxSimTimeS - mecoTimeS) / dt
-  );
+  const effectiveMaxTimeS = twoBurn
+    ? Math.max(mission.maxSimTimeS, 4_200)
+    : mission.maxSimTimeS;
+  let curT = mecoTimeS;
+  let step = 0;
+  let nextSampleT = mecoTimeS + sampleIntervalS;
 
-  for (let step = 1; step <= maxPostMecoSteps; step++) {
-    const t = Number((mecoTimeS + step * dt).toFixed(6));
-    const prevT = Number((mecoTimeS + (step - 1) * dt).toFixed(6));
+  while (curT < effectiveMaxTimeS - 1e-6) {
+    step++;
+    // Use 1.0 s RK4 steps during pure ballistic vacuum transfer coast after booster
+    // has finished (truncation error < 1e-10/orbit, 100x faster); revert to fine dt
+    // within 30 s of apoapsis SES-2 ignition or during any burn/booster phase.
+    const inVacuumTransferCoast =
+      twoBurn &&
+      boosterDone &&
+      s2Mem.seco1Done &&
+      !s2Mem.ses2Started &&
+      s2Mem.timeToApoapsisS !== null &&
+      s2Mem.timeToApoapsisS > 30;
+    const stepDt = inVacuumTransferCoast ? Math.min(1.0, sampleIntervalS >= 1.0 ? 1.0 : 0.5) : dt;
+    const prevT = curT;
+    const t = Number((curT + stepDt).toFixed(6));
+    curT = t;
 
     // Stage separation impulse (~1.5 m/s pneumatic pusher separation along attitude)
     if (!stageSepDone && t >= stageSepTimeS) {
@@ -566,7 +591,7 @@ export function runFullMission(
     }
 
     // --- Step Stage 2 ---
-    if (!secoRecorded) {
+    if (!stage2Done) {
       if (
         fairingAttached &&
         s2State.geodetic.altitudeM >= mission.guidance.fairingSepAltitudeM
@@ -592,13 +617,14 @@ export function runFullMission(
         s2State.totalMassKg,
         s2State.geodetic.altitudeM,
         vehicle,
-        mission
+        mission,
+        s2Mem
       );
 
       const nextS2Att = slewUnitVector(
         s2Dyn.attitudeEci,
         s2Cmd.targetAttitudeEci,
-        vehicle.maxAttitudeSlewRateRadS * dt
+        vehicle.maxAttitudeSlewRateRadS * stepDt
       );
       const stepS2Att = normalize(add(s2Dyn.attitudeEci, nextS2Att));
       const s2FixedMass =
@@ -667,7 +693,7 @@ export function runFullMission(
         },
       };
 
-      s2Dyn = rk4Step(prevT, s2Dyn, dt, s2Space);
+      s2Dyn = rk4Step(prevT, s2Dyn, stepDt, s2Space);
       s2State = buildStage2State(
         t,
         s2Cmd.phase,
@@ -692,8 +718,8 @@ export function runFullMission(
         });
       }
 
-      if (s2Cmd.secoTriggered) {
-        secoRecorded = true;
+      if (!seco1Recorded && s2Cmd.secoTriggered) {
+        seco1Recorded = true;
         const orb = computeOrbitalElements(s2Dyn.positionEci, s2Dyn.velocityEci);
         events.push({
           type: 'SECO_1',
@@ -704,7 +730,41 @@ export function runFullMission(
           detail: `SECO-1: ${(orb.perigeeAltitudeM / 1000).toFixed(1)} x ${(orb.apogeeAltitudeM / 1000).toFixed(1)} km, incl ${orb.inclinationDeg.toFixed(2)}°`,
         });
         stage2Samples.push(s2State);
-      } else if (step % sampleEverySteps === 0) {
+      }
+
+      if (!ses2Recorded && s2Cmd.ses2Triggered) {
+        ses2Recorded = true;
+        events.push({
+          type: 'SES_2',
+          timeS: t,
+          altitudeM: s2State.geodetic.altitudeM,
+          speedMs: s2State.speedEarthRelMs,
+          downrangeM: s2State.downrangeM,
+          detail: 'MVac apoapsis circularization ignition (SES-2)',
+        });
+        stage2Samples.push(s2State);
+      }
+
+      if (s2Cmd.seco2Triggered) {
+        const orb = computeOrbitalElements(s2Dyn.positionEci, s2Dyn.velocityEci);
+        events.push({
+          type: 'SECO_2',
+          timeS: t,
+          altitudeM: s2State.geodetic.altitudeM,
+          speedMs: s2State.speedEarthRelMs,
+          downrangeM: s2State.downrangeM,
+          detail: `SECO-2: ${(orb.perigeeAltitudeM / 1000).toFixed(1)} x ${(orb.apogeeAltitudeM / 1000).toFixed(1)} km, incl ${orb.inclinationDeg.toFixed(2)}°`,
+        });
+        stage2Samples.push(s2State);
+      }
+
+      if (s2Cmd.missionComplete) {
+        stage2Done = true;
+      } else if (
+        inVacuumTransferCoast
+          ? t >= nextSampleT - 1e-6
+          : step % sampleEverySteps === 0
+      ) {
         stage2Samples.push(s2State);
       }
     }
@@ -1049,7 +1109,11 @@ export function runFullMission(
       }
     }
 
-    if (secoRecorded && boosterDone) {
+    if (t >= nextSampleT - 1e-6) {
+      nextSampleT += sampleIntervalS;
+    }
+
+    if (stage2Done && boosterDone) {
       break;
     }
   }

@@ -52,6 +52,19 @@ function runAndPrintMission(
     );
   }
 
+  const seco1Ev = sim.events.find((e) => e.type === 'SECO_1');
+  const ses2Ev = sim.events.find((e) => e.type === 'SES_2');
+  const seco2Ev = sim.events.find((e) => e.type === 'SECO_2');
+  if (seco1Ev) {
+    console.log(`\nStage 2 Events:`);
+    console.log(`  SECO-1 @ T+${seco1Ev.timeS.toFixed(1)} s (${seco1Ev.detail})`);
+    if (ses2Ev && seco2Ev) {
+      console.log(
+        `  SES-2  @ T+${ses2Ev.timeS.toFixed(1)} s -> SECO-2 @ T+${seco2Ev.timeS.toFixed(1)} s (burn ${(seco2Ev.timeS - ses2Ev.timeS).toFixed(1)} s, coast ${(ses2Ev.timeS - seco1Ev.timeS).toFixed(0)} s)`
+      );
+    }
+  }
+
   console.log(
     `\nSim Orbit: ${(sim.orbit.perigeeAltitudeM / 1000).toFixed(1)} x ${(sim.orbit.apogeeAltitudeM / 1000).toFixed(1)} km, incl ${sim.orbit.inclinationDeg.toFixed(3)}° (target ${mission.targetInclinationDeg}°)`
   );

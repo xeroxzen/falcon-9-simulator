@@ -52,13 +52,13 @@ pnpm e2e              # Playwright E2E suite in headed Chromium (HEADLESS=1 for 
 
 Validated against OCR-cleaned SpaceX webcast telemetry ([shahar603/Telemetry-Data](https://github.com/shahar603/Telemetry-Data)) in the **Earth-relative (ECEF)** speed frame (empirically verified and documented in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)). Holdout missions use the exact baseline guidance with **zero per-mission retuning**.
 
-| Mission | Role | Max-Q Δt | MECO Δt | Ascent→Max-Q Alt / Vel RMS | Max-Q→MECO Alt / Vel RMS | Booster Recovery |
-| --- | --- | --- | --- | --- | --- | --- |
-| **Crew Dragon DM-1** | Primary (ASDS) | `-2.25 s (-3.81%)` | `-7.62 s (-4.82%)` | `0.18 km` / `23.1 m/s` | `6.71 km` / `118.3 m/s` | LANDED (`0.24 m` miss, `0.00°` tilt) |
-| **Iridium NEXT 8** | Holdout #1 (ASDS, 0 retuning) | `-3.56 s (-5.84%)` | `-6.69 s (-4.46%)` | `0.07 km` / `8.3 m/s` | `3.25 km` / `217.7 m/s` | LANDED (`2.63 m` miss, `0.00°` tilt) |
-| **SAOCOM 1A** | Holdout #2 (RTLS, 0 retuning) | `-1.79 s (-3.09%)` | `-9.36 s (-6.59%)` | `0.09 km` / `3.6 m/s` | `0.55 km` / `185.7 m/s` | LANDED (`3.05 m` miss, apogee `-6.2%`, touchdown `-3.7%`) |
+| Mission | Role | Max-Q Δt | MECO Δt | Ascent→Max-Q Alt / Vel RMS | Max-Q→MECO Alt / Vel RMS | Stage 2 / Final Orbit | Booster Recovery |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **Crew Dragon DM-1** | Primary (ASDS, 1-burn) | `-2.25 s (-3.81%)` | `-7.62 s (-4.82%)` | `0.18 km` / `23.1 m/s` | `6.71 km` / `118.3 m/s` | `181.5 × 214.6 km`, `51.66°` (`6.99 km` / `326.8 m/s` RMS) | LANDED (`0.08 m` miss, `0.00°` tilt) |
+| **Iridium NEXT 8** | Holdout #1 (ASDS, 2-burn, 0 retuning) | `-3.56 s (-5.84%)` | `-6.69 s (-4.46%)` | `0.07 km` / `8.3 m/s` | `3.25 km` / `217.7 m/s` | `623.0 × 627.5 km`, `86.60°` (vs pub. `625 km`, `86.6°`; `6.03 km` / `103.8 m/s` S2 RMS; SECO-1 `521.8 s` vs pub. `526 s`, SES-2 `3,259 s` vs pub. `3,108 s`, `2.8 s` vs `3.0 s` burn) | LANDED (`0.97 m` miss, `0.00°` tilt) |
+| **SAOCOM 1A** | Holdout #2 (RTLS, 2-burn, 0 retuning) | `-1.79 s (-3.09%)` | `-9.36 s (-6.59%)` | `0.09 km` / `3.6 m/s` | `0.55 km` / `185.7 m/s` | `618.5 × 619.8 km`, `97.89°` (vs pub. `620 km`, `97.89°` SSO)* | LANDED (`1.84 m` miss, apogee `-6.2%`, touchdown `-3.0%`) |
 
-*Note on Stage 2 holdouts:* Real Iridium NEXT 8 and SAOCOM 1A fly a **two-burn** Stage 2 profile (park orbit + circularization burn), whereas the current simulator models a single continuous Stage 2 burn (tracked in [docs/BACKLOG.md](docs/BACKLOG.md)).
+*\*Note on Stage 2 holdouts:* Target orbits and burn timelines are sourced from published SpaceX press kits / Spaceflight Now (`Iridium-8`: two-burn, `SECO-1 = T+00:08:46`, `SES-2 = T+00:51:48`, `SECO-2 = T+00:51:51`, `625 km` polar) and SpaceX / satobs.org / ESA (`SAOCOM 1A`: `620–623 km`, `97.89°` SSO; real flight used single-burn direct insertion `SECO-1 = T+00:10:07` due to its light `3,050 kg` payload, whereas our general `> 250 km` rule runs a two-burn Hohmann transfer with zero per-mission retuning, so SAOCOM 1A Stage 2 trajectory RMS vs real direct-ascent telemetry is not directly comparable while final orbit matches `618.5 × 619.8 km`, `97.89°`).*
 
 ### Monte Carlo Dispersion Robustness (`N = 1,000` per Unseen Holdout Seed)
 
@@ -99,7 +99,7 @@ This simulator is a **3-DOF (point-mass translational + rate-limited attitude ve
 Key simplifications and assumptions:
 - **3-DOF Attitude:** Vehicle orientation is represented as a unit thrust/longitudinal axis vector with finite slew-rate limits rather than full rigid-body Euler/quaternion rotational inertia, TVC gimbal torque dynamics, or propellant slosh.
 - **Aerodynamics (`ASSUMED`):** Uses piecewise-linear Mach-dependent `Cd(M)` tables for ascent and tail-first booster descent, plus a simplified linear lift slope (`C_L = 0.8 / rad`) for the titanium grid fins. Transonic buffeting, aeroelastic bending, and individual fin hinge moments are not modeled.
-- **Single-Burn Stage 2:** Models one continuous MVac burn (`SES-1` → `SECO-1`) rather than multi-burn coast-and-circularize profiles (GTO / high-LEO).
+- **Stage 2 Multi-Burn:** Supports single-burn direct LEO insertion (`<= 250 km`) and automatic two-burn Hohmann transfer (`> 250 km`: `SES-1` → `185 km` parking transfer orbit → ballistic coast → `SES-2` circularization at apoapsis). Direct-ascent >250 km single-burn profiles (such as SAOCOM 1A's lightweight direct SSO loft) and multi-restart GTO/MEO profiles beyond two burns are not modeled separately.
 - **Liftoff Ramp (`EMPIRICAL`):** Includes a 2.0 s empirical thrust ramp (`72% → 100%`) to align early `T+0..10 s` speed with webcast telemetry (real Falcon 9 releases hold-down clamps at full thrust; the early lag reflects webcast display smoothing / clock-zero offset).
 - **Cosmetic Visuals:** Per-fin differential tilt, landing-leg hinge swing animation, strongback throw-back, and post-entry soot are visual representations of underlying sim states (never presented as measured telemetry).
 

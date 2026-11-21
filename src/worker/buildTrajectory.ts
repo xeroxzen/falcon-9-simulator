@@ -78,6 +78,10 @@ function eventLabelAndStage(ev: MissionEvent): {
       return { label: 'Fairing Sep', stage: 'STAGE2' };
     case 'SECO_1':
       return { label: 'SECO-1', stage: 'STAGE2' };
+    case 'SES_2':
+      return { label: 'SES-2', stage: 'STAGE2' };
+    case 'SECO_2':
+      return { label: 'SECO-2', stage: 'STAGE2' };
     case 'FLIP_START':
       return { label: 'Flip', stage: 'STAGE1' };
     case 'BOOSTBACK_START':
@@ -116,7 +120,11 @@ function classifyStageKind(
     if (snap.phase === 'ENTRY_BURN') return { kind: 'BURN', label: 'Entry Burn' };
     if (snap.phase === 'LANDING_BURN') return { kind: 'BURN', label: 'Landing Burn' };
     if (snap.phase === 'STAGE2_BURN') return { kind: 'BURN', label: 'MVac Burn' };
+    if (snap.phase === 'STAGE2_BURN_2') return { kind: 'BURN', label: 'SES-2 Burn' };
     return { kind: 'BURN', label: 'Ascent Burn' };
+  }
+  if (snap.phase === 'COAST_TO_SES2') {
+    return { kind: 'COAST', label: 'Transfer Coast' };
   }
   if (snap.phase === 'AERO_DESCENT') {
     return { kind: 'AERO', label: 'Grid-Fin Glide' };
@@ -373,7 +381,12 @@ export function buildMissionTrajectory(
 
   const mecoT = res.ascent.finalState.timeS;
   const maxT = Math.max(res.stage2Final.timeS, res.boosterFinal.timeS);
-  for (let t = mecoT + sampleIntervalS; t <= maxT + 0.001; t += sampleIntervalS) {
+  const boosterEndT = res.boosterFinal.timeS;
+  const ses2Ev = res.events.find((e) => e.type === 'SES_2');
+  const ses2T = ses2Ev?.timeS ?? Infinity;
+
+  let t = mecoT + sampleIntervalS;
+  while (t <= maxT + 0.001) {
     const clampedT = Math.min(t, maxT);
     const b = findNearestByTime(res.boosterSamples, clampedT);
     const s2 = findNearestByTime(res.stage2Samples, clampedT);
@@ -397,6 +410,13 @@ export function buildMissionTrajectory(
         landEcef
       ),
     });
+    // During long post-landing ballistic transfer coast (COAST_TO_SES2), step at
+    // 2.0 s to keep UI timeline scrubbing fast while keeping full resolution near burns.
+    const inLongCoast =
+      clampedT > boosterEndT + 5 &&
+      s2.phase === 'COAST_TO_SES2' &&
+      clampedT < ses2T - 15;
+    t += inLongCoast ? Math.max(sampleIntervalS, 2.0) : sampleIntervalS;
   }
 
   // Always emit the exact final frame at maxT so HUD/timeline match boosterFinal & stage2Final

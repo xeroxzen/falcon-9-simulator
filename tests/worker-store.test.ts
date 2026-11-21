@@ -120,4 +120,30 @@ describe('Worker protocol & Zustand store determinism and CLI parity', () => {
     expect(traj.events.some((e) => e.type === 'ENTRY_BURN_START')).toBe(true);
     expect(traj.events.some((e) => e.type === 'LANDING_BURN_START')).toBe(true);
   });
+
+  it('dynamically generates Stage 2 SES-1, Transfer Coast, and SES-2 timeline segments for >250 km What-If targets', () => {
+    const highOrbitMission = {
+      ...DEFAULT_LEO_ASDS_MISSION,
+      targetOrbitAltitudeM: 550_000,
+      maxSimTimeS: 4_200,
+    };
+    const traj = buildMissionTrajectory(FALCON9_BLOCK5, highOrbitMission, 1.0);
+
+    const s2Segments = traj.segments.filter((s) => s.stage === 'STAGE2');
+    const s2Burns = s2Segments.filter((s) => s.kind === 'BURN');
+    const transferCoast = s2Segments.find(
+      (s) => s.kind === 'COAST' && s.label === 'Transfer Coast'
+    );
+
+    expect(s2Burns.length).toBeGreaterThanOrEqual(2);
+    expect(transferCoast).toBeDefined();
+    expect(transferCoast!.endTimeS - transferCoast!.startTimeS).toBeGreaterThan(
+      1_500
+    );
+    expect(traj.events.some((e) => e.type === 'SES_2')).toBe(true);
+    expect(traj.events.some((e) => e.type === 'SECO_2')).toBe(true);
+    expect(traj.orbitAchieved).toBe(true);
+    expect(traj.orbit.perigeeAltitudeM).toBeGreaterThan(530_000);
+    expect(traj.orbit.apogeeAltitudeM).toBeLessThan(570_000);
+  });
 });

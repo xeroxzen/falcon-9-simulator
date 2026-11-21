@@ -110,11 +110,15 @@ export const DM1_MISSION: MissionConfig = {
 /**
  * HOLDOUT #1 (ZERO RETUNING): Iridium NEXT 8 — January 11, 2019 (Falcon 9 Block 5 B1049.2)
  * Uses exact BASELINE_ASDS_GUIDANCE with ZERO mission-specific tuning.
+ * Automatically selects two-burn Hohmann transfer (targetOrbitAltitudeM > 250 km).
  *
- * Sources:
- *  - Launch site: Vandenberg SLC-4E (southbound descending polar launch)
+ * Published Sources (NOT inferred from sim):
+ *  - Launch site: Vandenberg SLC-4E (southbound descending polar launch; SpaceX Iridium-8 Press Kit)
  *  - Payload mass: 9,600 kg (10x Iridium NEXT @ 860 kg + 1,000 kg dispenser; SpaceX / Wikipedia)
- *  - Orbit: ~625 km insertion, 86.6° inclination (polar LEO)
+ *  - Target orbit: 625 km circular polar LEO, 86.4°–86.6° inclination (SpaceX Iridium-8 Press Kit / Spaceflight Now)
+ *  - Published SpaceX timeline (Spaceflight Now / Iridium-8 Press Kit):
+ *      SECO-1 = T+00:08:46 (526 s) into ~183 x 625 km transfer orbit,
+ *      ~43 min coast, SES-2 = T+00:51:48 (3,108 s), SECO-2 = T+00:51:51 (3,111 s, ~3 s burn)
  *  - Recovery: ASDS (Just Read The Instructions)
  */
 export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
@@ -129,7 +133,7 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
   landingMode: 'ASDS',
   enableJ2: true,
   dtS: 0.01,
-  maxSimTimeS: 720,
+  maxSimTimeS: 4_200,
   wind: { eastMs: 0, northMs: 0, upMs: 0 },
   engineOuts: [],
   guidance: BASELINE_ASDS_GUIDANCE,
@@ -138,13 +142,19 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
 /**
  * HOLDOUT #2 (ZERO RETUNING): SAOCOM 1A — October 8, 2018 (Falcon 9 Block 5 B1048.2)
  * Uses exact BASELINE_RTLS_GUIDANCE with ZERO mission-specific tuning.
+ * Automatically selects two-burn Hohmann transfer (targetOrbitAltitudeM > 250 km).
  * Also used for post-separation Stage 1 booster telemetry validation (has full
  * stage1 raw.json through boostback, apogee 134 km, entry burn, and LZ-4 landing).
  *
- * Sources:
- *  - Launch site: Vandenberg SLC-4E (southbound descending SSO launch)
- *  - Payload mass: 3,050 kg (CONAE SAOCOM 1A wet mass; Wikipedia)
- *  - Orbit: 620 km Sun-Synchronous Orbit, 97.89° inclination
+ * Published Sources (NOT inferred from sim):
+ *  - Launch site: Vandenberg SLC-4E (southbound descending SSO launch; SpaceX SAOCOM 1A Press Kit)
+ *  - Payload mass: 3,050 kg (CONAE SAOCOM 1A wet mass; ESA / Wikipedia)
+ *  - Target orbit: 620 km (620–623 km) Sun-Synchronous Orbit, 97.89° inclination (ESA / SpaceX)
+ *  - Published SpaceX timeline (SAOCOM 1A Press Kit / satobs.org):
+ *      Real flight used single-burn direct insertion (SECO-1 = T+00:10:07 = 607 s,
+ *      payload deploy T+00:12:37, no SES-2) thanks to its light 3,050 kg payload.
+ *      Here we run our general >250 km two-burn Hohmann profile with zero retuning
+ *      to validate circular 620 km SSO insertion.
  *  - Recovery: RTLS to Vandenberg LZ-4
  */
 export const SAOCOM_1A_MISSION: MissionConfig = {
@@ -160,7 +170,7 @@ export const SAOCOM_1A_MISSION: MissionConfig = {
   landingSiteId: 'LZ-4',
   enableJ2: true,
   dtS: 0.01,
-  maxSimTimeS: 720,
+  maxSimTimeS: 4_200,
   wind: { eastMs: 0, northMs: 0, upMs: 0 },
   engineOuts: [],
   guidance: BASELINE_RTLS_GUIDANCE,
