@@ -76,19 +76,19 @@ Dispersions: Thrust `±1%`, Isp `±0.5%`, `Cd ±5%`, base wind `±12 m/s` + gust
 | **RTLS** | `2024` | **1000/1000 (100.0%)** | 100.0% | `0.14 m` / `0.36 m` | `6,160 kg` (`1.50%`) |
 | **RTLS** | `7` | **1000/1000 (100.0%)** | 100.0% | `0.14 m` / `0.38 m` | `6,192 kg` (`1.51%`) |
 
-#### 2. v1.1.0 Full Realistic Dispersion Set (New Unseen Holdout Seeds `4096`, `8888`, `9999`)
-Adds: altitude nav error `±5 m`, velocity nav error `±0.3 m/s`, propellant load `±0.5%`, dry mass `±1%`, ASDS droneship offset `±10 m`, ASDS deck heave `0–1.5 m` & roll `0–2.5°`, and ascent/booster throttle response lag `40–120 ms`. Peak aerodynamic load `q·α` checked against the `200 kPa·deg` (`ASSUMED`) structural envelope.
+#### 2. v1.2.0 Full Realistic Dispersion Set with Gauss-Markov Navigation Bias (`τ = 45 s`, Unseen Holdout Seeds `6001`, `7002`, `8003`)
+Dispersions: Thrust `±1%`, Isp `±0.5%`, `Cd ±5%`, propellant load `±0.5%`, dry mass `±1%`, base wind `±12 m/s` + gusts `±10 m/s`, ASDS droneship offset `±10 m`, ASDS deck heave `0–1.5 m` & roll `0–2.5°`, throttle/actuator lag `40–120 ms`, and **first-order Gauss-Markov (`τ = 45 s`, `ASSUMED`) time-correlated navigation biases** (horizontal `σ = 0.5–2.0 m`, altitude `3σ = ±5 m`, velocity `3σ = ±0.3 m/s`). Touchdown criteria and miss distances are **always evaluated on the TRUE vehicle position**.
 
-| Profile | Seed (`N=1000`) | Landing Success | Orbit Achieved | Miss (p50 / p95) | S1 Fuel (p5) | Peak `q·α` (p95) |
+| Profile | Seed (`N=1000`) | Landing Success | Orbit Achieved | True Miss (p50 / p95) | S1 Fuel (p5) | Peak `q·α` (p95) |
 | --- | --- | --- | --- | --- | --- | --- |
-| **ASDS** | `4096` | **967/1000 (96.7%)** | 100.0% | `1.09 m` / `2.26 m` | `1,712 kg` (`0.42%`) | `102.6 kPa·deg` (`0` exceed) |
-| **ASDS** | `8888` | **956/1000 (95.6%)** | 100.0% | `1.11 m` / `2.31 m` | `1,721 kg` (`0.42%`) | `102.4 kPa·deg` (`0` exceed) |
-| **ASDS** | `9999` | **959/1000 (95.9%)** | 100.0% | `1.09 m` / `2.27 m` | `1,717 kg` (`0.42%`) | `100.8 kPa·deg` (`0` exceed) |
-| **RTLS** | `4096` | **999/1000 (99.9%)** | 100.0% | `0.14 m` / `0.35 m` | `5,795 kg` (`1.41%`) | `101.4 kPa·deg` (`0` exceed) |
-| **RTLS** | `8888` | **1000/1000 (100.0%)** | 100.0% | `0.15 m` / `0.37 m` | `5,827 kg` (`1.42%`) | `104.1 kPa·deg` (`0` exceed) |
-| **RTLS** | `9999` | **1000/1000 (100.0%)** | 100.0% | `0.14 m` / `0.37 m` | `5,747 kg` (`1.40%`) | `102.5 kPa·deg` (`0` exceed) |
+| **ASDS** | `6001` | **944/1000 (94.4%)** | 100.0% | `1.47 m` / `3.73 m` | `3,445 kg` (`0.84%`) | `101.1 kPa·deg` (`0` exceed) |
+| **ASDS** | `7002` | **926/1000 (92.6%)** | 100.0% | `1.45 m` / `3.44 m` | `3,391 kg` (`0.83%`) | `104.3 kPa·deg` (`0` exceed) |
+| **ASDS** | `8003` | **938/1000 (93.8%)** | 100.0% | `1.45 m` / `3.87 m` | `3,414 kg` (`0.83%`) | `101.6 kPa·deg` (`0` exceed) |
+| **RTLS** | `6001` | **988/1000 (98.8%)** | 100.0% | `1.40 m` / `3.58 m` | `5,583 kg` (`1.36%`) | `104.5 kPa·deg` (`0` exceed) |
+| **RTLS** | `7002` | **991/1000 (99.1%)** | 100.0% | `1.38 m` / `3.49 m` | `5,689 kg` (`1.38%`) | `103.5 kPa·deg` (`0` exceed) |
+| **RTLS** | `8003` | **987/1000 (98.7%)** | 100.0% | `1.46 m` / `3.64 m` | `5,508 kg` (`1.34%`) | `104.4 kPa·deg` (`0` exceed) |
 
-*Note: Seed `42` was used as the development seed during v1.0.0 guidance tuning and is excluded from the holdout tables above. With the v1.1.0 realistic dispersions enabled before guidance updates, seed `1337` (`N=200`) initially dropped to 82.0% ASDS / 57.5% RTLS due to deck heave and altimeter noise; adding a terminal flare + anti-hover-bounce cutoff guard in a separate commit restored >95.6% ASDS and ≥99.9% RTLS on unseen seeds `4096`, `8888`, and `9999`.*
+*Note: Seed `42` was the v1.0.0 development seed and is excluded from all holdout tables. Switching from i.i.d. per-step nav noise (which vehicle inertia averaged out to ~0.14 m miss) to time-correlated Gauss-Markov nav bias (`τ = 45 s`) initially gave `88.7–89.4%` ASDS / `98.2–98.7%` RTLS on unseen seeds `31337`, `1111`, and `5555` with zero guidance changes; raising the ASDS entry-burn reserve (`2.8% → 3.2%`) and terminal flare (`0.75 m → 1.05 m`) in a separate commit brought ASDS to `92.6–94.4%` and RTLS to `98.7–99.1%` on new unseen seeds `6001`, `7002`, and `8003`, with true median miss (`1.38–1.47 m`) physically consistent with the injected `0.5–2.0 m` 1-sigma horizontal nav bias.*
 
 ---
 

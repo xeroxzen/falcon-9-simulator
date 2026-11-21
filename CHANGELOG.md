@@ -2,6 +2,18 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
+## [1.2.0] — 2026-11-21 (Zero-Jitter Chase Camera & Gauss-Markov Navigation Realism)
+
+### Fixed
+- **Chase camera flight-path jitter (`143.43 px → 0.001 px` p95):**
+  - Single source of truth per frame in a priority `-1` `useFrame` advancing the clamped playback clock (`<= 50 ms`) and interpolating vehicle transforms once per frame into a reusable ref; vehicle and camera both read the same frame.
+  - Chase camera rigidly locked to `target + offset` along the flight path (no position spring, no 25 m snap threshold); critically damped smoothing applied only to orbit angle, zoom, and mode/target switches.
+  - Throttled HUD React state updates to ~10 Hz (`100 ms`), reducing Chrome CDP V8 GC events from `46` to `10` per 10 s (`−78%`).
+  - Added `e2e/jitter.spec.ts` asserting `< 2.0 px` p95 second-difference jitter over 5 s at 1× during ascent.
+- **Gauss-Markov time-correlated navigation bias (`τ = 45 s`, `ASSUMED`):**
+  - Replaced i.i.d. per-step nav white noise (which vehicle inertia averaged out to `~0.14 m` miss) with a stationary first-order Gauss-Markov process across all 6 position/velocity nav channels, while always evaluating touchdown criteria and miss distances on the TRUE physical vehicle state.
+  - Reported honest pre-fix holdout results on unseen seeds `31337`, `1111`, `5555` (`88.7–89.4%` ASDS, `98.2–98.7%` RTLS), then tuned ASDS entry-burn reserve (`3.2%`) and terminal flare (`1.05 m`) in a separate commit (`f3320ca`) and validated on new unseen seeds `6001`, `7002`, `8003` (`92.6–94.4%` ASDS, `98.7–99.1%` RTLS; true median miss `1.38–1.47 m`).
+
 ## [1.1.0] — 2026-11-21 (Honest Holdout Robustness, Realistic Dispersions, q·α & Scissored Split View)
 
 ### Added
