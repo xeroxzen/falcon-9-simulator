@@ -27,10 +27,9 @@ const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
 
 const BASELINE_RTLS_GUIDANCE: AscentGuidanceConfig = {
   ...BASELINE_ASDS_GUIDANCE,
-  /** Mission-design pitchover kick solved by solveMissionPitchKickDeg (meets orbit + >=7,500 kg RTLS 3-sigma margin) */
-  pitchKickAngleDeg: 1.80,
-  /** ASSUMED: 15.5% S1 propellant reserve for boostback + entry + landing (compensates for +11.7 t MAP S1 prop load) */
-  mecoPropellantReserveFraction: 0.155,
+  /** Mission-design pitchover kick & MECO reserve solved jointly by solveMissionAscentDesign (meets orbit + >=7,500 kg RTLS 3-sigma margin) */
+  pitchKickAngleDeg: 1.40,
+  mecoPropellantReserveFraction: 0.145,
 };
 
 export const DEFAULT_LEO_ASDS_MISSION: MissionConfig = {

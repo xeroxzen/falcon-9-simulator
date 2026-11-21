@@ -8,6 +8,9 @@ export type AscentTrajectoryProfile = 'LEO_DIRECT' | 'LEO_TWO_BURN' | 'GTO';
  *  - LEO direct  : 1.30 deg (DM-1 1.28°, CRS-16 1.37°, SAOCOM 1A 1.22°, SSO-A 1.19°)
  *  - LEO two-burn: 1.70 deg (Iridium NEXT 8 1.73°, Iridium NEXT 7 1.71°)
  *  - GTO         : 2.45 deg (Bangabandhu-1 2.51°, Telstar 19V 2.40°, Es'hail-2 2.45°)
+ *
+ * Used directly for EXPENDABLE missions, and as the initial guess for the
+ * mission-design ascent solver when recovery (ASDS / RTLS) is enabled.
  */
 export const PROFILE_DEFAULT_PITCH_KICK_DEG: Readonly<
   Record<AscentTrajectoryProfile, number>
@@ -18,7 +21,8 @@ export const PROFILE_DEFAULT_PITCH_KICK_DEG: Readonly<
 };
 
 /**
- * Select a profile-based default pitch-kick angle for What-If missions.
+ * Select a profile-based default pitch-kick angle for What-If missions
+ * (used directly for EXPENDABLE; used as initial guess for ASDS/RTLS solver).
  */
 export function defaultWhatIfPitchKickDeg(
   targetOrbitAltitudeM: number,
@@ -42,6 +46,8 @@ export interface MissionDesignOptions {
   readonly coarseStepDeg?: number;
   /** Fine search step (deg). Default: 0.05 */
   readonly fineStepDeg?: number;
+  /** Candidate RTLS MECO propellant reserve fractions (searched in ascending order). */
+  readonly rtlsReserveCandidates?: readonly number[];
   /** Required nominal booster landing propellant margin (kg) for 3-sigma dispersion buffer. Default: 4,000 ASDS / 7,500 RTLS */
   readonly minBoosterFuelMarginKg?: number;
   /** Maximum allowable aero-descent grid-fin saturation fraction. Default: 0.15 */
@@ -52,6 +58,8 @@ export interface MissionDesignOptions {
 
 export interface MissionDesignResult {
   readonly pitchKickAngleDeg: number;
+  readonly mecoPropellantReserveFraction: number;
+  readonly initialGuessKickDeg: number;
   readonly feasible: boolean;
   readonly orbitAchieved: boolean;
   readonly boosterOutcome: 'LANDED' | 'CRASHED' | 'EXPENDED';
@@ -64,6 +72,8 @@ function evaluateCandidate(
   vehicle: VehicleConfig,
   mission: MissionConfig,
   pitchKickAngleDeg: number,
+  mecoPropellantReserveFraction: number,
+  initialGuessKickDeg: number,
   solverDtS: number
 ): MissionDesignResult {
   const candidate: MissionConfig = {
@@ -72,6 +82,7 @@ function evaluateCandidate(
     guidance: {
       ...mission.guidance,
       pitchKickAngleDeg,
+      mecoPropellantReserveFraction,
     },
   };
   const res = runFullMission(vehicle, candidate, 1.0);
@@ -81,6 +92,8 @@ function evaluateCandidate(
 
   return {
     pitchKickAngleDeg,
+    mecoPropellantReserveFraction,
+    initialGuessKickDeg,
     feasible: false,
     orbitAchieved: res.orbitAchieved,
     boosterOutcome: res.boosterOutcome,
@@ -90,55 +103,52 @@ function evaluateCandidate(
   };
 }
 
-/**
- * Mission-design ascent pitch-kick solver (NOT parameter tuning).
- *
- * Given a vehicle and mission specification (payload, target orbit, launch site,
- * landing mode, and required MECO propellant reserve), solves for the pitchover
- * kick angle that achieves the target orbit while satisfying booster recovery
- * fuel margin and grid-fin authority constraints. Among feasible kicks, prefers
- * the flattest (most gravity-loss-efficient, highest Stage 2 propellant margin)
- * trajectory that still meets the booster recovery envelope.
- */
-export function solveMissionPitchKickDeg(
+function solveKickForReserve(
   vehicle: VehicleConfig,
   mission: MissionConfig,
-  options: MissionDesignOptions = {}
+  reserveFraction: number,
+  initialGuessKickDeg: number,
+  minKick: number,
+  maxKick: number,
+  coarseStep: number,
+  fineStep: number,
+  solverDtS: number,
+  isFeasible: (r: MissionDesignResult) => boolean
 ): MissionDesignResult {
-  const minKick = options.minKickDeg ?? 1.1;
-  const maxKick = options.maxKickDeg ?? 2.6;
-  const coarseStep = options.coarseStepDeg ?? 0.15;
-  const fineStep = options.fineStepDeg ?? 0.05;
-  const solverDtS = options.solverDtS ?? 0.05;
-  const maxSat = options.maxGridFinSatFraction ?? 0.15;
-  const minBoosterFuel =
-    options.minBoosterFuelMarginKg ??
-    (mission.landingMode === 'RTLS' ? 7_500 : mission.landingMode === 'ASDS' ? 4_000 : 0);
-
-  const isFeasible = (r: MissionDesignResult): boolean => {
-    if (!r.orbitAchieved || r.stage2FuelMarginKg <= 0) return false;
-    if (mission.landingMode === 'EXPENDABLE') return true;
-    return (
-      r.boosterOutcome === 'LANDED' &&
-      r.boosterFuelMarginKg >= minBoosterFuel &&
-      r.gridFinSatFraction <= maxSat
-    );
-  };
-
-  // 1. Coarse scan over [minKick, maxKick]
-  const coarseResults: MissionDesignResult[] = [];
+  // Build coarse grid anchored at initialGuessKickDeg and expanding across [minKick, maxKick]
+  const gridSet = new Set<number>();
+  gridSet.add(Number(Math.max(minKick, Math.min(maxKick, initialGuessKickDeg)).toFixed(3)));
   for (let k = minKick; k <= maxKick + 1e-6; k += coarseStep) {
-    const kick = Number(k.toFixed(3));
-    const ev = evaluateCandidate(vehicle, mission, kick, solverDtS);
+    gridSet.add(Number(k.toFixed(3)));
+  }
+  const coarseGrid = [...gridSet].sort(
+    (a, b) => Math.abs(a - initialGuessKickDeg) - Math.abs(b - initialGuessKickDeg)
+  );
+
+  const coarseResults: MissionDesignResult[] = [];
+  for (const kick of coarseGrid) {
+    const ev = evaluateCandidate(
+      vehicle,
+      mission,
+      kick,
+      reserveFraction,
+      initialGuessKickDeg,
+      solverDtS
+    );
     coarseResults.push({ ...ev, feasible: isFeasible(ev) });
   }
 
   const feasibleCoarse = coarseResults.filter((r) => r.feasible);
   if (feasibleCoarse.length === 0) {
-    // Fallback: pick best candidate by orbit + booster fuel margin
     coarseResults.sort((a, b) => {
-      const sa = (a.orbitAchieved ? 1e6 : 0) + (a.boosterOutcome === 'LANDED' ? 1e5 : 0) + a.boosterFuelMarginKg;
-      const sb = (b.orbitAchieved ? 1e6 : 0) + (b.boosterOutcome === 'LANDED' ? 1e5 : 0) + b.boosterFuelMarginKg;
+      const sa =
+        (a.orbitAchieved ? 1e6 : 0) +
+        (a.boosterOutcome === 'LANDED' ? 1e5 : 0) +
+        a.boosterFuelMarginKg;
+      const sb =
+        (b.orbitAchieved ? 1e6 : 0) +
+        (b.boosterOutcome === 'LANDED' ? 1e5 : 0) +
+        b.boosterFuelMarginKg;
       return sb - sa;
     });
     return coarseResults[0]!;
@@ -146,21 +156,131 @@ export function solveMissionPitchKickDeg(
 
   // Prefer highest Stage 2 margin (most gravity-loss-efficient feasible trajectory)
   feasibleCoarse.sort((a, b) => b.stage2FuelMarginKg - a.stage2FuelMarginKg);
-  const bestCoarse = feasibleCoarse[0]!;
+  let best = feasibleCoarse[0]!;
 
-  // 2. Local fine refinement around bestCoarse
-  let best = bestCoarse;
-  const fineLo = Math.max(minKick, bestCoarse.pitchKickAngleDeg - coarseStep);
-  const fineHi = Math.min(maxKick, bestCoarse.pitchKickAngleDeg + coarseStep);
+  // Local fine refinement around best coarse kick
+  const fineLo = Math.max(minKick, best.pitchKickAngleDeg - coarseStep);
+  const fineHi = Math.min(maxKick, best.pitchKickAngleDeg + coarseStep);
   for (let k = fineLo; k <= fineHi + 1e-6; k += fineStep) {
     const kick = Number(k.toFixed(3));
-    if (Math.abs(kick - bestCoarse.pitchKickAngleDeg) < 1e-6) continue;
-    const ev = evaluateCandidate(vehicle, mission, kick, solverDtS);
-    const feas = isFeasible(ev);
-    if (feas && ev.stage2FuelMarginKg > best.stage2FuelMarginKg) {
+    if (Math.abs(kick - best.pitchKickAngleDeg) < 1e-6) continue;
+    const ev = evaluateCandidate(
+      vehicle,
+      mission,
+      kick,
+      reserveFraction,
+      initialGuessKickDeg,
+      solverDtS
+    );
+    if (isFeasible(ev) && ev.stage2FuelMarginKg > best.stage2FuelMarginKg) {
       best = { ...ev, feasible: true };
     }
   }
 
   return best;
 }
+
+/**
+ * Mission-design ascent solver (NOT parameter tuning).
+ *
+ * - For EXPENDABLE missions: applies the profile-based default pitch-kick angle
+ *   directly (1.3° LEO direct / 1.7° LEO two-burn / 2.45° GTO) with 0.5% MECO reserve.
+ * - For ASDS missions: uses the profile kick as initial guess and solves for the
+ *   most gravity-loss-efficient pitchover kick meeting target orbit + >=4,000 kg
+ *   nominal booster landing margin and <=15% grid-fin saturation.
+ * - For RTLS missions: solves jointly for the minimum feasible MECO propellant
+ *   reserve fraction (from rtlsReserveCandidates) and optimal pitchover kick
+ *   meeting target orbit + >=7,500 kg nominal RTLS landing margin and <=15% fin sat.
+ */
+export function solveMissionAscentDesign(
+  vehicle: VehicleConfig,
+  mission: MissionConfig,
+  options: MissionDesignOptions = {}
+): MissionDesignResult {
+  const initialGuessKickDeg = defaultWhatIfPitchKickDeg(
+    mission.targetOrbitAltitudeM
+  );
+  const solverDtS = options.solverDtS ?? 0.05;
+
+  if (mission.landingMode === 'EXPENDABLE') {
+    const reserve = 0.005;
+    const ev = evaluateCandidate(
+      vehicle,
+      mission,
+      initialGuessKickDeg,
+      reserve,
+      initialGuessKickDeg,
+      solverDtS
+    );
+    return {
+      ...ev,
+      feasible: ev.orbitAchieved && ev.stage2FuelMarginKg > 0,
+    };
+  }
+
+  const minKick = options.minKickDeg ?? 1.1;
+  const maxKick = options.maxKickDeg ?? 2.6;
+  const coarseStep = options.coarseStepDeg ?? 0.15;
+  const fineStep = options.fineStepDeg ?? 0.05;
+  const maxSat = options.maxGridFinSatFraction ?? 0.15;
+  const minBoosterFuel =
+    options.minBoosterFuelMarginKg ??
+    (mission.landingMode === 'RTLS' ? 7_500 : 4_000);
+
+  const isFeasible = (r: MissionDesignResult): boolean =>
+    r.orbitAchieved &&
+    r.stage2FuelMarginKg > 0 &&
+    r.boosterOutcome === 'LANDED' &&
+    r.boosterFuelMarginKg >= minBoosterFuel &&
+    r.gridFinSatFraction <= maxSat;
+
+  if (mission.landingMode === 'ASDS') {
+    const reserve = mission.guidance.mecoPropellantReserveFraction;
+    return solveKickForReserve(
+      vehicle,
+      mission,
+      reserve,
+      initialGuessKickDeg,
+      minKick,
+      maxKick,
+      coarseStep,
+      fineStep,
+      solverDtS,
+      isFeasible
+    );
+  }
+
+  // RTLS: find the minimum feasible MECO reserve fraction + optimal kick
+  const rtlsCandidates = options.rtlsReserveCandidates ?? [
+    0.135, 0.145, 0.15, 0.155, 0.16, 0.165, 0.17,
+  ];
+  let bestFallback: MissionDesignResult | null = null;
+  for (const reserve of rtlsCandidates) {
+    const solved = solveKickForReserve(
+      vehicle,
+      mission,
+      reserve,
+      initialGuessKickDeg,
+      minKick,
+      maxKick,
+      coarseStep,
+      fineStep,
+      solverDtS,
+      isFeasible
+    );
+    if (solved.feasible) {
+      return solved;
+    }
+    if (
+      bestFallback === null ||
+      (solved.orbitAchieved ? 1e6 : 0) + solved.boosterFuelMarginKg >
+        (bestFallback.orbitAchieved ? 1e6 : 0) + bestFallback.boosterFuelMarginKg
+    ) {
+      bestFallback = solved;
+    }
+  }
+  return bestFallback!;
+}
+
+/** Backwards-compatible alias for single-mission ascent kick solving. */
+export const solveMissionPitchKickDeg = solveMissionAscentDesign;

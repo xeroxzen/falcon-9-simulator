@@ -65,7 +65,7 @@ Validated against OCR-cleaned SpaceX webcast telemetry ([shahar603/Telemetry-Dat
 | **SAOCOM 1A** | Holdout | LEO direct | `1.21°` | `-1.8 → +1.9 s` | `-9.4 → -2.8 s` | `0.43 → 1.56 km` | `143 → 53 m/s` | S1 only *(real 620 km direct vs sim two-burn)* | `607 / n/a` |
 | **SSO-A** | Holdout | LEO direct | `1.19°` | `-1.6 → +2.1 s` | `+0.3 → +9.1 s` | `0.37 → 1.28 km` | `184 → 62 m/s` | S1 only *(real 575 km direct vs sim two-burn)* | `600 / n/a` |
 
-*Fair-baseline decomposition (7 holdouts S1; 5 matching-profile holdouts S2): giving the pre-MAP baseline the same per-flight kick fit accounts for `-2.36 km` S1 alt and `-158.0 m/s` S2 vel, while the MAP vehicle model itself delivers `-2.89 s` Max-Q, `-4.78 s` MECO, `-1.63 km` S1 alt, and `-82.8 m/s` S1 vel (`+68.5 m/s` S2 vel on GTO/MEO due to later SES-1 timing; see [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).*
+*Fair-baseline decomposition (7 holdouts S1; 5 matching-profile holdouts S2): the **vehicle-model fit alone worsens holdout S2 velocity RMS by `+68.5 m/s`** (`152.5 → 220.9 m/s`, driven by later SES-1 timing on GTO/MEO flights); the **net S2 improvement comes from per-flight pitch kicks (`-158.0 m/s`)**. On Stage 1, the MAP vehicle model itself delivers `-2.89 s` Max-Q, `-4.78 s` MECO, `-1.63 km` S1 alt, and `-82.8 m/s` S1 vel (see [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).*
 
 ### Monte Carlo Dispersion Robustness (`N = 1,000` per Unseen Holdout Seed)
 
@@ -91,9 +91,9 @@ Dispersions: Thrust `±1%`, Isp `±0.5%`, `Cd ±5%`, propellant load `±0.5%`, d
 | **ASDS** | `117007` | **999/1000 (99.9%)** | 100.0% | `1.69 m` / `4.13 m` | `3,041 kg` (`0.72%`) | `98.8 kPa·deg` (`0` exceed) |
 | **ASDS** | `128008` | **999/1000 (99.9%)** | 100.0% | `1.71 m` / `4.20 m` | `3,081 kg` (`0.73%`) | `99.5 kPa·deg` (`0` exceed) |
 | **ASDS** | `139009` | **1000/1000 (100.0%)** | 100.0% | `1.66 m` / `4.05 m` | `3,138 kg` (`0.74%`) | `98.2 kPa·deg` (`0` exceed) |
-| **RTLS** | `117007` | **1000/1000 (100.0%)** | 100.0% | `1.36 m` / `3.59 m` | `5,594 kg` (`1.32%`) | `101.5 kPa·deg` (`0` exceed) |
-| **RTLS** | `128008` | **1000/1000 (100.0%)** | 100.0% | `1.37 m` / `3.56 m` | `5,686 kg` (`1.35%`) | `97.8 kPa·deg` (`0` exceed) |
-| **RTLS** | `139009` | **1000/1000 (100.0%)** | 100.0% | `1.37 m` / `3.88 m` | `5,615 kg` (`1.33%`) | `100.3 kPa·deg` (`0` exceed) |
+| **RTLS** | `141010` | **1000/1000 (100.0%)** | 100.0% | `1.46 m` / `3.67 m` | `6,561 kg` (`1.55%`) | `98.7 kPa·deg` (`0` exceed) |
+| **RTLS** | `152011` | **1000/1000 (100.0%)** | 100.0% | `1.39 m` / `3.48 m` | `6,559 kg` (`1.55%`) | `100.2 kPa·deg` (`0` exceed) |
+| **RTLS** | `163012` | **1000/1000 (100.0%)** | 100.0% | `1.43 m` / `3.87 m` | `6,556 kg` (`1.55%`) | `99.5 kPa·deg` (`0` exceed) |
 
 *Note: Seed `42` was the v1.0.0 development seed and is excluded from all holdout tables. Without radar altimeter aiding (v1.2.0, full `±5 m` INS/GPS vertical bias at touchdown), unseen holdout seeds `6001`, `7002`, and `8003` achieved `92.6–94.4%` ASDS and `98.7–99.1%` RTLS (`1.38–1.47 m` true median miss). Adding physically motivated terminal radar altimeter sensor fusion below `3,000 m` AGL with zero guidance changes raises ASDS to `99.6–99.9%` (remaining `1–4/1000` failures are ocean heave + residual vertical velocity/altimeter bias `>= 2 m/s`) and RTLS to `100.0%`, while true horizontal median miss (`1.37–1.52 m`) remains physically consistent with the unaided `0.5–2.0 m` 1-sigma horizontal nav bias.*
 

@@ -64,11 +64,11 @@ export function WhatIfPanel() {
   if (!show) return null;
 
   const handleRun = () => {
-    const reserveFraction =
+    const initialReserveFraction =
       landingMode === 'EXPENDABLE'
         ? 0.005
         : landingMode === 'RTLS'
-          ? 0.155
+          ? 0.145
           : baseMission.landingMode === 'ASDS'
             ? baseMission.guidance.mecoPropellantReserveFraction
             : 0.075;
@@ -96,7 +96,8 @@ export function WhatIfPanel() {
         ...baseMission.guidance,
         pitchKickAngleDeg: profilePitchKickDeg,
         twoBurn: undefined,
-        mecoPropellantReserveFraction: reserveFraction,
+        mecoPropellantReserveFraction: initialReserveFraction,
+        autoDesignAscent: true,
       },
     };
     runMission(customMission, true);

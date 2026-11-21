@@ -76,7 +76,7 @@ describe('Stage 1 ascent through MECO', () => {
     );
   });
 
-  it('solves default ASDS and RTLS mission-design pitch kicks and maps What-If profile defaults', () => {
+  it('solves default ASDS and RTLS mission-design pitch kicks + RTLS reserve and maps What-If profile defaults', () => {
     const asds = solveMissionPitchKickDeg(FALCON9_BLOCK5, DEFAULT_LEO_ASDS_MISSION);
     expect(asds.feasible).toBe(true);
     expect(asds.orbitAchieved).toBe(true);
@@ -94,6 +94,17 @@ describe('Stage 1 ascent through MECO', () => {
       DEFAULT_LEO_RTLS_MISSION.guidance.pitchKickAngleDeg,
       2
     );
+    expect(rtls.mecoPropellantReserveFraction).toBeCloseTo(
+      DEFAULT_LEO_RTLS_MISSION.guidance.mecoPropellantReserveFraction,
+      3
+    );
+
+    const exp = solveMissionPitchKickDeg(FALCON9_BLOCK5, {
+      ...DEFAULT_LEO_ASDS_MISSION,
+      landingMode: 'EXPENDABLE',
+    });
+    expect(exp.pitchKickAngleDeg).toBeCloseTo(1.3, 2);
+    expect(exp.mecoPropellantReserveFraction).toBeCloseTo(0.005, 4);
 
     expect(defaultWhatIfPitchKickDeg(200_000)).toBeCloseTo(1.3, 2);
     expect(defaultWhatIfPitchKickDeg(625_000)).toBeCloseTo(1.7, 2);

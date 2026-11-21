@@ -7,6 +7,7 @@ import {
   normalize,
   sub,
 } from '../sim/math.js';
+import { solveMissionAscentDesign } from '../sim/guidance/mission-design.js';
 import { runFullMission } from '../sim/mission.js';
 import { sampleAtmosphere } from '../sim/models/atmosphere.js';
 import type {
@@ -336,7 +337,20 @@ export function buildMissionTrajectory(
   sampleIntervalS = 0.25
 ): MissionTrajectoryData {
   const t0 = performance.now();
-  const res = runFullMission(vehicle, mission, sampleIntervalS);
+  let effectiveMission = mission;
+  if (mission.guidance.autoDesignAscent) {
+    const designed = solveMissionAscentDesign(vehicle, mission);
+    effectiveMission = {
+      ...mission,
+      guidance: {
+        ...mission.guidance,
+        pitchKickAngleDeg: designed.pitchKickAngleDeg,
+        mecoPropellantReserveFraction: designed.mecoPropellantReserveFraction,
+        autoDesignAscent: false,
+      },
+    };
+  }
+  const res = runFullMission(vehicle, effectiveMission, sampleIntervalS);
   const computeTimeMs = performance.now() - t0;
 
   const padCoord: GeodeticCoord = {

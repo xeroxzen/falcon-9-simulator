@@ -97,8 +97,8 @@ Giving the pre-Part-D baseline vehicle the **same** 1-DOF per-flight pitch-kick 
 
 #### Default Mission Ascent Design & What-If Profile Rule (Mission Design, Not Tuning)
 
-- **Default mission pitch-kick solver (`src/sim/guidance/mission-design.ts`):** `solveMissionPitchKickDeg` replaces hand-picked ascent pitch kicks for default missions (`DEFAULT_LEO_ASDS_MISSION` → `1.90°`, `DEFAULT_LEO_RTLS_MISSION` → `1.80°`). Given the vehicle and mission spec (payload, target orbit, landing mode, and required MECO reserve), it selects the most gravity-loss-efficient pitchover angle that achieves the target orbit while meeting 3-sigma booster recovery fuel-margin (`>= 4,000 kg` ASDS / `>= 7,500 kg` RTLS) and grid-fin saturation (`<= 15%`) constraints. This is **mission design** (matching how real launch providers shape ascent loft per mission), not vehicle parameter tuning.
-- **What-If profile-based default kick rule (`defaultWhatIfPitchKickDeg`):** Derived from the Part D per-flight fitted kicks: `LEO direct` (`<= 250 km`) = **`1.30°`**, `LEO two-burn` (`> 250 km`) = **`1.70°`**, `GTO` = **`2.45°`**.
+- **Default mission ascent solver (`src/sim/guidance/mission-design.ts`):** `solveMissionAscentDesign` replaces hand-picked ascent pitch kicks and RTLS MECO reserves for default missions (`DEFAULT_LEO_ASDS_MISSION` → `1.90°` at `7.5%` reserve; `DEFAULT_LEO_RTLS_MISSION` → `1.40°` at `14.5%` reserve). Given the vehicle and mission spec (payload, target orbit, landing mode), it starts from the profile default kick as initial guess and solves for the most gravity-loss-efficient pitchover angle (and minimum feasible RTLS MECO reserve) that achieves the target orbit while meeting 3-sigma booster recovery fuel-margin (`>= 4,000 kg` ASDS / `>= 7,500 kg` RTLS) and grid-fin saturation (`<= 15%`) constraints. This is **mission design**, not vehicle parameter tuning.
+- **What-If profile-based default kick rule (`defaultWhatIfPitchKickDeg`):** Derived from the Part D per-flight fitted kicks: `LEO direct` (`<= 250 km`) = **`1.30°`**, `LEO two-burn` (`> 250 km`) = **`1.70°`**, `GTO` = **`2.45°`**. Applied **directly for `EXPENDABLE`** missions (`0.5%` reserve), and used as the **initial guess** for `solveMissionAscentDesign` inside the Web Worker whenever recovery (`ASDS` or `RTLS`) is enabled.
 
 #### Post-Fit Monte Carlo (`N = 1,000 × 3` Fresh Unseen Seeds, Post-RTLS Fix & Mission-Design Solver)
 
@@ -108,10 +108,12 @@ Giving the pre-Part-D baseline vehicle the **same** 1-DOF per-flight pitch-kick 
 | **ASDS** | `128008` | `999/1000 (99.9%)` | `100.0%` | `1.71 / 4.20 m` | `3,081 kg (0.73%)` | `99.5 kPa·deg (0/1000)` |
 | **ASDS** | `139009` | `1000/1000 (100.0%)` | `100.0%` | `1.66 / 4.05 m` | `3,138 kg (0.74%)` | `98.2 kPa·deg (0/1000)` |
 | **ASDS Combined** | `3 seeds` | **`2,998/3,000 (99.93%)`** | **`100.0%`** | — | — | **`0/3,000`** |
-| **RTLS** | `117007` | `1000/1000 (100.0%)` | `100.0%` | `1.36 / 3.59 m` | `5,594 kg (1.32%)` | `101.5 kPa·deg (0/1000)` |
-| **RTLS** | `128008` | `1000/1000 (100.0%)` | `100.0%` | `1.37 / 3.56 m` | `5,686 kg (1.35%)` | `97.8 kPa·deg (0/1000)` |
-| **RTLS** | `139009` | `1000/1000 (100.0%)` | `100.0%` | `1.37 / 3.88 m` | `5,615 kg (1.33%)` | `100.3 kPa·deg (0/1000)` |
+| **RTLS** | `141010` | `1000/1000 (100.0%)` | `100.0%` | `1.46 / 3.67 m` | `6,561 kg (1.55%)` | `98.7 kPa·deg (0/1000)` |
+| **RTLS** | `152011` | `1000/1000 (100.0%)` | `100.0%` | `1.39 / 3.48 m` | `6,559 kg (1.55%)` | `100.2 kPa·deg (0/1000)` |
+| **RTLS** | `163012` | `1000/1000 (100.0%)` | `100.0%` | `1.43 / 3.87 m` | `6,556 kg (1.55%)` | `99.5 kPa·deg (0/1000)` |
 | **RTLS Combined** | `3 seeds` | **`3,000/3,000 (100.00%)`** | **`100.0%`** | — | — | **`0/3,000`** |
+
+*Failure breakdown across all 3,000 RTLS trials (`141010`, `152011`, `163012`, solver `1.40° / 14.5%`): `v_z: 0`, `v_h: 0`, `miss: 0`, `propellant: 0`, `tilt: 0`. Across all 3,000 ASDS trials (`117007`, `128008`, `139009`, solver `1.90° / 7.5%`): `v_z: 1`, `v_h: 1`, `miss: 0`, `propellant: 0`, `tilt: 0`.*
 
 ## 4. Aerodynamics
 
