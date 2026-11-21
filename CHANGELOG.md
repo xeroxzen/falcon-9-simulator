@@ -2,9 +2,17 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
-## [Unreleased — v1.3.0 Parts A–B] — 2026-11-21
+## [1.3.0] — 2026-11-21 (Joint MAP System Identification, Mission-Design Solver, Two-Burn S2 & Mobile-First Layout)
 
 ### Added
+- **Joint MAP System Identification (`Part D`, leak-free on 3-flight fit set `DM-1`, `CRS-16`, `Iridium NEXT 8`):**
+  - Estimated 11 shared vehicle parameters (including `maxAxialAccelG = 3.69 ± 0.45 g` on the fit set only, zero holdout leakage) + webcast-clock offset (`+1.92 ± 1.31 s`) + per-flight pitch-kick nuisance parameters via RMS-normalized Levenberg-Marquardt with full Laplace Hessian uncertainties (`docs/ASSUMPTIONS.md`).
+  - **Deleted the `EMPIRICAL` 2.0 s liftoff throttle ramp** (`Variant (a)` chosen over `Variant (b)` for parsimony — both are within noise on holdouts); Stage 1 now commands full `100%` thrust from clamp release, with `WEBCAST_LIFTOFF_OFFSET_S = +1.92 s` applied consistently in `src/validation/compare.ts`.
+  - **7-flight pure Block 5 holdout validation (`dt = 0.01 s`, S2 RMS reported only for the 5 matching-profile holdouts):** 7-flight `|Max-Q Δ|`: `8.33 → 6.03 s`, `|MECO Δ|`: `7.42 → 2.88 s`, S1 Alt RMS: `5.24 → 1.16 km`, S1 Vel RMS: `109.3 → 46.7 m/s`; 5-flight matching-profile S2 Vel RMS: `352.0 → 221.6 m/s` (fair-baseline decomposition: per-flight kicks drive `-158.0 m/s` S2 vel while the vehicle-model fit alone is `+68.5 m/s` on GTO/MEO due to later SES-1 timing and delivers `-2.89 s` Max-Q, `-4.78 s` MECO, `-1.63 km` S1 alt, and `-82.8 m/s` S1 vel).
+- **Mission-design ascent solver (`src/sim/guidance/mission-design.ts`):**
+  - `solveMissionAscentDesign` replaces hand-picked ascent pitch kicks and RTLS MECO reserves (`DEFAULT_LEO_ASDS_MISSION`: `1.90° / 7.5%`; `DEFAULT_LEO_RTLS_MISSION`: `1.40° / 14.5%`), using the profile rule (`1.3°` LEO direct / `1.7°` LEO two-burn / `2.45°` GTO) directly for `EXPENDABLE` and as the solver's initial guess inside the Web Worker whenever recovery is enabled in What-If.
+  - **Fresh unseen-seed Monte Carlo (`N = 1,000 × 3` seeds, full ledger in `docs/MONTE_CARLO_LOG.md`):** ASDS (`117007`, `128008`, `139009`): **`2,998/3,000 (99.93%)`** (`v_z: 1, v_h: 1`, `fuel p5 = 3,041–3,138 kg`); RTLS (`141010`, `152011`, `163012`): **`3,000/3,000 (100.00%)`** (`0` failures across all modes, `fuel p5 = 6,556–6,561 kg`).
+- **Mobile-first layout (`v1.4 Part A`):** Responsive phone portrait/landscape + tablet layouts, swipe-up bottom sheets / landscape right-side drawer, touch gestures (tap/pinch/orbit/double-tap), auto-hiding immersive HUD, quality tiers (`Low`/`Med`/`High`), bounding-box camera framing, and Playwright iPhone 13 & Pixel 7 E2E coverage.
 - **Two-burn Stage 2 Hohmann transfer (`SES-1 → transfer coast → SES-2 → SECO-2`):**
   - Automatically activates for target orbits `> 250 km` (including What-If scenarios and holdouts `Iridium NEXT 8` & `SAOCOM 1A`), while `<= 250 km` missions (`DM-1`, default `200 km` ASDS/RTLS) stay bit-identical single-burn.
   - Inserts into a `185 km` (`ASSUMED`) perigee transfer orbit with apogee at target altitude, coasts ballistically with analytic Keplerian time-to-apoapsis ignition centering (`t_to_apo <= 0.5 * t_burn2`), and circularizes at apoapsis. Dynamic timeline segments (`MVac Burn`, `Transfer Coast`, `SES-2 Burn`, `Orbit`) render automatically with zero UI timeline changes.
