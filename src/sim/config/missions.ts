@@ -8,8 +8,8 @@ import { LAUNCH_SITES } from './falcon9.js';
 const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
   /** ASSUMED: Clear tower (~150 m) before pitchover */
   pitchKickAltitudeM: 150,
-  /** ASSUMED: Standard LEO gravity-turn pitchover kick */
-  pitchKickAngleDeg: 2.35,
+  /** ASSUMED: Standard LEO gravity-turn pitchover kick (~64-68 km MECO) */
+  pitchKickAngleDeg: 1.95,
   /** ASSUMED: Smooth pitchover duration */
   pitchKickDurationS: 8.0,
   /** ASSUMED: Max-Q throttle bucket entry threshold (triggers ~T+46-52 s) */
@@ -18,8 +18,8 @@ const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
   maxQThrottleEndMach: 1.38,
   /** ASSUMED: Throttle-down to 72% through max-Q */
   maxQMinThrottle: 0.72,
-  /** ASSUMED: 7.5% S1 propellant reserve at MECO for ASDS entry + landing */
-  mecoPropellantReserveFraction: 0.075,
+  /** ASSUMED: 8.5% S1 propellant reserve at MECO for ASDS entry + landing */
+  mecoPropellantReserveFraction: 0.085,
   stageSepDelayS: 3.5,
   ses1DelayFromMecoS: 8.0,
   fairingSepAltitudeM: 115_000,
@@ -27,10 +27,8 @@ const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
 
 const BASELINE_RTLS_GUIDANCE: AscentGuidanceConfig = {
   ...BASELINE_ASDS_GUIDANCE,
-  /** ASSUMED: Matches real RTLS loft (~65-73 km MECO, ~125-135 km booster apogee) */
-  pitchKickAngleDeg: 2.30,
-  /** ASSUMED: 14.5% S1 propellant reserve for boostback + entry + landing */
-  mecoPropellantReserveFraction: 0.145,
+  /** ASSUMED: 15.0% S1 propellant reserve for boostback + entry + landing */
+  mecoPropellantReserveFraction: 0.150,
 };
 
 export const DEFAULT_LEO_ASDS_MISSION: MissionConfig = {
