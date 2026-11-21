@@ -1,4 +1,5 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useSimStore } from '../store/simStore.js';
 
 interface BottomSheetProps {
   readonly title: string;
@@ -11,8 +12,8 @@ interface BottomSheetProps {
 
 /**
  * Mobile swipe-up bottom sheet for Engineer telemetry, Component Inspector,
- * and What-If scenarios. Supports swipe-down to dismiss, swipe-up to expand,
- * and >= 44px touch targets.
+ * and What-If scenarios. Reports its rendered height to simStore so the 3D
+ * camera applies `setViewOffset` to center the vehicle above the sheet.
  */
 export function BottomSheet({
   title,
@@ -25,6 +26,26 @@ export function BottomSheet({
   const [expanded, setExpanded] = useState(false);
   const [dragOffsetY, setDragOffsetY] = useState(0);
   const startYRef = useRef<number | null>(null);
+  const sheetRef = useRef<HTMLElement>(null);
+  const setBottomSheetHeightPx = useSimStore((s) => s.setBottomSheetHeightPx);
+
+  useEffect(() => {
+    const updateHeight = () => {
+      if (sheetRef.current) {
+        setBottomSheetHeightPx(sheetRef.current.getBoundingClientRect().height);
+      }
+    };
+    updateHeight();
+    const ro =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(updateHeight)
+        : null;
+    if (ro && sheetRef.current) ro.observe(sheetRef.current);
+    return () => {
+      ro?.disconnect();
+      setBottomSheetHeightPx(0);
+    };
+  }, [expanded, setBottomSheetHeightPx]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     startYRef.current = e.clientY;
@@ -52,6 +73,7 @@ export function BottomSheet({
 
   return (
     <aside
+      ref={sheetRef}
       className={`bottom-sheet ${expanded ? 'expanded' : ''}`}
       data-testid={testId}
       data-component-id={dataComponentId}

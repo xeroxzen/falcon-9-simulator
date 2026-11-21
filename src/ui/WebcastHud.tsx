@@ -14,6 +14,7 @@ export function WebcastHud() {
   const trajectory = useSimStore((s) => s.trajectory);
   const timeS = useSimStore((s) => s.timeS);
   const focusStage = useSimStore((s) => s.focusStage);
+  const mobileControlsHidden = useSimStore((s) => s.mobileControlsHidden);
   const frame = sampleFrameAt(trajectory, timeS);
 
   if (!frame || !trajectory) return null;
@@ -27,7 +28,10 @@ export function WebcastHud() {
     const activeKmh = focusStage === 'stage2' && frame.separated ? s2Kmh : s1Kmh;
     const activeKm = focusStage === 'stage2' && frame.separated ? s2Km : s1Km;
     return (
-      <div className="webcast-hud mobile-hud" data-testid="webcast-hud">
+      <div
+        className={`webcast-hud mobile-hud ${mobileControlsHidden ? 'immersive-hidden' : ''}`}
+        data-testid="webcast-hud"
+      >
         <div className="mobile-hud-item">
           <span className="hud-key">SPEED</span>
           <span className="mobile-hud-val">{activeKmh.toLocaleString()}</span>

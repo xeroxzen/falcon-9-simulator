@@ -50,7 +50,14 @@ export function InteractableHitbox({
   const isSelected =
     selected?.componentId === componentId &&
     selected?.engineIndex === engineIndex;
+  const isCoarseOrPhone =
+    typeof window !== 'undefined' &&
+    (window.innerWidth <= 600 ||
+      (window.innerHeight <= 500 && window.innerWidth <= 950) ||
+      (typeof window.matchMedia === 'function' &&
+        window.matchMedia('(pointer: coarse)').matches));
   const isHovered =
+    !isCoarseOrPhone &&
     hovered?.componentId === componentId &&
     hovered?.engineIndex === engineIndex;
 
@@ -60,14 +67,14 @@ export function InteractableHitbox({
   };
 
   const handleOver = (e: ThreeEvent<PointerEvent>) => {
-    if (e.pointerType !== 'mouse') return;
+    if (isCoarseOrPhone || e.pointerType !== 'mouse') return;
     e.stopPropagation();
     hoverComponent({ componentId, engineIndex });
     document.body.style.cursor = 'pointer';
   };
 
   const handleOut = (e: ThreeEvent<PointerEvent>) => {
-    if (e.pointerType !== 'mouse') return;
+    if (isCoarseOrPhone || e.pointerType !== 'mouse') return;
     e.stopPropagation();
     hoverComponent(null);
     document.body.style.cursor = 'auto';

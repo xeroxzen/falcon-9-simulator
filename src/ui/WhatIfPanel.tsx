@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FALCON9_BLOCK5 } from '../sim/config/falcon9.js';
 import type { LandingMode, MissionConfig } from '../sim/types.js';
-import { useSimStore } from '../store/simStore.js';
+import { AVAILABLE_MISSIONS, useSimStore } from '../store/simStore.js';
 import { BottomSheet } from './BottomSheet.js';
 import { fmtSignedDelta } from './format.js';
 import { useViewport } from './useViewport.js';
@@ -112,6 +112,32 @@ export function WhatIfPanel() {
 
   const body = (
     <>
+      {/* Mission Picker on Phones */}
+      {isPhone && (
+        <div className="whatif-group">
+          <div className="whatif-label-row">
+            <span>Mission Preset</span>
+          </div>
+          <select
+            className="whatif-input mobile-mission-select"
+            value={baseMission.id}
+            disabled={loading}
+            aria-label="Select mission"
+            data-testid="mobile-mission-select"
+            onChange={(e) => {
+              const next = AVAILABLE_MISSIONS.find((m) => m.id === e.target.value);
+              if (next) runMission(next, false);
+            }}
+          >
+            {AVAILABLE_MISSIONS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Controls */}
       <div className="whatif-controls">
         {/* Engine Out */}

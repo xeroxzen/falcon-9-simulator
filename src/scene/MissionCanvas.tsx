@@ -324,8 +324,9 @@ function SceneContent({
   qualityTier,
   touchAdjustRef,
 }: SceneContentProps) {
-  const { camera, gl } = useThree();
+  const { camera, gl, size } = useThree();
   const qCfg = QUALITY_PRESETS[qualityTier];
+  const bottomSheetHeightPx = useSimStore((s) => s.bottomSheetHeightPx);
   const trajectory = useSimStore((s) => s.trajectory);
   // Synced at ~10 Hz during playback (immediately on scrub) for low-GC HUD & mesh state
   const timeS = useSimStore((s) => s.timeS);
@@ -358,6 +359,23 @@ function SceneContent({
       gl.info.autoReset = true;
     };
   }, [gl]);
+
+  // Shift camera frustum upward via setViewOffset whenever a mobile bottom sheet is open
+  // so the focused vehicle / selected component stays centered in the visible area above it.
+  useEffect(() => {
+    const persp = camera as THREE.PerspectiveCamera;
+    if (!persp.isPerspectiveCamera) return;
+    if (!isSplit && bottomSheetHeightPx > 0 && size.height > bottomSheetHeightPx + 80) {
+      // Positive offsetY moves the frustum window down -> shifts rendered vehicle UP above the sheet
+      const offsetY = bottomSheetHeightPx * 0.5;
+      persp.setViewOffset(size.width, size.height, 0, offsetY, size.width, size.height);
+    } else {
+      persp.clearViewOffset();
+    }
+    return () => {
+      persp.clearViewOffset();
+    };
+  }, [camera, isSplit, bottomSheetHeightPx, size.width, size.height]);
 
   const frame = useMemo(
     () => sampleFrameAt(trajectory, timeS),

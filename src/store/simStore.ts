@@ -309,6 +309,8 @@ interface SimStoreState {
   showEngineerPanel: boolean;
   showWhatIfPanel: boolean;
   showHotspots: boolean;
+  bottomSheetHeightPx: number;
+  mobileControlsHidden: boolean;
   selectedComponent: ComponentSelection | null;
   hoveredComponent: ComponentSelection | null;
   runMission: (mission: MissionConfig, asWhatIf?: boolean) => void;
@@ -323,6 +325,8 @@ interface SimStoreState {
   setCameraMode: (mode: CameraMode) => void;
   setFocusStage: (stage: FocusStage) => void;
   setQualityTier: (tier: QualityTier) => void;
+  setBottomSheetHeightPx: (px: number) => void;
+  setMobileControlsHidden: (hidden: boolean) => void;
   toggleEngineerPanel: () => void;
   toggleWhatIfPanel: () => void;
   toggleHotspots: () => void;
@@ -362,6 +366,8 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   showEngineerPanel: detectInitialShowEngineerPanel(),
   showWhatIfPanel: false,
   showHotspots: false,
+  bottomSheetHeightPx: 0,
+  mobileControlsHidden: false,
   selectedComponent: null,
   hoveredComponent: null,
 
@@ -499,6 +505,8 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   setCameraMode: (cameraMode) => set({ cameraMode }),
   setFocusStage: (focusStage) => set({ focusStage }),
   setQualityTier: (qualityTier) => set({ qualityTier }),
+  setBottomSheetHeightPx: (bottomSheetHeightPx) => set({ bottomSheetHeightPx }),
+  setMobileControlsHidden: (mobileControlsHidden) => set({ mobileControlsHidden }),
   toggleEngineerPanel: () =>
     set((s) => {
       const next = !s.showEngineerPanel;
@@ -510,6 +518,8 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
         showEngineerPanel: next,
         showWhatIfPanel: isPhone && next ? false : s.showWhatIfPanel,
         selectedComponent: isPhone && next ? null : s.selectedComponent,
+        hoveredComponent: isPhone ? null : s.hoveredComponent,
+        mobileControlsHidden: false,
       };
     }),
   toggleWhatIfPanel: () =>
@@ -523,6 +533,8 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
         showWhatIfPanel: next,
         selectedComponent: next ? null : s.selectedComponent,
         showEngineerPanel: isPhone && next ? false : s.showEngineerPanel,
+        hoveredComponent: null,
+        mobileControlsHidden: false,
       };
     }),
   toggleHotspots: () => set((s) => ({ showHotspots: !s.showHotspots })),
@@ -537,6 +549,8 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
         showWhatIfPanel: selectedComponent ? false : s.showWhatIfPanel,
         showEngineerPanel:
           isPhone && selectedComponent ? false : s.showEngineerPanel,
+        hoveredComponent: isPhone ? null : s.hoveredComponent,
+        mobileControlsHidden: false,
       };
     }),
   hoverComponent: (hoveredComponent) => set({ hoveredComponent }),

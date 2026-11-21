@@ -24,13 +24,14 @@ const QUALITY_TIERS: readonly { id: QualityTier; label: string }[] = [
 ];
 
 export function TopBar() {
-  const { isPhone } = useViewport();
+  const { isPhone, isPhoneLandscape } = useViewport();
   const baseMission = useSimStore((s) => s.baseMission);
   const trajectory = useSimStore((s) => s.trajectory);
   const loading = useSimStore((s) => s.loading);
   const cameraMode = useSimStore((s) => s.cameraMode);
   const focusStage = useSimStore((s) => s.focusStage);
   const qualityTier = useSimStore((s) => s.qualityTier);
+  const mobileControlsHidden = useSimStore((s) => s.mobileControlsHidden);
   const showEngineerPanel = useSimStore((s) => s.showEngineerPanel);
   const showWhatIfPanel = useSimStore((s) => s.showWhatIfPanel);
   const isWhatIfActive = useSimStore((s) => s.isWhatIfActive);
@@ -60,8 +61,54 @@ export function TopBar() {
   if (isPhone) {
     const currentCam = CAMERA_MODES.find((c) => c.id === cameraMode) ?? CAMERA_MODES[0]!;
     const currentQ = QUALITY_TIERS.find((q) => q.id === qualityTier) ?? QUALITY_TIERS[0]!;
+    const hiddenCls = mobileControlsHidden ? 'immersive-hidden' : '';
+    if (isPhoneLandscape) {
+      return (
+        <header
+          className={`top-bar mobile-top-bar mobile-landscape-bar ${hiddenCls}`}
+          data-testid="top-bar"
+        >
+          <button
+            className="mobile-tap-btn active"
+            onClick={cycleCamera}
+            data-testid="mobile-camera-cycle"
+            aria-label={`Cycle camera (${currentCam.label})`}
+            title={`Camera: ${currentCam.label}`}
+          >
+            🎥
+          </button>
+          <button
+            className={`mobile-tap-btn ${showEngineerPanel ? 'active' : ''}`}
+            onClick={toggleEngineerPanel}
+            data-testid="mobile-eng-btn"
+            aria-label="Engineer telemetry"
+            title="Engineer telemetry"
+          >
+            📊
+          </button>
+          <button
+            className={`mobile-tap-btn ${showWhatIfPanel || isWhatIfActive ? 'active' : ''}`}
+            onClick={toggleWhatIfPanel}
+            data-testid="whatif-toggle-btn"
+            aria-label="What-If scenarios and missions"
+            title="What-If & Mission"
+          >
+            ⚙
+          </button>
+          <button
+            className="mobile-tap-btn"
+            onClick={cycleQuality}
+            data-testid="quality-cycle-btn"
+            aria-label={`Quality tier: ${currentQ.label}`}
+            title={`Quality: ${currentQ.label}`}
+          >
+            {currentQ.label[0]}
+          </button>
+        </header>
+      );
+    }
     return (
-      <header className="top-bar mobile-top-bar" data-testid="top-bar">
+      <header className={`top-bar mobile-top-bar ${hiddenCls}`} data-testid="top-bar">
         <button
           className="mobile-tap-btn active"
           onClick={cycleCamera}

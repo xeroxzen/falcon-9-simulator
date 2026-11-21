@@ -892,8 +892,52 @@ body,
    v1.4 Part A: Mobile-First Layout, Quality Selector & Swipe-Up Bottom Sheets
    ============================================================================ */
 
+.app-shell,
+.single-viewport,
+.single-viewport canvas,
+.bottom-sheet,
+.mobile-top-bar,
+.timeline-bar {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 .single-viewport {
   touch-action: none;
+}
+
+.immersive-hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.mobile-top-bar,
+.webcast-hud.mobile-hud,
+.timeline-bar.mobile-timeline {
+  transition: opacity 250ms ease;
+}
+
+.mobile-mission-select {
+  min-height: 44px;
+  font-size: 13px;
+}
+
+.mobile-top-bar.mobile-landscape-bar {
+  left: max(8px, env(safe-area-inset-left));
+  right: auto;
+  width: fit-content;
+  display: inline-flex;
+  grid-template-columns: none;
+  gap: 6px;
+  padding: 4px 6px;
+}
+
+.mobile-top-bar.mobile-landscape-bar .mobile-tap-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 16px;
 }
 
 .quality-select {
