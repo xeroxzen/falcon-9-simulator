@@ -327,6 +327,8 @@ function SceneContent({
   const { camera, gl, size } = useThree();
   const qCfg = QUALITY_PRESETS[qualityTier];
   const bottomSheetHeightPx = useSimStore((s) => s.bottomSheetHeightPx);
+  const rightDrawerWidthPx = useSimStore((s) => s.rightDrawerWidthPx);
+  const selectedComponent = useSimStore((s) => s.selectedComponent);
   const trajectory = useSimStore((s) => s.trajectory);
   // Synced at ~10 Hz during playback (immediately on scrub) for low-GC HUD & mesh state
   const timeS = useSimStore((s) => s.timeS);
@@ -360,22 +362,32 @@ function SceneContent({
     };
   }, [gl]);
 
-  // Shift camera frustum upward via setViewOffset whenever a mobile bottom sheet is open
-  // so the focused vehicle / selected component stays centered in the visible area above it.
+  // Shift camera frustum via setViewOffset whenever a mobile bottom sheet or landscape
+  // right drawer is open so the focused object is centered in the exact visible region
+  // between the top bar and the panel (never sitting under the top bar or behind the drawer).
   useEffect(() => {
     const persp = camera as THREE.PerspectiveCamera;
     if (!persp.isPerspectiveCamera) return;
     if (!isSplit && bottomSheetHeightPx > 0 && size.height > bottomSheetHeightPx + 80) {
-      // Positive offsetY moves the frustum window down -> shifts rendered vehicle UP above the sheet
-      const offsetY = bottomSheetHeightPx * 0.5;
+      const topBarPx = 68;
+      const visCy = topBarPx + (size.height - topBarPx - bottomSheetHeightPx) * 0.5;
+      const offsetY = size.height * 0.5 - visCy;
       persp.setViewOffset(size.width, size.height, 0, offsetY, size.width, size.height);
+    } else if (!isSplit && rightDrawerWidthPx > 0 && size.width > rightDrawerWidthPx + 120) {
+      const topBarPx = 62;
+      const timelinePx = 64;
+      const visCx = (size.width - rightDrawerWidthPx) * 0.5;
+      const visCy = topBarPx + (size.height - topBarPx - timelinePx) * 0.5;
+      const offsetX = size.width * 0.5 - visCx;
+      const offsetY = size.height * 0.5 - visCy;
+      persp.setViewOffset(size.width, size.height, offsetX, offsetY, size.width, size.height);
     } else {
       persp.clearViewOffset();
     }
     return () => {
       persp.clearViewOffset();
     };
-  }, [camera, isSplit, bottomSheetHeightPx, size.width, size.height]);
+  }, [camera, isSplit, bottomSheetHeightPx, rightDrawerWidthPx, size.width, size.height]);
 
   const frame = useMemo(
     () => sampleFrameAt(trajectory, timeS),
@@ -450,11 +462,43 @@ function SceneContent({
       earthGroupRef.current
     );
 
-    // 3. Compute exact current-frame lookTarget (never lagged behind flight path)
+    // 3. Compute exact current-frame lookTarget (aimed at selected component center when a mobile panel is open)
     const activeQuat = viewStage === 'stage1' ? fs.q1 : fs.q2;
-    SCRATCH_OFFSET.set(0, fs.transform.separated ? 18 : 28, 0).applyQuaternion(
-      activeQuat
-    );
+    const panelOpen = bottomSheetHeightPx > 0 || rightDrawerWidthPx > 0;
+    let focusHeightM = fs.transform.separated ? 18 : 28;
+    let fitObjHeightM = fs.transform.separated ? 42 : 70;
+    if (panelOpen && selectedComponent) {
+      const cid = selectedComponent.componentId;
+      if (cid === 'stage1') {
+        focusHeightM = 18.75;
+        fitObjHeightM = 36;
+      } else if (cid === 'falcon9-stack') {
+        focusHeightM = 34.3;
+        fitObjHeightM = 70;
+      } else if (cid === 'interstage') {
+        focusHeightM = 39.3;
+        fitObjHeightM = 9;
+      } else if (cid === 'grid-fins') {
+        focusHeightM = 39.4;
+        fitObjHeightM = 8;
+      } else if (cid === 'landing-legs') {
+        focusHeightM = 6.8;
+        fitObjHeightM = 12;
+      } else if (cid === 'merlin-1d') {
+        focusHeightM = 1.0;
+        fitObjHeightM = 6;
+      } else if (cid === 'stage2') {
+        focusHeightM = fs.transform.separated ? 6.3 : 48.9;
+        fitObjHeightM = 16;
+      } else if (cid === 'fairing') {
+        focusHeightM = fs.transform.separated ? 19.1 : 61.7;
+        fitObjHeightM = 16;
+      } else if (cid === 'payload') {
+        focusHeightM = fs.transform.separated ? 16.5 : 59.0;
+        fitObjHeightM = 12;
+      }
+    }
+    SCRATCH_OFFSET.set(0, focusHeightM, 0).applyQuaternion(activeQuat);
     SCRATCH_LOOK_TARGET.copy(fs.focusPos).add(SCRATCH_OFFSET);
 
     // Detect mode/target switch or discontinuous timeline scrub (> 2 s jump)
@@ -471,7 +515,20 @@ function SceneContent({
       const zoomScale = adj ? adj.zoomScale : 1;
       const yawOff = adj ? adj.yawOffset : 0;
       const elevOff = adj ? adj.elevOffset : 0;
-      const targetDist = (fs.transform.separated ? 82 : 142) * zoomScale;
+      let baseDist = fs.transform.separated ? 82 : 142;
+      if (panelOpen) {
+        const halfFovRad = (48 * Math.PI) / 360;
+        const visH =
+          bottomSheetHeightPx > 0
+            ? Math.max(120, size.height - 68 - bottomSheetHeightPx)
+            : Math.max(120, size.height - 62 - 64);
+        const visFracY = visH / Math.max(1, size.height);
+        // Fit the entire object height cleanly inside 72% of the visible vertical region
+        const requiredDist =
+          (fitObjHeightM * 0.5) / (Math.tan(halfFovRad) * 0.72 * visFracY);
+        baseDist = Math.max(baseDist * 0.75, requiredDist);
+      }
+      const targetDist = baseDist * zoomScale;
       const targetYaw = Math.PI / 4 + yawOff;
       const targetElev = Math.max(
         -0.75,

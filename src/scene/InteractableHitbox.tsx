@@ -36,6 +36,7 @@ export function InteractableHitbox({
   labelOffset = [0, 0, 0],
 }: InteractableHitboxProps) {
   const meshRef = useRef<THREE.Mesh>(null);
+  const outlineRef = useRef<THREE.Mesh>(null);
   const selected = useSimStore((s) => s.selectedComponent);
   const hovered = useSimStore((s) => s.hoveredComponent);
   const showHotspots = useSimStore((s) => s.showHotspots);
@@ -43,8 +44,8 @@ export function InteractableHitbox({
   const hoverComponent = useSimStore((s) => s.hoverComponent);
 
   useEffect(() => {
-    registerDebugHitbox(componentId, engineIndex, meshRef.current);
-    return () => registerDebugHitbox(componentId, engineIndex, null);
+    registerDebugHitbox(componentId, engineIndex, meshRef.current, outlineRef.current);
+    return () => registerDebugHitbox(componentId, engineIndex, null, null);
   }, [componentId, engineIndex]);
 
   const isSelected =
@@ -97,40 +98,40 @@ export function InteractableHitbox({
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      {/* Hover / Selection Outline */}
-      {(isHovered || isSelected) && (
-        <mesh
-          raycast={() => null}
-          position={[outlineOffset[0], outlineOffset[1], outlineOffset[2]]}
-          scale={[1.04, 1.01, 1.04]}
-        >
-          {shape === 'cylinder' ? (
-            <cylinderGeometry
-              args={[
-                (outlineArgs ?? args)[0],
-                (outlineArgs ?? args)[1],
-                (outlineArgs ?? args)[2],
-                16,
-              ]}
-            />
-          ) : (
-            <boxGeometry
-              args={[
-                (outlineArgs ?? args)[0],
-                (outlineArgs ?? args)[1],
-                (outlineArgs ?? args)[2],
-              ]}
-            />
-          )}
-          <meshBasicMaterial
-            color={isSelected ? '#38bdf8' : '#7dd3fc'}
-            wireframe
-            transparent
-            opacity={isSelected ? 0.85 : 0.55}
-            depthWrite={false}
+      {/* Hover / Selection Outline (always mounted with visible toggle so bounds can be queried) */}
+      <mesh
+        ref={outlineRef}
+        visible={isHovered || isSelected}
+        raycast={() => null}
+        position={[outlineOffset[0], outlineOffset[1], outlineOffset[2]]}
+        scale={[1.04, 1.01, 1.04]}
+      >
+        {shape === 'cylinder' ? (
+          <cylinderGeometry
+            args={[
+              (outlineArgs ?? args)[0],
+              (outlineArgs ?? args)[1],
+              (outlineArgs ?? args)[2],
+              16,
+            ]}
           />
-        </mesh>
-      )}
+        ) : (
+          <boxGeometry
+            args={[
+              (outlineArgs ?? args)[0],
+              (outlineArgs ?? args)[1],
+              (outlineArgs ?? args)[2],
+            ]}
+          />
+        )}
+        <meshBasicMaterial
+          color={isSelected ? '#38bdf8' : '#7dd3fc'}
+          wireframe
+          transparent
+          opacity={isSelected ? 0.85 : 0.55}
+          depthWrite={false}
+        />
+      </mesh>
 
       {/* Toggleable 3D Hotspot Label Pin */}
       {showHotspots && (

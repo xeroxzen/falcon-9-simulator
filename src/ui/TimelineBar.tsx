@@ -10,6 +10,7 @@ export function TimelineBar() {
   const playing = useSimStore((s) => s.playing);
   const playbackSpeed = useSimStore((s) => s.playbackSpeed);
   const mobileControlsHidden = useSimStore((s) => s.mobileControlsHidden);
+  const rightDrawerWidthPx = useSimStore((s) => s.rightDrawerWidthPx);
   const setTimeS = useSimStore((s) => s.setTimeS);
   const togglePlay = useSimStore((s) => s.togglePlay);
   const setPlaybackSpeed = useSimStore((s) => s.setPlaybackSpeed);
@@ -23,6 +24,11 @@ export function TimelineBar() {
       <div
         className={`timeline-bar mobile-timeline ${mobileControlsHidden ? 'immersive-hidden' : ''}`}
         data-testid="timeline-bar"
+        style={
+          rightDrawerWidthPx > 0
+            ? { right: `${Math.round(rightDrawerWidthPx) + 8}px` }
+            : undefined
+        }
       >
         <button
           className="mobile-play-btn"

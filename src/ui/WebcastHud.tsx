@@ -15,6 +15,7 @@ export function WebcastHud() {
   const timeS = useSimStore((s) => s.timeS);
   const focusStage = useSimStore((s) => s.focusStage);
   const mobileControlsHidden = useSimStore((s) => s.mobileControlsHidden);
+  const rightDrawerWidthPx = useSimStore((s) => s.rightDrawerWidthPx);
   const frame = sampleFrameAt(trajectory, timeS);
 
   if (!frame || !trajectory) return null;
@@ -29,8 +30,13 @@ export function WebcastHud() {
     const activeKm = focusStage === 'stage2' && frame.separated ? s2Km : s1Km;
     return (
       <div
-        className={`webcast-hud mobile-hud ${mobileControlsHidden ? 'immersive-hidden' : ''}`}
+        className={`webcast-hud mobile-hud ${mobileControlsHidden ? 'immersive-hidden' : ''} ${rightDrawerWidthPx > 0 ? 'drawer-shifted' : ''}`}
         data-testid="webcast-hud"
+        style={
+          rightDrawerWidthPx > 0
+            ? { right: `${Math.round(rightDrawerWidthPx) + 8}px` }
+            : undefined
+        }
       >
         <div className="mobile-hud-item">
           <span className="hud-key">SPEED</span>

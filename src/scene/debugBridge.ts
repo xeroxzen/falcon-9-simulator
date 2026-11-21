@@ -12,9 +12,12 @@ interface RegisteredHitbox {
   readonly componentId: string;
   readonly engineIndex?: number;
   readonly mesh: THREE.Object3D;
+  readonly boundsMesh: THREE.Object3D;
 }
 
 const hitboxes = new Map<string, RegisteredHitbox>();
+const SCRATCH_BOX3 = new THREE.Box3();
+const SCRATCH_CORNER = new THREE.Vector3();
 let activeCamera: THREE.Camera | null = null;
 let activeCanvas: HTMLCanvasElement | null = null;
 let activeEarthGroup: THREE.Object3D | null = null;
@@ -41,12 +44,18 @@ function hitboxKey(componentId: string, engineIndex?: number): string {
 export function registerDebugHitbox(
   componentId: string,
   engineIndex: number | undefined,
-  mesh: THREE.Object3D | null
+  mesh: THREE.Object3D | null,
+  boundsMesh?: THREE.Object3D | null
 ): void {
   if (!import.meta.env.DEV) return;
   const key = hitboxKey(componentId, engineIndex);
   if (mesh) {
-    hitboxes.set(key, { componentId, engineIndex, mesh });
+    hitboxes.set(key, {
+      componentId,
+      engineIndex,
+      mesh,
+      boundsMesh: boundsMesh ?? mesh,
+    });
   } else {
     hitboxes.delete(key);
   }
@@ -205,6 +214,61 @@ export function installDebugHook(): void {
         y >= rect.top + 4 &&
         y <= rect.bottom - 4;
       return { x, y, visible };
+    },
+    /**
+     * Project the 8 corners of the component's outline/geometry bounding box to viewport CSS pixels.
+     */
+    projectHitboxBoundsToScreen(
+      componentId: string,
+      engineIndex?: number
+    ): {
+      minX: number;
+      maxX: number;
+      minY: number;
+      maxY: number;
+      width: number;
+      height: number;
+    } | null {
+      if (!activeCamera || !activeCanvas) return null;
+      const entry = hitboxes.get(hitboxKey(componentId, engineIndex));
+      if (!entry) return null;
+      activeCamera.updateMatrixWorld();
+      entry.boundsMesh.updateWorldMatrix(true, false);
+      SCRATCH_BOX3.setFromObject(entry.boundsMesh);
+      if (SCRATCH_BOX3.isEmpty()) return null;
+
+      const rect = activeCanvas.getBoundingClientRect();
+      const { min, max } = SCRATCH_BOX3;
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (let ix = 0; ix < 2; ix++) {
+        for (let iy = 0; iy < 2; iy++) {
+          for (let iz = 0; iz < 2; iz++) {
+            SCRATCH_CORNER.set(
+              ix === 0 ? min.x : max.x,
+              iy === 0 ? min.y : max.y,
+              iz === 0 ? min.z : max.z
+            );
+            SCRATCH_NDC.copy(SCRATCH_CORNER).project(activeCamera);
+            const sx = rect.left + ((SCRATCH_NDC.x + 1) / 2) * rect.width;
+            const sy = rect.top + ((-SCRATCH_NDC.y + 1) / 2) * rect.height;
+            if (sx < minX) minX = sx;
+            if (sx > maxX) maxX = sx;
+            if (sy < minY) minY = sy;
+            if (sy > maxY) maxY = sy;
+          }
+        }
+      }
+      return {
+        minX,
+        maxX,
+        minY,
+        maxY,
+        width: maxX - minX,
+        height: maxY - minY,
+      };
     },
     /**
      * Project an arbitrary world-space point (e.g., launch pad origin (0, 0, 0))

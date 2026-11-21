@@ -165,23 +165,31 @@ test.describe('v1.4 Part A: Mobile-First Layout, Touch UX & Immersive Mode', () 
     await page.touchscreen.tap(projBefore!.x, projBefore!.y);
     const inspSheet = page.getByTestId('inspector-panel');
     await expect(inspSheet).toBeVisible();
-    await waitFrames(page, 8);
+    // Wait for critically damped zoom + setViewOffset to settle
+    await waitFrames(page, 30);
     const inspBox = await getBox(inspSheet);
-    const projAfter = await page.evaluate(() => {
+    const boundsPortrait = await page.evaluate(() => {
       const dbg = (
         window as unknown as {
           __f9debug: {
-            projectHitboxToScreen: (id: string) => { x: number; y: number; visible: boolean } | null;
+            projectHitboxBoundsToScreen: (id: string) => {
+              minX: number;
+              maxX: number;
+              minY: number;
+              maxY: number;
+            } | null;
           };
         }
       ).__f9debug;
-      return dbg.projectHitboxToScreen('stage1');
+      return dbg.projectHitboxBoundsToScreen('stage1');
     });
-    expect(projAfter).not.toBeNull();
-    expect(projAfter!.visible).toBe(true);
-    // Selected object must be centered in the visible area ABOVE the bottom sheet
-    expect(projAfter!.y).toBeGreaterThan(topBox.y + topBox.height);
-    expect(projAfter!.y).toBeLessThan(inspBox.y);
+    expect(boundsPortrait).not.toBeNull();
+    // Entire projected bounding box of selected Stage 1 must fit inside visible area
+    // between the top bar and the bottom sheet (nothing under top bar or behind sheet).
+    expect(boundsPortrait!.minY).toBeGreaterThanOrEqual(topBox.y + topBox.height - 2);
+    expect(boundsPortrait!.maxY).toBeLessThanOrEqual(inspBox.y + 2);
+    expect(boundsPortrait!.minX).toBeGreaterThanOrEqual(0);
+    expect(boundsPortrait!.maxX).toBeLessThanOrEqual(vp.width);
     await page.screenshot({
       path: path.join(OUT_DIR, `mobile-${deviceTag}-inspector-sheet.png`),
     });
@@ -230,25 +238,29 @@ test.describe('v1.4 Part A: Mobile-First Layout, Touch UX & Immersive Mode', () 
     );
     expect(lowPerf.fps).toBeGreaterThan(2);
 
-    // Tap anywhere brings controls back immediately
-    await page.touchscreen.tap(vp.width * 0.5, vp.height * 0.5);
+    // Tap empty sky area (away from rocket) brings controls back immediately
+    await page.touchscreen.tap(vp.width * 0.15, vp.height * 0.35);
     await expect(topBar).toHaveCSS('opacity', '1');
     await expect(webcastHud).toHaveCSS('opacity', '1');
     await expect(timelineBar).toHaveCSS('opacity', '1');
 
     // Pause before landscape check
     await page.evaluate(() => {
-      const dbg = (window as unknown as { __f9debug: { setPlaying: (p: boolean) => void } }).__f9debug;
+      const dbg = (
+        window as unknown as {
+          __f9debug: { setPlaying: (p: boolean) => void; clearSelection: () => void };
+        }
+      ).__f9debug;
       dbg.setPlaying(false);
+      dbg.clearSelection();
     });
 
     // 10. Phone landscape layout check (844 x 390): compact icon strip, zero overlapping panels
     await page.setViewportSize({ width: 844, height: 390 });
-    await waitFrames(page, 6);
+    await waitFrames(page, 10);
     const lTop = await getBox(topBar);
     const lHud = await getBox(webcastHud);
     const lTl = await getBox(timelineBar);
-    // Compact icon strip in landscape should be narrow (< 260 px wide)
     expect(lTop.width).toBeLessThan(260);
     expect(rectsOverlap(lTop, lHud)).toBe(false);
     expect(rectsOverlap(lTop, lTl)).toBe(false);
@@ -256,6 +268,65 @@ test.describe('v1.4 Part A: Mobile-First Layout, Touch UX & Immersive Mode', () 
     await assertCanvasRendered(page);
     await page.screenshot({
       path: path.join(OUT_DIR, `mobile-${deviceTag}-landscape.png`),
+    });
+
+    // 11. Landscape with Inspector open: right-side drawer (~40% width, full height),
+    //     HUD fully visible & non-overlapping, and selected object's bounds inside visible area
+    const projLand = await page.evaluate(() => {
+      const dbg = (
+        window as unknown as {
+          __f9debug: {
+            projectHitboxToScreen: (id: string) => { x: number; y: number; visible: boolean } | null;
+          };
+        }
+      ).__f9debug;
+      return dbg.projectHitboxToScreen('stage1');
+    });
+    expect(projLand).not.toBeNull();
+    expect(projLand!.visible).toBe(true);
+    await page.touchscreen.tap(projLand!.x, projLand!.y);
+    await expect(inspSheet).toBeVisible();
+    await waitFrames(page, 30);
+
+    const drawerBox = await getBox(inspSheet);
+    const lTopOpen = await getBox(topBar);
+    const lHudOpen = await getBox(webcastHud);
+    const lTlOpen = await getBox(timelineBar);
+
+    // Right-side drawer: ~40% width, full height, anchored to right edge
+    expect(drawerBox.x).toBeGreaterThanOrEqual(844 * 0.54);
+    expect(drawerBox.height).toBeGreaterThanOrEqual(386);
+    // HUD must be 100% visible & unclipped by top bar or right drawer
+    expect(lHudOpen.x).toBeGreaterThanOrEqual(lTopOpen.x + lTopOpen.width - 1);
+    expect(lHudOpen.x + lHudOpen.width).toBeLessThanOrEqual(drawerBox.x + 1);
+    expect(rectsOverlap(lTopOpen, lHudOpen)).toBe(false);
+    expect(rectsOverlap(lHudOpen, drawerBox)).toBe(false);
+    expect(rectsOverlap(lTlOpen, drawerBox)).toBe(false);
+
+    // Selected object's entire projected bounding box fits in visible area left of drawer
+    const boundsLand = await page.evaluate(() => {
+      const dbg = (
+        window as unknown as {
+          __f9debug: {
+            projectHitboxBoundsToScreen: (id: string) => {
+              minX: number;
+              maxX: number;
+              minY: number;
+              maxY: number;
+            } | null;
+          };
+        }
+      ).__f9debug;
+      return dbg.projectHitboxBoundsToScreen('stage1');
+    });
+    expect(boundsLand).not.toBeNull();
+    expect(boundsLand!.minX).toBeGreaterThanOrEqual(0);
+    expect(boundsLand!.maxX).toBeLessThanOrEqual(drawerBox.x + 2);
+    expect(boundsLand!.minY).toBeGreaterThanOrEqual(lTopOpen.y + lTopOpen.height - 2);
+    expect(boundsLand!.maxY).toBeLessThanOrEqual(lTlOpen.y + 2);
+
+    await page.screenshot({
+      path: path.join(OUT_DIR, `mobile-${deviceTag}-landscape-drawer.png`),
     });
   });
 });

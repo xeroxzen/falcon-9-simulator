@@ -310,6 +310,7 @@ interface SimStoreState {
   showWhatIfPanel: boolean;
   showHotspots: boolean;
   bottomSheetHeightPx: number;
+  rightDrawerWidthPx: number;
   mobileControlsHidden: boolean;
   selectedComponent: ComponentSelection | null;
   hoveredComponent: ComponentSelection | null;
@@ -326,6 +327,7 @@ interface SimStoreState {
   setFocusStage: (stage: FocusStage) => void;
   setQualityTier: (tier: QualityTier) => void;
   setBottomSheetHeightPx: (px: number) => void;
+  setRightDrawerWidthPx: (px: number) => void;
   setMobileControlsHidden: (hidden: boolean) => void;
   toggleEngineerPanel: () => void;
   toggleWhatIfPanel: () => void;
@@ -367,6 +369,7 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   showWhatIfPanel: false,
   showHotspots: false,
   bottomSheetHeightPx: 0,
+  rightDrawerWidthPx: 0,
   mobileControlsHidden: false,
   selectedComponent: null,
   hoveredComponent: null,
@@ -506,6 +509,7 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   setFocusStage: (focusStage) => set({ focusStage }),
   setQualityTier: (qualityTier) => set({ qualityTier }),
   setBottomSheetHeightPx: (bottomSheetHeightPx) => set({ bottomSheetHeightPx }),
+  setRightDrawerWidthPx: (rightDrawerWidthPx) => set({ rightDrawerWidthPx }),
   setMobileControlsHidden: (mobileControlsHidden) => set({ mobileControlsHidden }),
   toggleEngineerPanel: () =>
     set((s) => {

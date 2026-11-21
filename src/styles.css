@@ -929,15 +929,38 @@ body,
   width: fit-content;
   display: inline-flex;
   grid-template-columns: none;
-  gap: 6px;
+  gap: 5px;
   padding: 4px 6px;
 }
 
 .mobile-top-bar.mobile-landscape-bar .mobile-tap-btn {
-  width: 44px;
+  min-width: 48px;
   height: 44px;
-  padding: 0;
-  font-size: 16px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+/* Landscape Right-Side Drawer (~40% width, full height) */
+.right-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 40vw;
+  min-width: 280px;
+  max-width: 380px;
+  z-index: 30;
+  background: rgba(10, 14, 22, 0.96);
+  border-left: 1px solid rgba(56, 189, 248, 0.4);
+  backdrop-filter: blur(16px);
+  display: flex;
+  flex-direction: column;
+  padding-top: max(8px, env(safe-area-inset-top));
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.55);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .quality-select {
@@ -1134,22 +1157,18 @@ body,
   .webcast-hud.mobile-hud {
     left: auto;
     right: 8px;
-    top: 66px;
+    top: max(8px, env(safe-area-inset-top));
     bottom: auto;
-    width: 260px;
+    width: 244px;
     padding: 6px 10px;
   }
 
   .mobile-hud-val {
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .mobile-hud-clock {
-    font-size: 15px;
-  }
-
-  .bottom-sheet {
-    height: 76vh;
+    font-size: 14px;
   }
 }
 

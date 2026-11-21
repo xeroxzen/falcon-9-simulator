@@ -78,6 +78,7 @@ export function LaunchPadMesh({
           position={[0, 31, 0]}
           shape="box"
           args={[6.5, 62, 6.5]}
+          outlineArgs={[3.8, 62, 3.8]}
           labelOffset={[-6, 12, 0]}
         />
       </group>
@@ -141,6 +142,8 @@ export function LandingPadMesh({
           position={[18, -0.2, 0]}
           shape="cylinder"
           args={[24, 24, 1.4]}
+          outlineArgs={[44, 44, 0.8]}
+          outlineOffset={[-18, 0.05, 0]}
           labelOffset={[12, 4, 0]}
         />
       </group>
@@ -178,6 +181,8 @@ export function LandingPadMesh({
         position={[24, -0.2, 0]}
         shape="box"
         args={[38, 2.2, 44]}
+        outlineArgs={[91, 2.4, 52]}
+        outlineOffset={[-24, -0.9, 0]}
         labelOffset={[8, 4, 0]}
       />
     </group>

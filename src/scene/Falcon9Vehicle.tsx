@@ -225,7 +225,7 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
         </group>
       ))}
 
-      {/* --- Non-overlapping Simplified Proxy Hitboxes --- */}
+      {/* --- Non-overlapping Simplified Proxy Hitboxes (outlines sized to actual mesh bounds) --- */}
       <InteractableHitbox
         componentId="landing-legs"
         label="Landing Legs"
@@ -236,6 +236,12 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
           snapshot.landingLegsDeployed ? 9.2 : 2.35,
           6.8,
         ]}
+        outlineArgs={
+          snapshot.landingLegsDeployed ? [9.0, 9.0, 5.6] : [2.3, 2.3, 7.8]
+        }
+        outlineOffset={
+          snapshot.landingLegsDeployed ? [0, -3.4, 0] : [0, 0.65, 0]
+        }
         labelOffset={[-3.6, 0, 0]}
       />
       <InteractableHitbox
@@ -244,6 +250,8 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
         position={[0, 20.0, 0]}
         shape="cylinder"
         args={[2.15, 2.15, 19.0]}
+        outlineArgs={[2.1, 2.1, 34.5]}
+        outlineOffset={[0, -1.25, 0]}
         labelOffset={[3.2, 0, 0]}
       />
       {!separated && (
@@ -253,7 +261,7 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
           position={[0, 32.8, 0]}
           shape="cylinder"
           args={[2.2, 2.2, 5.2]}
-          outlineArgs={[2.85, 2.85, 68.0]}
+          outlineArgs={[2.75, 2.75, 68.0]}
           outlineOffset={[0, 1.5, 0]}
           labelOffset={[3.5, 0, 0]}
         />
@@ -264,6 +272,8 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
         position={[0, 37.8, 0]}
         shape="cylinder"
         args={[2.15, 2.15, 3.2]}
+        outlineArgs={[2.05, 2.05, 6.6]}
+        outlineOffset={[0, 1.5, 0]}
         labelOffset={[-3.4, 0, 0]}
       />
       <InteractableHitbox
@@ -272,6 +282,8 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
         position={[0, 40.6, 0]}
         shape="cylinder"
         args={[3.6, 3.6, 2.2]}
+        outlineArgs={[3.6, 3.6, 1.6]}
+        outlineOffset={[0, -1.2, 0]}
         labelOffset={[4.2, 1.2, 0]}
       />
       <InteractableHitbox
@@ -280,6 +292,8 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
         position={[3.0, 37.2, 0]}
         shape="box"
         args={[1.6, 2.0, 2.0]}
+        outlineArgs={[0.7, 0.9, 0.8]}
+        outlineOffset={[-1.05, 0, 0]}
         labelOffset={[2.4, 0, 0]}
       />
 

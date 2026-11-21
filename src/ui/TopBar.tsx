@@ -72,37 +72,37 @@ export function TopBar() {
             className="mobile-tap-btn active"
             onClick={cycleCamera}
             data-testid="mobile-camera-cycle"
-            aria-label={`Cycle camera (${currentCam.label})`}
+            aria-label={`Cycle camera (current: ${currentCam.label})`}
             title={`Camera: ${currentCam.label}`}
           >
-            🎥
+            Cam
           </button>
           <button
             className={`mobile-tap-btn ${showEngineerPanel ? 'active' : ''}`}
             onClick={toggleEngineerPanel}
             data-testid="mobile-eng-btn"
-            aria-label="Engineer telemetry"
+            aria-label="Toggle engineer telemetry drawer"
             title="Engineer telemetry"
           >
-            📊
+            Eng
           </button>
           <button
             className={`mobile-tap-btn ${showWhatIfPanel || isWhatIfActive ? 'active' : ''}`}
             onClick={toggleWhatIfPanel}
             data-testid="whatif-toggle-btn"
-            aria-label="What-If scenarios and missions"
+            aria-label="Toggle What-If scenarios and mission picker"
             title="What-If & Mission"
           >
-            ⚙
+            Lab
           </button>
           <button
             className="mobile-tap-btn"
             onClick={cycleQuality}
             data-testid="quality-cycle-btn"
-            aria-label={`Quality tier: ${currentQ.label}`}
+            aria-label={`Cycle graphics quality (current: ${currentQ.label})`}
             title={`Quality: ${currentQ.label}`}
           >
-            {currentQ.label[0]}
+            {currentQ.label}
           </button>
         </header>
       );
