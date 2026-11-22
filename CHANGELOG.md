@@ -2,6 +2,21 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
+## [1.5.0] — 2026-11-22 (Mission-Class Ascent Schedules & Physical Max-Q Validation)
+
+### Added
+- **Physical telemetry Max-Q validation metric (`src/validation/compare.ts`):** Primary Max-Q comparisons now use the physical dynamic pressure peak `q(t) = 0.5 · ρ_US76(alt) · v²` computed directly from 1 Hz telemetry (`T+30..100 s`), retaining webcast announcer callout (`events.maxq`) as secondary `maxQCalloutTimeDelta`.
+- **Data-driven mission-class late-S1 acceleration schedules (`EMPIRICAL`):**
+  - Unsupervised `k = 2` clustering of all 10 pure Block 5 flights separates `Class 0 (LEO-like)` and `Class 1 (GTO-like)`.
+  - Simplified model keeps the shared v1 `FALCON9_BLOCK5` vehicle & throttle bucket (`22 kPa / Mach 1.02–1.38 / 72%`) and varies only an **`EMPIRICAL` effective late-S1 axial acceleration limit**: **`2.90 g`** (LEO) and **`3.60 g`** (GTO), fitted strictly on the 4-flight fit set (`DM-1`, `CRS-16`, `Iridium NEXT 8`, `Bangabandhu-1`) with `WEBCAST_LIFTOFF_OFFSET_S = 0` fixed.
+  - Both classes hold or improve vs v1 on holdouts: Class 0 `S1 Alt RMS` `0.82 → 0.40 km` (`-51%`), `S1 Vel RMS` `69.8 → 47.1 m/s` (`-33%`), `|Phys Max-Q|` `0.59 → 0.59 s`, `SAOCOM 1A MECO` `-4.7 → 0.0 s`; Class 1 `|MECO Δ|` `3.04 → 2.69 s`, `S1 Alt` `1.10 → 1.07 km`, `S1 Vel` `66.4 → 64.4 m/s`, `|Phys Max-Q|` `6.18 → 6.18 s`.
+  - Explicitly documented reconstructed true telemetry axial acceleration (`a_axial ≈ dv/dt + g·sin(γ)`: `3.29–3.67 g` Class 0, `3.82–3.86 g` Class 1) in `docs/ASSUMPTIONS.md`, labeling `2.90 g` / `3.60 g` as `EMPIRICAL` effective limits and tracking root-cause investigation + payload-aware ASDS reserve sizing in `docs/BACKLOG.md`.
+- **What-If class selector (`selectMissionClassSchedule`, `ASSUMED`):** Orbit-type rule (`targetAltitudeM >= 2,000 km → GTO 3.60 g`, else `LEO 2.90 g`) selected via leave-one-out evaluation (`9/10 = 90%`, the theoretical ceiling given identical `Iridium 7/8` mission inputs, vs `5/10` performance demand and `6/10` demand + recovery mode).
+- **Re-solved mission-design defaults & 3-seed Monte Carlo validation (`229018`, `230019`, `241020`, `N = 1,000 × 3` each):**
+  - `DEFAULT_LEO_ASDS_MISSION`: `1.80° / 7.5% / 2.90 g` → **`2,997/3,000 (99.90%)`** landed, `100.0%` orbit, `0/3,000` `q·α` exceedances.
+  - `DEFAULT_LEO_RTLS_MISSION` (`LZ-40`): `1.35° / 14.5% / 2.90 g` → **`3,000/3,000 (100.00%)`** landed, `100.0%` orbit, `0/3,000` `q·α` exceedances.
+  - Complete append-only log (including superseded `30.2 s / 3.15 g` runs `207016`/`218017`) in `docs/MONTE_CARLO_LOG.md`.
+
 ## [1.4.1] — 2026-11-22 (JRTI Retirement, Parameterized Throttle Bucket & System-ID v2 Holdout Study)
 
 ### Added

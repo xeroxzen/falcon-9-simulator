@@ -5,7 +5,10 @@ import {
   LAUNCH_SITES,
   validateLaunchSiteInclination,
 } from '../sim/config/falcon9.js';
-import { defaultWhatIfPitchKickDeg } from '../sim/guidance/mission-design.js';
+import {
+  defaultWhatIfPitchKickDeg,
+  selectMissionClassSchedule,
+} from '../sim/guidance/mission-design.js';
 import type { LandingMode, LaunchSiteConfig, MissionConfig } from '../sim/types.js';
 import { AVAILABLE_MISSIONS, useSimStore } from '../store/simStore.js';
 import { BottomSheet } from './BottomSheet.js';
@@ -90,6 +93,7 @@ export function WhatIfPanel() {
     const isVandenberg = launchSiteId === 'SLC-4E';
     const isTwoBurnTarget = targetAltKm > 250;
     const profilePitchKickDeg = defaultWhatIfPitchKickDeg(targetAltKm * 1000);
+    const classSchedule = selectMissionClassSchedule(targetAltKm * 1000);
     const resolvedLandingSiteId =
       landingMode === 'RTLS' ? recoveryAssets.defaultLandingSiteId : undefined;
     const modeLabel =
@@ -118,6 +122,7 @@ export function WhatIfPanel() {
       guidance: {
         ...baseMission.guidance,
         pitchKickAngleDeg: profilePitchKickDeg,
+        maxAxialAccelG: classSchedule.maxAxialAccelG,
         twoBurn: undefined,
         mecoPropellantReserveFraction: initialReserveFraction,
         autoDesignAscent: true,

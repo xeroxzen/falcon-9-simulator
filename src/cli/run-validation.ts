@@ -38,7 +38,8 @@ function runAndPrintMission(
   console.log('================================================================================');
 
   console.log('\nKey Event Deltas:');
-  fmtDelta('Max-Q Time', report.maxQTimeDelta, 's');
+  fmtDelta('Max-Q (phys q)', report.maxQTimeDelta, 's');
+  fmtDelta('Max-Q (callout)', report.maxQCalloutTimeDelta, 's');
   fmtDelta('MECO Time', report.mecoTimeDelta, 's');
   fmtDelta('MECO Altitude', report.mecoAltDelta, 'km', 0.001);
   fmtDelta('MECO Velocity', report.mecoVelDelta, 'm/s');

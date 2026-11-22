@@ -3,6 +3,54 @@ import type { MissionConfig, VehicleConfig } from '../types.js';
 
 export type AscentTrajectoryProfile = 'LEO_DIRECT' | 'LEO_TWO_BURN' | 'GTO';
 
+export type MissionGuidanceClass = 'LEO' | 'GTO';
+
+export interface MissionClassSchedule {
+  readonly missionClass: MissionGuidanceClass;
+  /** Per-class Stage 1 late-burn axial acceleration limit (g). */
+  readonly maxAxialAccelG: number;
+}
+
+/**
+ * EMPIRICAL effective late-S1 axial acceleration limits per mission class, fitted via
+ * MAP on the 4-flight fit set (WEBCAST_LIFTOFF_OFFSET_S = 0 fixed; shared v1 vehicle
+ * and shared v1 max-Q throttle bucket):
+ *  - LEO (Class 0, fit on DM-1, CRS-16, Iridium NEXT 8): maxAxialAccelG = 2.90 g (EMPIRICAL)
+ *  - GTO (Class 1, fit on Bangabandhu-1):                maxAxialAccelG = 3.60 g (EMPIRICAL)
+ *
+ * Reconstructed true telemetry axial acceleration (a_axial = dv/dt + g*sin(gamma))
+ * peaks at 3.29-3.67 g (Class 0) and 3.82-3.86 g (Class 1), so these caps are
+ * EMPIRICAL effective late-S1 limits compensating for an unmodeled discrepancy
+ * (tracked in docs/BACKLOG.md), not physical structural G-limits.
+ */
+export const MISSION_CLASS_SCHEDULES: Readonly<
+  Record<MissionGuidanceClass, MissionClassSchedule>
+> = {
+  LEO: {
+    missionClass: 'LEO',
+    maxAxialAccelG: 2.9,
+  },
+  GTO: {
+    missionClass: 'GTO',
+    maxAxialAccelG: 3.6,
+  },
+};
+
+/**
+ * Select a mission-class Stage 1 late-burn accel limit for What-If missions (ASSUMED).
+ * Orbit-type predictor (MEO/GTO >= 2,000 km target -> GTO 3.60 g; LEO/SSO -> LEO 2.90 g)
+ * achieved 9/10 (90%) LOO accuracy on the 10 Block 5 flights vs 5/10 (50%) for
+ * payload/capability demand and 6/10 (60%) for demand + recovery mode.
+ */
+export function selectMissionClassSchedule(
+  targetOrbitAltitudeM: number,
+  isGto = false
+): MissionClassSchedule {
+  return isGto || targetOrbitAltitudeM >= 2_000_000
+    ? MISSION_CLASS_SCHEDULES.GTO
+    : MISSION_CLASS_SCHEDULES.LEO;
+}
+
 /**
  * Profile-based default pitch-kick angles derived from Part D per-flight MAP fits:
  *  - LEO direct  : 1.30 deg (DM-1 1.28°, CRS-16 1.37°, SAOCOM 1A 1.22°, SSO-A 1.19°)
@@ -78,6 +126,7 @@ function evaluateCandidate(
 ): MissionDesignResult {
   const candidate: MissionConfig = {
     ...mission,
+    countdownS: 0,
     dtS: solverDtS,
     guidance: {
       ...mission.guidance,

@@ -48,54 +48,51 @@ pnpm e2e              # Playwright E2E suite in headed Chromium (HEADLESS=1 for 
 
 ---
 
-## Real Webcast Telemetry Validation
+## Real Webcast Telemetry Validation (v1.5.0 — Per-Class Schedules, Physical Max-Q, `tOff = 0`)
 
-Validated against OCR-cleaned SpaceX webcast telemetry ([shahar603/Telemetry-Data](https://github.com/shahar603/Telemetry-Data)) in the **Earth-relative (ECEF)** speed frame. With hold-down clamp release at `T = 0` now modeled directly, **`WEBCAST_LIFTOFF_OFFSET_S = 0.0 s`** (`T+0..30 s` fits best at `0 s` with `~39 m / 2.9 m/s` RMS; the `v1.3` `+1.92 s` offset in the historical Part D table below was a compensating error hiding excess late-S1 acceleration, tracked for System-ID v2 in [docs/BACKLOG.md](docs/BACKLOG.md)). Shared vehicle parameters (`maxAxialAccelG = 3.69 g`, `stage2MaxAccelG = 3.52 g`) were MAP-estimated on the 3-flight fit set only and frozen across all 7 pure Block 5 holdout flights; per-flight pitchover kick (`Kick°`) is treated as a 1-DOF mission trajectory-shaping nuisance parameter. Stage 2 RMS is reported **only** where the simulator flies the same ascent profile through SECO-1.
+Validated at `dt = 0.01 s` with **`WEBCAST_LIFTOFF_OFFSET_S = 0.0 s` fixed** (hold-down clamp release at `T = 0` modeled directly; `T+0..30 s` fits best at `0 s` with `~39 m / 2.9 m/s` RMS) against 10 pure Falcon 9 Block 5 flights from [shahar603/Telemetry-Data](https://github.com/shahar603/Telemetry-Data) (30 fps OCR resampled to 1 Hz, Earth-relative ECEF speed frame). Primary Max-Q comparisons use the **physical telemetry `q` peak (`0.5 · ρ_US76(alt) · v²`)** rather than the webcast announcer callout (retained in parentheses). The two classes (`Class 0 LEO-like`, `Class 1 GTO-like`) were defined via unsupervised `k = 2` clustering on `(bucketDurS, v140Ms, peakLateS1AccelG)`, keeping the shared v1 `FALCON9_BLOCK5` vehicle & throttle bucket (`22 kPa / Mach 1.02–1.38 / 72%`) and fitting **only** an **`EMPIRICAL` effective late-S1 axial acceleration limit** (`2.90 g` LEO / `3.60 g` GTO) on the 4-flight fit set (`DM-1`, `CRS-16`, `Iridium NEXT 8`, `Bangabandhu-1`). Per-flight pitchover kick (`Kick°`) is treated as a 1-DOF mission trajectory-shaping nuisance parameter; Stage 2 RMS is reported only where the simulator flies the same ascent profile through SECO-1.
 
-| Flight | Role | Real Profile | Fitted Kick | Max-Q Δt (B → A) | MECO Δt (B → A) | S1 Alt RMS (B → A) | S1 Vel RMS (B → A) | S2 Vel RMS (B → A) | SECO-1 (Real / B / A) |
-| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| **Crew Dragon DM-1** | Fit | LEO direct | `1.28°` | `-2.3 → +1.7 s` | `-7.6 → -1.7 s` | `5.32 → 0.31 km` | `95 → 55 m/s` | `327 → 106 m/s` | `549 / 558 / 550` |
-| **SpaceX CRS-16** | Fit | LEO direct | `1.37°` | `+2.6 → +6.4 s` | `-12.3 → -5.8 s` | `3.47 → 2.13 km` | `178 → 91 m/s` | `295 → 112 m/s` | `538 / 509 / 522` |
-| **Iridium NEXT 8** | Fit | LEO two-burn | `1.73°` | `-3.6 → +0.3 s` | `-6.7 → +1.5 s` | `2.51 → 1.16 km` | `168 → 83 m/s` | `125 → 83 m/s` | `526 / 522 / 531` |
-| **Bangabandhu-1** | Holdout | GTO | `2.52°` | `-17.6 → -13.5 s` | `-8.6 → -0.1 s` | `8.53 → 0.57 km` | `56 → 16 m/s` | `263 → 47 m/s` | `495 / 500 / 500` |
-| **TelStar v19** | Holdout | GTO | `2.41°` | `-15.0 → -10.8 s` | `-9.7 → -1.4 s` | `7.96 → 0.39 km` | `62 → 17 m/s` | `402 → 298 m/s` | `499 / 509 / 511` |
-| **Iridium NEXT 7** | Holdout | LEO two-burn | `1.71°` | `-13.6 → -9.7 s` | `-2.7 → +5.5 s` | `2.63 → 0.60 km` | `124 → 31 m/s` | `189 → 237 m/s` | `524 / 525 / 534` |
-| **Eshail 2** | Holdout | GTO | `2.44°` | `-2.3 → +1.8 s` | `-8.7 → -0.3 s` | `6.72 → 2.49 km` | `60 → 87 m/s` | `490 → 324 m/s` | `495 / 503 / 504` |
-| **GPS III SV01** | Holdout | MEO two-burn | `2.23°` | `-6.5 → -2.4 s` | `-12.6 → -1.0 s` | `10.02 → 1.23 km` | `136 → 62 m/s` | `416 → 202 m/s` | `520 / 505 / 503` |
-| **SAOCOM 1A** | Holdout | LEO direct | `1.21°` | `-1.8 → +1.9 s` | `-9.4 → -2.8 s` | `0.43 → 1.56 km` | `143 → 53 m/s` | S1 only *(real 620 km direct vs sim two-burn)* | `607 / n/a` |
-| **SSO-A** | Holdout | LEO direct | `1.19°` | `-1.6 → +2.1 s` | `+0.3 → +9.1 s` | `0.37 → 1.28 km` | `184 → 62 m/s` | S1 only *(real 575 km direct vs sim two-burn)* | `600 / n/a` |
+#### Per-Class Holdout Summary (`Fair Baseline → v1 (3.69 g) → v1.5.0 Simplified`)
 
-*Fair-baseline decomposition (7 holdouts S1; 5 matching-profile holdouts S2): the **vehicle-model fit alone worsens holdout S2 velocity RMS by `+68.5 m/s`** (`152.5 → 220.9 m/s`, driven by later SES-1 timing on GTO/MEO flights); the **net S2 improvement comes from per-flight pitch kicks (`-158.0 m/s`)**. On Stage 1, the MAP vehicle model itself delivers `-2.89 s` Max-Q, `-4.78 s` MECO, `-1.63 km` S1 alt, and `-82.8 m/s` S1 vel (see [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).*
+| Holdout Class (`dt = 0.01 s`, per-flight kick) | `|Phys Max-Q Δ|` (callout) | `|MECO Δ|` | S1 Alt RMS | S1 Vel RMS | S2 Vel RMS |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| **Class 0 — LEO-like** (`SAOCOM 1A`, `SSO-A`; S1-only) | `3.05 → 0.59 → 0.59 s` (`0.09 s`) | `4.86 → 5.90 → 7.60 s`\* | `2.47 → 0.82 → 0.40 km` | `137.9 → 69.8 → 47.1 m/s` | S1-only |
+| **Class 1 — GTO-like** (`TelStar v19`, `Iridium 7`, `Eshail 2`, `GPS III`) | `8.78 → 6.18 → 6.18 s` (`7.18 s`) | `8.75 → 3.04 → 2.69 s` | `2.10 → 1.10 → 1.07 km` | `135.2 → 66.4 → 64.4 m/s` | `190.8 → 247.5 → 257.1 m/s` |
+
+*\*On Class 0 holdouts, `SAOCOM 1A` MECO improves `-4.7 → 0.0 s` (exact), while light 4.0 t ASDS `SSO-A` over-burns `+7.1 → +15.2 s` due to the generic `7.5%` ASDS reserve (payload-aware reserve sizing is tracked in [docs/BACKLOG.md](docs/BACKLOG.md)). Reconstructed true telemetry axial acceleration (`dv/dt + g·sin(γ)`) peaks at `3.29–3.67 g` (Class 0) and `3.82–3.86 g` (Class 1), so `2.90 g` / `3.60 g` are explicitly labeled `EMPIRICAL` effective late-S1 limits in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md).*
+
+#### Per-Flight Validation Breakdown (`Fair Baseline → v1 → v1.5.0`)
+
+| Flight | Class | Role | Fitted Kick | Phys Max-Q Δt (B → v1 → v1.5) | MECO Δt (B → v1 → v1.5) | S1 Alt RMS (B → v1 → v1.5) | S1 Vel RMS (B → v1 → v1.5) | Reconstructed Peak `a_axial` |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| **Crew Dragon DM-1** | C0 LEO | Fit | `1.41°` | `-1.2 → +1.5 → +1.5 s` | `-9.7 → -5.0 → -3.6 s` | `3.19 → 1.77 → 1.65 km` | `180 → 113 → 105 m/s` | `3.29 g` |
+| **SpaceX CRS-16** | C0 LEO | Fit | `1.61°` | `+2.9 → +5.5 → +5.5 s` | `-12.6 → -7.8 → -3.3 s` | `3.56 → 2.27 → 1.91 km` | `188 → 127 → 108 m/s` | `3.46 g` |
+| **Iridium NEXT 8** | C0 LEO | Fit | `1.63°` | `-5.3 → -2.7 → -2.6 s` | `-7.0 → -0.4 → +6.9 s` | `3.05 → 1.59 → 0.84 km` | `173 → 98 → 65 m/s` | `3.67 g` |
+| **Bangabandhu-1** | C1 GTO | Fit | `2.62°` | `-12.9 → -10.4 → -10.4 s` | `-9.0 → -2.1 → -1.6 s` | `2.23 → 0.67 → 0.61 km` | `128 → 50 → 49 m/s` | `3.86 g` |
+| **SAOCOM 1A** | C0 LEO | Holdout | `1.10°` | `-3.6 → -1.1 → -1.0 s` | `-9.6 → -4.7 → 0.0 s` | `2.10 → 0.69 → 0.39 km` | `122 → 63 → 44 m/s` | `3.56 g` |
+| **SSO-A** | C0 LEO | Holdout | `1.10°` | `-2.5 → +0.1 → +0.1 s` | `+0.2 → +7.1 → +15.2 s` | `2.85 → 0.94 → 0.41 km` | `153 → 76 → 50 m/s` | `3.52 g` |
+| **TelStar v19** | C1 GTO | Holdout | `2.48°` | `-13.3 → -10.7 → -10.7 s` | `-10.0 → -3.4 → -2.9 s` | `2.08 → 0.57 → 0.57 km` | `126 → 50 → 48 m/s` | `3.83 g` |
+| **Iridium NEXT 7** | C1 GTO | Holdout | `1.71°` | `-10.3 → -7.6 → -7.6 s` | `-3.0 → +3.5 → +4.0 s` | `2.62 → 0.87 → 0.81 km` | `136 → 60 → 59 m/s` | `3.82 g` |
+| **Eshail 2** | C1 GTO | Holdout | `2.52°` | `-2.7 → -0.1 → -0.1 s` | `-9.0 → -2.2 → -1.7 s` | `1.35 → 1.88 → 1.89 km` | `67 → 55 → 55 m/s` | `3.83 g` |
+| **GPS III SV01** | C1 GTO | Holdout | `2.30°` | `-8.9 → -6.3 → -6.3 s` | `-13.0 → -3.0 → -2.2 s` | `2.37 → 1.09 → 1.02 km` | `211 → 101 → 95 m/s` | `3.86 g` |
 
 ### Monte Carlo Dispersion Robustness (`N = 1,000` per Unseen Holdout Seed)
 
-All robustness numbers below are measured on **unseen holdout seeds** (zero tuning on these seeds).
+All robustness numbers below are measured on **unseen holdout seeds** (zero tuning on these seeds); complete append-only history (including superseded configs) is in [docs/MONTE_CARLO_LOG.md](docs/MONTE_CARLO_LOG.md).
 
-#### 1. v1.0.0 Dispersion Set (Unseen Holdout Seeds `1337`, `2024`, `7` — Zero Guidance Changes)
-Dispersions: Thrust `±1%`, Isp `±0.5%`, `Cd ±5%`, base wind `±12 m/s` + gusts `±10 m/s`, horizontal nav noise `0.5–2.0 m`, actuator lag `40–120 ms`.
-
-| Profile | Seed (`N=1000`) | Landing Success | Orbit Achieved | Miss (p50 / p95) | S1 Fuel Margin (p5) |
-| --- | --- | --- | --- | --- | --- |
-| **ASDS** | `1337` | **1000/1000 (100.0%)** | 100.0% | `0.97 m` / `1.81 m` | `2,378 kg` (`0.58%`) |
-| **ASDS** | `2024` | **1000/1000 (100.0%)** | 100.0% | `0.98 m` / `1.87 m` | `2,345 kg` (`0.57%`) |
-| **ASDS** | `7` | **1000/1000 (100.0%)** | 100.0% | `0.99 m` / `1.75 m` | `2,383 kg` (`0.58%`) |
-| **RTLS** | `1337` | **1000/1000 (100.0%)** | 100.0% | `0.15 m` / `0.36 m` | `6,125 kg` (`1.49%`) |
-| **RTLS** | `2024` | **1000/1000 (100.0%)** | 100.0% | `0.14 m` / `0.36 m` | `6,160 kg` (`1.50%`) |
-| **RTLS** | `7` | **1000/1000 (100.0%)** | 100.0% | `0.14 m` / `0.38 m` | `6,192 kg` (`1.51%`) |
-
-#### 2. v1.3.0 Post-MAP Full Realistic Dispersion Set with Gauss-Markov Nav + Terminal Radar Altimeter Aiding (Unseen Holdout Seeds `117007`, `128008`, `139009`)
+#### 1. v1.5.0 Full Realistic Dispersion Set (`2.90 g` LEO Schedule, Gauss-Markov Nav + Terminal Radar Altimeter Aiding, Seeds `229018`, `230019`, `241020`)
 Dispersions: Thrust `±1%`, Isp `±0.5%`, `Cd ±5%`, propellant load `±0.5%`, dry mass `±1%`, base wind `±12 m/s` + gusts `±10 m/s`, ASDS droneship offset `±10 m`, ASDS deck heave `0–1.5 m` & roll `0–2.5°`, throttle/actuator lag `40–120 ms`, **first-order Gauss-Markov (`τ = 45 s`, `ASSUMED`) time-correlated navigation biases** (horizontal `σ = 0.5–2.0 m`, altitude `3σ = ±5 m`, velocity `3σ = ±0.3 m/s`), plus **terminal-phase radar altimeter aiding** below `3,000 m` AGL (`0.2%` AGL scale + `0.15 m` residual floor, inverse-variance fusion, `τ_min = 2.0 s`, `ASSUMED`; horizontal & velocity channels unaided). Touchdown criteria and miss distances are **always evaluated on the TRUE vehicle position**.
 
 | Profile | Seed (`N=1000`) | Landing Success | Orbit Achieved | True Miss (p50 / p95) | S1 Fuel (p5) | Peak `q·α` (p95) |
 | --- | --- | --- | --- | --- | --- | --- |
-| **ASDS** | `117007` | **999/1000 (99.9%)** | 100.0% | `1.69 m` / `4.13 m` | `3,041 kg` (`0.72%`) | `98.8 kPa·deg` (`0` exceed) |
-| **ASDS** | `128008` | **999/1000 (99.9%)** | 100.0% | `1.71 m` / `4.20 m` | `3,081 kg` (`0.73%`) | `99.5 kPa·deg` (`0` exceed) |
-| **ASDS** | `139009` | **1000/1000 (100.0%)** | 100.0% | `1.66 m` / `4.05 m` | `3,138 kg` (`0.74%`) | `98.2 kPa·deg` (`0` exceed) |
-| **RTLS** | `141010` | **1000/1000 (100.0%)** | 100.0% | `1.46 m` / `3.67 m` | `6,561 kg` (`1.55%`) | `98.7 kPa·deg` (`0` exceed) |
-| **RTLS** | `152011` | **1000/1000 (100.0%)** | 100.0% | `1.39 m` / `3.48 m` | `6,559 kg` (`1.55%`) | `100.2 kPa·deg` (`0` exceed) |
-| **RTLS** | `163012` | **1000/1000 (100.0%)** | 100.0% | `1.43 m` / `3.87 m` | `6,556 kg` (`1.55%`) | `99.5 kPa·deg` (`0` exceed) |
+| **ASDS** (`1.80° / 7.5%`) | `229018` | **998/1000 (99.8%)** | 100.0% | `1.56 m` / `3.78 m` | `3,225 kg` (`0.76%`) | `100.5 kPa·deg` (`0` exceed) |
+| **ASDS** (`1.80° / 7.5%`) | `230019` | **1000/1000 (100.0%)** | 100.0% | `1.63 m` / `3.87 m` | `3,192 kg` (`0.76%`) | `98.1 kPa·deg` (`0` exceed) |
+| **ASDS** (`1.80° / 7.5%`) | `241020` | **999/1000 (99.9%)** | 100.0% | `1.63 m` / `3.73 m` | `3,273 kg` (`0.77%`) | `98.3 kPa·deg` (`0` exceed) |
+| **RTLS LZ-40** (`1.35° / 14.5%`) | `229018` | **1000/1000 (100.0%)** | 100.0% | `1.40 m` / `3.59 m` | `6,329 kg` (`1.50%`) | `99.3 kPa·deg` (`0` exceed) |
+| **RTLS LZ-40** (`1.35° / 14.5%`) | `230019` | **1000/1000 (100.0%)** | 100.0% | `1.34 m` / `3.45 m` | `6,206 kg` (`1.47%`) | `101.1 kPa·deg` (`0` exceed) |
+| **RTLS LZ-40** (`1.35° / 14.5%`) | `241020` | **1000/1000 (100.0%)** | 100.0% | `1.44 m` / `3.66 m` | `6,305 kg` (`1.49%`) | `102.0 kPa·deg` (`0` exceed) |
 
-*Note: Seed `42` was the v1.0.0 development seed and is excluded from all holdout tables. Without radar altimeter aiding (v1.2.0, full `±5 m` INS/GPS vertical bias at touchdown), unseen holdout seeds `6001`, `7002`, and `8003` achieved `92.6–94.4%` ASDS and `98.7–99.1%` RTLS (`1.38–1.47 m` true median miss). Adding physically motivated terminal radar altimeter sensor fusion below `3,000 m` AGL with zero guidance changes raises ASDS to `99.6–99.9%` (remaining `1–4/1000` failures are ocean heave + residual vertical velocity/altimeter bias `>= 2 m/s`) and RTLS to `100.0%`, while true horizontal median miss (`1.37–1.52 m`) remains physically consistent with the unaided `0.5–2.0 m` 1-sigma horizontal nav bias.*
+*Combined across 3 unseen seeds: **ASDS `2,997/3,000 (99.90%)`** (`v_z: 3`) and **RTLS `LZ-40` `3,000/3,000 (100.00%)`** with `0/6,000` `q·α` exceedances.*
 
 ---
 
@@ -106,8 +103,8 @@ This simulator is a **3-DOF (point-mass translational + rate-limited attitude ve
 Key simplifications and assumptions:
 - **3-DOF Attitude:** Vehicle orientation is represented as a unit thrust/longitudinal axis vector with finite slew-rate limits rather than full rigid-body Euler/quaternion rotational inertia, TVC gimbal torque dynamics, or propellant slosh.
 - **Aerodynamics (`ASSUMED`):** Uses piecewise-linear Mach-dependent `Cd(M)` tables for ascent and tail-first booster descent, plus a simplified linear lift slope (`C_L = 0.8 / rad`) for the titanium grid fins. Transonic buffeting, aeroelastic bending, and individual fin hinge moments are not modeled.
-- **Stage 2 Multi-Burn:** Supports single-burn direct LEO insertion (`<= 250 km`) and automatic two-burn Hohmann transfer (`> 250 km`: `SES-1` → `185 km` parking transfer orbit → ballistic coast → `SES-2` circularization at apoapsis). Direct-ascent >250 km single-burn profiles (such as SAOCOM 1A's lightweight direct SSO loft) and multi-restart GTO/MEO profiles beyond two burns are not modeled separately.
-- **Webcast Clock Alignment:** The simulation releases hold-down clamps at full `100%` thrust (`t = 0`), with a single fitted webcast-clock offset (`+1.92 s`) applied only in validation comparisons to align with SpaceX webcast display smoothing / clock-zero sync.
+- **Stage 2 Multi-Burn:** Supports sourced single-burn direct insertion (`DIRECT`, e.g., `DM-1`, `SAOCOM 1A`) and two-burn Hohmann transfer (`TWO_BURN`, e.g., `Iridium NEXT 8`: `SES-1` → `185 km` parking transfer orbit → ballistic coast → `SES-2` circularization at apoapsis). Multi-restart GTO/MEO profiles beyond two burns are not modeled separately.
+- **Hold-Down Clamp Release & Webcast Alignment:** Terminal countdown ignites the 9× Merlin 1D engines at `T-3.0 s` under hold-down clamps (burning `~5.1 t` of propellant during spool-up) and releases at `T = 0.0 s` at `100%` thrust (`WEBCAST_LIFTOFF_OFFSET_S = 0`).
 - **Cosmetic Visuals:** Per-fin differential tilt, landing-leg hinge swing animation, strongback throw-back, and post-entry soot are visual representations of underlying sim states (never presented as measured telemetry).
 
 ---

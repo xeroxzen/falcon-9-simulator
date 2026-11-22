@@ -48,6 +48,14 @@ Known model gaps identified during Phase 2.5 validation and holdout testing, tra
    - Pad camera: `"Pad (Fixed)"` camera mode keeping the launch mount and billowing steam in frame through `~T+10 s`, alongside tracking `"Pad"` mode.
    - Regenerated `docs/demo.gif` from the `T-10 → T+10` countdown/ignition/liftoff sequence.
 
-10. **Stretch goals from original spec:**
+10. **Root-cause investigation of `EMPIRICAL` late-S1 accel caps (`2.90 g` LEO / `3.60 g` GTO) vs reconstructed telemetry axial acceleration:**
+   - Reconstructing true late-S1 axial acceleration `a_axial ≈ dv/dt + g(h)·sin(γ)` from 1 Hz telemetry across all 10 pure Block 5 flights shows every flight exceeds the fitted caps: Class 0 LEO peaks at `3.29–3.67 g` (`DM-1: 3.29 g`, `CRS-16: 3.46 g`, `Iridium NEXT 8: 3.67 g`, `SAOCOM 1A: 3.56 g`, `SSO-A: 3.52 g`) vs fitted `2.90 g`; Class 1 GTO peaks at `3.82–3.86 g` (`Bangabandhu-1: 3.86 g`, `TelStar v19: 3.83 g`, `Iridium NEXT 7: 3.82 g`, `Eshail 2: 3.83 g`, `GPS III SV01: 3.86 g`) vs fitted `3.60 g`.
+   - Because the fitted caps sit `0.22–0.77 g` below reconstructed axial acceleration, they are labeled **`EMPIRICAL`** ("effective late-S1 limit"). Investigate the underlying physical cause: Merlin 1D thrust/Isp vs Stage 1/2 dry and propellant mass vs flight-path angle `sin(γ)` (gravity loss discrepancy during gravity turn) vs webcast velocity frame.
+
+11. **Payload-aware ASDS/RTLS recovery propellant reserve sizing:**
+   - On light ASDS payloads (e.g., `SSO-A` at 4.0 t), the generic `7.5%` ASDS MECO reserve over-burns by `+7.1 s` even under v1 (`3.69 g`) and `+15.2 s` under the `2.90 g` LEO schedule.
+   - Extend `solveMissionAscentDesign` to solve the recovery propellant reserve per mission (as a function of payload mass, orbit energy, and landing target distance) rather than applying a fixed `7.5%` ASDS constant.
+
+12. **Stretch goals from original spec:**
    - Convex-optimization (G-FOLD-style) powered descent guidance.
    - 6-DOF rigid-body rotational dynamics (inertia tensor, TVC gimbal torque, RCS cold-gas thrusters, aerodynamic center-of-pressure / center-of-mass pitching moments).

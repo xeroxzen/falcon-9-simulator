@@ -1,3 +1,4 @@
+import { sampleAtmosphere } from '../sim/models/atmosphere.js';
 import type { FullMissionResult } from '../sim/types.js';
 import type {
   LoadedMissionTelemetry,
@@ -41,11 +42,35 @@ export interface ValidationComparisonReport {
   readonly missionName: string;
   readonly velocityFrame: 'EARTH_RELATIVE_ECEF';
   readonly phaseErrors: readonly PhaseErrorStats[];
+  /** Primary Max-Q delta: simulated peak q time vs physical 0.5*rho(alt)*v^2 peak in telemetry (US76). */
   readonly maxQTimeDelta: EventDelta | null;
+  /** Secondary Max-Q delta: simulated peak q time vs webcast announcer callout (`events.maxq`). */
+  readonly maxQCalloutTimeDelta: EventDelta | null;
   readonly mecoTimeDelta: EventDelta | null;
   readonly mecoAltDelta: EventDelta | null;
   readonly mecoVelDelta: EventDelta | null;
   readonly overlayRows: readonly OverlayRow[];
+}
+
+/**
+ * Compute the physical Max-Q timestamp (s) from 1 Hz telemetry by maximizing
+ * q(t) = 0.5 * rho_US76(altitudeM) * velocityMs^2 across T+30..100 s.
+ */
+export function computePhysicalMaxQTimeS(
+  series: readonly TelemetryPointSI[]
+): number | null {
+  let peakQ = 0;
+  let peakT: number | null = null;
+  for (const p of series) {
+    if (p.timeS < 30 || p.timeS > 100) continue;
+    const atm = sampleAtmosphere(Math.max(0, p.altitudeM));
+    const q = 0.5 * atm.densityKgM3 * p.velocityMs * p.velocityMs;
+    if (q > peakQ) {
+      peakQ = q;
+      peakT = p.timeS;
+    }
+  }
+  return peakT;
 }
 
 function interpolateSeries(
@@ -143,7 +168,8 @@ export function compareMissionToTelemetry(
     });
   }
 
-  const realMaxQ = real.events?.maxq ?? sim.ascent.peakDynamicPressureTimeS;
+  const realMaxQPhys = computePhysicalMaxQTimeS(realSeries);
+  const realMaxQ = realMaxQPhys ?? real.events?.maxq ?? sim.ascent.peakDynamicPressureTimeS;
   const realMeco = real.events?.meco ?? sim.ascent.finalState.timeS;
   const realSes1 = real.events?.ses1 ?? realMeco + 10;
   const maxOverlapTime = Math.min(
@@ -196,6 +222,12 @@ export function compareMissionToTelemetry(
   ];
 
   const maxQTimeDelta =
+    realMaxQPhys != null
+      ? makeDelta(realMaxQPhys, sim.ascent.peakDynamicPressureTimeS + tOff)
+      : real.events?.maxq != null
+        ? makeDelta(real.events.maxq, sim.ascent.peakDynamicPressureTimeS + tOff)
+        : null;
+  const maxQCalloutTimeDelta =
     real.events?.maxq != null
       ? makeDelta(real.events.maxq, sim.ascent.peakDynamicPressureTimeS + tOff)
       : null;
@@ -238,6 +270,7 @@ export function compareMissionToTelemetry(
     velocityFrame: 'EARTH_RELATIVE_ECEF',
     phaseErrors,
     maxQTimeDelta,
+    maxQCalloutTimeDelta,
     mecoTimeDelta,
     mecoAltDelta,
     mecoVelDelta,
