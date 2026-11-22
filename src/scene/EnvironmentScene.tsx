@@ -249,12 +249,12 @@ function PadDelugeAndSteam({ qualityTier }: { readonly qualityTier: QualityTier 
       count: steamCount,
       color: '#f2f6fb',
       glowColor: '#ffae5c',
-      glowStrength: 0.62,
-      lifeS: 9.5,
-      startRadiusM: 3.6,
-      endRadiusM: 28.0,
-      maxOpacity: 0.44,
-      softGroundFadeM: 2.5,
+      glowStrength: 0.65,
+      lifeS: 10.5,
+      startRadiusM: 3.4,
+      endRadiusM: 20.0,
+      maxOpacity: 0.48,
+      softGroundFadeM: 1.4,
     }),
     [steamCount]
   );
@@ -289,17 +289,17 @@ function PadDelugeAndSteam({ qualityTier }: { readonly qualityTier: QualityTier 
       const spreadZ = (((i * 73) % 100) / 100 - 0.5) * 0.55;
       const len = Math.hypot(1, spreadZ);
       arr.push({
-        originX: signX * (5.5 + ((i * 17) % 10) * 0.75),
-        originY: 2.0 + ((i * 11) % 10) * 0.35,
-        originZ: (((i * 31) % 100) / 100 - 0.5) * 5.0,
+        originX: signX * (5.0 + ((i * 17) % 10) * 0.7),
+        originY: 1.4 + ((i * 11) % 10) * 0.22,
+        originZ: (((i * 31) % 100) / 100 - 0.5) * 4.6,
         dirX: (signX * 1.0) / len,
-        dirY: 0.22 + ((i * 19) % 10) * 0.035,
+        dirY: 0.04 + ((i * 19) % 10) * 0.008, // ground-hugging lateral trench outflow
         dirZ: spreadZ / len,
-        speed: 12.0 + ((i * 43) % 12) * 1.1,
-        buoyancy: 1.35 + ((i * 29) % 10) * 0.11, // large buoyant liftoff clouds rising tens of meters
+        speed: 18.0 + ((i * 43) % 12) * 1.4,
+        buoyancy: 0.14 + ((i * 29) % 10) * 0.016, // gentle buoyant rise, stays grounded through T+10 s
         phase: i / steamCount,
-        radiusJitter: 0.72 + ((i * 53) % 10) * 0.075,
-        spin: 0.14,
+        radiusJitter: 0.72 + ((i * 53) % 10) * 0.07,
+        spin: 0.12,
       });
     }
     return arr;

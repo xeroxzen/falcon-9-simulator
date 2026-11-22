@@ -72,7 +72,7 @@ test.describe('v1.4 Parts B & C — Pre-Launch LOX Venting, Countdown, Ignition 
       });
     }
 
-    // Verify Pad (Fixed) camera mode keeps mount & billowing steam in frame through T+8 s
+    // Verify Pad (Fixed) camera mode keeps mount & ground-hugging steam in frame at T+5 and T+10
     await page.evaluate(() => {
       const dbg = (
         window as unknown as {
@@ -80,10 +80,24 @@ test.describe('v1.4 Parts B & C — Pre-Launch LOX Venting, Countdown, Ignition 
         }
       ).__f9debug;
       dbg.setCameraMode('pad-fixed');
-      dbg.setTimeS(8.0);
+      dbg.setTimeS(5.0);
     });
     await page.waitForTimeout(300);
-    await expect(page.locator('.hud-clock')).toHaveText('T+00:08');
+    await expect(page.locator('.hud-clock')).toHaveText('T+00:05');
+    await page.screenshot({
+      path: path.join(SHOT_DIR, 'desktop-pad-fixed-t-plus-5.png'),
+    });
+
+    await page.evaluate(() => {
+      const dbg = (window as unknown as { __f9debug: { setTimeS: (t: number) => void } })
+        .__f9debug;
+      dbg.setTimeS(10.0);
+    });
+    await page.waitForTimeout(300);
+    await expect(page.locator('.hud-clock')).toHaveText('T+00:10');
+    await page.screenshot({
+      path: path.join(SHOT_DIR, 'desktop-pad-fixed-t-plus-10.png'),
+    });
 
     // Optional demo.gif frame capture (T-10 -> T+10 in Pad Fixed mode)
     if (process.env.CAPTURE_DEMO_GIF === '1' && process.env.DEMO_FRAMES_DIR) {
