@@ -603,14 +603,19 @@ function SceneContent({
       camera.position.copy(SCRATCH_DESIRED).add(switchOffsetRef.current);
       camTargetRef.current.copy(SCRATCH_LOOK_TARGET);
       camera.lookAt(camTargetRef.current);
-    } else if (cameraMode === 'pad') {
+    } else if (cameraMode === 'pad' || cameraMode === 'pad-fixed') {
       if (fs.nearPad) {
-        // Positioned off-diagonal (+14, 24, +146) looking at y=16 so:
+        // Positioned off-diagonal (+14, 24, +146) so:
         //  - zero lightning towers [±36, ±36] or strongback (-X) occlude the vehicle
         //  - the base launch mount, open flame trench, 4 hold-down clamps, and deflected
         //    ignition plume all sit cleanly ABOVE the bottom Webcast HUD & Timeline Bar.
         camera.position.set(14, 24, 146);
-        camTargetRef.current.set(0, Math.max(16, SCRATCH_LOOK_TARGET.y - 16), 0);
+        if (cameraMode === 'pad-fixed') {
+          // Fixed pad view: keeps mount, clamps, and tens-of-meters liftoff steam in frame through ~T+10 s
+          camTargetRef.current.set(0, 18, 0);
+        } else {
+          camTargetRef.current.set(0, Math.max(16, SCRATCH_LOOK_TARGET.y - 16), 0);
+        }
       } else {
         camera.position.set(
           SCRATCH_LOOK_TARGET.x + 90,

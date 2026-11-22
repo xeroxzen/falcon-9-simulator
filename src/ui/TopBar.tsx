@@ -11,6 +11,7 @@ const CAMERA_MODES: readonly { id: CameraMode; label: string; short: string }[] 
   { id: 'chase', label: 'Chase', short: 'Chase' },
   { id: 'orbit', label: 'Free Orbit', short: 'Orbit' },
   { id: 'pad', label: 'Pad', short: 'Pad' },
+  { id: 'pad-fixed', label: 'Pad (Fixed)', short: 'PadFix' },
   { id: 'droneship', label: 'LZ / ASDS', short: 'ASDS' },
   { id: 'onboard-s1', label: 'Onboard S1', short: 'S1 Cam' },
   { id: 'onboard-s2', label: 'Onboard S2', short: 'S2 Cam' },

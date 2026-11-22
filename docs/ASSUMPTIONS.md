@@ -123,6 +123,10 @@ Giving the pre-Part-D baseline vehicle the **same** 1-DOF per-flight pitch-kick 
 
 ## 5. Ascent & Stage 2 Guidance
 
+- **Pre-launch LOX venting & liftoff steam (`v1.4 Part C`, `ASSUMED` visual-only):**
+  - Pre-launch timeline extends to `T-60 s` (`countdownS: 60`, default playback starts at `T-10 s` while `T-60 s` is scrubbable on the timeline).
+  - Reuses the shared GPU-billboarded `SoftParticles` system (`Low / Med / High` budgets: LOX venting `28 / 56 / 96`, deluge spray `32 / 64 / 96`, liftoff steam `56 / 112 / 180`; zero per-frame allocations) for Stage 1 LOX boil-off (`y ≈ 31.5 m`), Stage 2 LOX boil-off (`y ≈ 51.0 m`), and strongback umbilical purge vents (`T-60..0 s`, tapering as flight pressurization closes boil-off valves prior to ignition, cold dense vapor drifting downwind).
+  - Liftoff steam clouds expand buoyantly to tens of meters (`3.6 → 28 m` radius, `9.5 s` lifetime) through `~T+10 s`, viewable from both tracking `"Pad"` and fixed `"Pad (Fixed)"` cameras.
 - **Pre-launch countdown, hold-down clamp ignition & water deluge (`v1.4 Part B`):**
   - Terminal countdown runs `T-10 s` → `T-0` (`countdownS: 10`), with 9× Merlin 1D TEA-TEB ignition at **`T-3.0 s`** (SpaceX Falcon User's Guide / webcast sequence).
   - **Hold-down propellant burn (`~5.1 t`, `ASSUMED`):** `ASSUMED` smoothstep engine spool-up `0 → 100%` over `2.2 s` (`T-3.0 s` → `T-0.8 s`) followed by `0.8 s` full-thrust chamber-pressure verification against the 4 hold-down clamps (`axialAccelG = 0 g` and `0 m/s` ground speed while clamped). During this 3 s hold-down window, the 9 Merlins physically burn **`~5.09 t` (`~5,090 kg`)** of RP-1/LOX; therefore, total **loaded Stage 1 propellant at `T-10 s` = fitted `T = 0` liftoff propellant (`422,671 kg`) + `~5.1 t` (`~427.8 t` loaded)**, releasing the hold-down clamps at **`T = 0.0 s`** at `100%` thrust and exact `422,671 kg` flight propellant mass (keeping all `t >= 0` trajectories bit-identical).

@@ -53,9 +53,15 @@ const DELUGE_SPRAY_COUNTS: Record<QualityTier, number> = {
 };
 
 const STEAM_PLUME_COUNTS: Record<QualityTier, number> = {
-  low: 48,
-  med: 96,
-  high: 160,
+  low: 56,
+  med: 112,
+  high: 180,
+};
+
+const LOX_VENT_COUNTS: Record<QualityTier, number> = {
+  low: 28,
+  med: 56,
+  high: 96,
 };
 
 const TRENCH_PLUME_VERT = `
@@ -244,11 +250,11 @@ function PadDelugeAndSteam({ qualityTier }: { readonly qualityTier: QualityTier 
       color: '#f2f6fb',
       glowColor: '#ffae5c',
       glowStrength: 0.65,
-      lifeS: 4.8,
-      startRadiusM: 2.6,
-      endRadiusM: 13.5,
-      maxOpacity: 0.42,
-      softGroundFadeM: 2.2,
+      lifeS: 10.5,
+      startRadiusM: 3.4,
+      endRadiusM: 20.0,
+      maxOpacity: 0.48,
+      softGroundFadeM: 1.4,
     }),
     [steamCount]
   );
@@ -283,17 +289,17 @@ function PadDelugeAndSteam({ qualityTier }: { readonly qualityTier: QualityTier 
       const spreadZ = (((i * 73) % 100) / 100 - 0.5) * 0.55;
       const len = Math.hypot(1, spreadZ);
       arr.push({
-        originX: signX * (5.5 + ((i * 17) % 10) * 0.65),
-        originY: 1.8 + ((i * 11) % 10) * 0.25,
-        originZ: (((i * 31) % 100) / 100 - 0.5) * 4.2,
+        originX: signX * (5.0 + ((i * 17) % 10) * 0.7),
+        originY: 1.4 + ((i * 11) % 10) * 0.22,
+        originZ: (((i * 31) % 100) / 100 - 0.5) * 4.6,
         dirX: (signX * 1.0) / len,
-        dirY: 0.14 + ((i * 19) % 10) * 0.025,
+        dirY: 0.04 + ((i * 19) % 10) * 0.008, // ground-hugging lateral trench outflow
         dirZ: spreadZ / len,
-        speed: 8.0 + ((i * 43) % 12) * 0.85,
-        buoyancy: 0.85 + ((i * 29) % 10) * 0.09, // warm steam rises buoyantly
+        speed: 18.0 + ((i * 43) % 12) * 1.4,
+        buoyancy: 0.14 + ((i * 29) % 10) * 0.016, // gentle buoyant rise, stays grounded through T+10 s
         phase: i / steamCount,
         radiusJitter: 0.72 + ((i * 53) % 10) * 0.07,
-        spin: 0.18,
+        spin: 0.12,
       });
     }
     return arr;
@@ -344,15 +350,16 @@ function PadDelugeAndSteam({ qualityTier }: { readonly qualityTier: QualityTier 
       const wx = Math.abs(wind.eastMs) > 0.1 ? wind.eastMs : 2.5;
       const wz = Math.abs(wind.northMs) > 0.1 ? -wind.northMs : -1.0;
 
-      // Steam appears ONLY after ignition (T >= -3.0 s) and scales with exhaust thrust,
-      // then lingers and dissipates slowly as the vehicle clears the tower.
+      // Steam appears ONLY after ignition (T >= -3.0 s), scales with exhaust thrust,
+      // and grows into huge buoyant tens-of-meters clouds through ~T+10 s before dissipating.
       let intensity = 0;
-      if (t >= -3.0 && t <= 11.0) {
+      if (t >= -3.0 && t <= 16.0) {
         const thrustDrive = Math.min(1, thr * 1.15);
-        const postLiftDecay =
-          aglM <= 12 ? 1.0 : Math.max(0, 1.0 - (aglM - 12) / 95.0);
-        const timeTail = t > 4.0 ? Math.max(0, 1.0 - (t - 4.0) / 7.0) : 1.0;
-        intensity = thrustDrive * Math.max(postLiftDecay, timeTail * 0.65);
+        const postLiftHold =
+          t <= 6.5 ? 1.0 : Math.max(0, 1.0 - (t - 6.5) / 9.5);
+        const aglFade =
+          aglM <= 25 ? 1.0 : Math.max(0.35, 1.0 - (aglM - 25) / 180.0);
+        intensity = Math.max(thrustDrive * aglFade, t >= 0 ? postLiftHold * 0.92 : 0) * postLiftHold;
       }
 
       const out = steamStateRef.current as {
@@ -387,9 +394,152 @@ function PadDelugeAndSteam({ qualityTier }: { readonly qualityTier: QualityTier 
 }
 
 /**
+ * Pre-launch cryogenic LOX boil-off venting (Part C, T-60 s -> T-0).
+ * Reuses the shared GPU-billboarded SoftParticleEmitter with per-tier budgets
+ * and zero per-frame allocations:
+ *  - Stage 1 LOX tank vent (~y = 31.5 m)
+ *  - Stage 2 LOX tank vent (~y = 51.0 m)
+ *  - Strongback umbilical chilldown/purge vents (~x = -4.5 m, y = 44 m & 16 m)
+ * Cold cryo vapor drifts gently with mission wind and tapers as flight pressurization
+ * closes boil-off valves prior to ignition.
+ */
+function PreLaunchLoxVenting({ qualityTier }: { readonly qualityTier: QualityTier }) {
+  const count = LOX_VENT_COUNTS[qualityTier];
+  const stateRef = useRef<SoftParticleUpdateArgs>({
+    timeS: 0,
+    intensity: 0,
+    windX: 0,
+    windZ: 0,
+  });
+
+  const ventConfig = useMemo<SoftParticleEmitterConfig>(
+    () => ({
+      count,
+      color: '#eaf4ff',
+      glowColor: '#ffffff',
+      glowStrength: 0,
+      lifeS: 3.6,
+      startRadiusM: 1.25,
+      endRadiusM: 4.8,
+      maxOpacity: 0.36,
+      softGroundFadeM: 1.5,
+    }),
+    [count]
+  );
+
+  const ventSeeds = useMemo<SoftParticleSpec[]>(() => {
+    const arr: SoftParticleSpec[] = [];
+    for (let i = 0; i < count; i++) {
+      // Distribute sprites across S1 LOX vent (40%), S2 LOX vent (35%), and Strongback umbilical purge (25%)
+      const slot = i % 20;
+      let ox: number;
+      let oy: number;
+      let oz: number;
+      let dx: number;
+      let dy: number;
+      let dz: number;
+      let speed: number;
+
+      if (slot < 8) {
+        // Stage 1 LOX tank boil-off vent near interstage base (y ~ 31.5 m)
+        ox = 1.95;
+        oy = 31.5 + ((i * 7) % 5) * 0.12;
+        oz = (((i * 17) % 10) / 10 - 0.5) * 0.4;
+        dx = 0.94;
+        dy = -0.18 + ((i * 11) % 10) * 0.02;
+        dz = (((i * 23) % 10) / 10 - 0.5) * 0.25;
+        speed = 1.6 + ((i * 19) % 10) * 0.12;
+      } else if (slot < 15) {
+        // Stage 2 LOX tank boil-off vent (y ~ 51.0 m)
+        ox = 1.92;
+        oy = 51.0 + ((i * 13) % 5) * 0.12;
+        oz = (((i * 29) % 10) / 10 - 0.5) * 0.4;
+        dx = 0.95;
+        dy = -0.14 + ((i * 17) % 10) * 0.02;
+        dz = (((i * 31) % 10) / 10 - 0.5) * 0.25;
+        speed = 1.8 + ((i * 23) % 10) * 0.12;
+      } else {
+        // Strongback umbilical chilldown/purge vents (upper y ~ 44 m and lower y ~ 16 m)
+        const upper = slot % 2 === 0;
+        ox = upper ? -4.8 : -5.4;
+        oy = upper ? 44.0 : 16.0;
+        oz = (((i * 37) % 10) / 10 - 0.5) * 0.5;
+        dx = -0.35 + ((i * 13) % 10) * 0.08;
+        dy = -0.22;
+        dz = (((i * 41) % 10) / 10 - 0.5) * 0.35;
+        speed = 1.8 + ((i * 29) % 10) * 0.14;
+      }
+
+      const len = Math.hypot(dx, dy, dz) || 1;
+      arr.push({
+        originX: ox,
+        originY: oy,
+        originZ: oz,
+        dirX: dx / len,
+        dirY: dy / len,
+        dirZ: dz / len,
+        speed,
+        buoyancy: -0.22, // dense cold cryo LOX vapor gently sinks while drifting downwind
+        phase: i / count,
+        radiusJitter: 0.72 + ((i * 47) % 10) * 0.06,
+        spin: 0.22,
+      });
+    }
+    return arr;
+  }, [count]);
+
+  const getVentState = useMemo(
+    () => (): SoftParticleUpdateArgs => {
+      const store = useSimStore.getState();
+      const t = liveSimClock.timeS;
+      const wind = store.mission.wind;
+      // Gentle coastal breeze default if mission wind is 0 so venting drifts realistically
+      const wx = Math.abs(wind.eastMs) > 0.1 ? wind.eastMs : 2.8;
+      const wz = Math.abs(wind.northMs) > 0.1 ? -wind.northMs : -0.6;
+
+      // Active T-60..T-0: full boil-off venting T-60..-12 s, tapers as flight pressurization
+      // closes boil-off valves (-12..-2 s), closes cleanly by T+0.2 s clamp release.
+      let intensity = 0;
+      if (t >= -65.0 && t <= 0.4) {
+        if (t <= -12.0) {
+          // Subtle natural pulsing of cryo boil-off valves
+          intensity = 0.88 + 0.12 * Math.sin(t * 0.55);
+        } else if (t <= -2.0) {
+          const frac = (t + 12.0) / 10.0; // 0..1
+          intensity = 0.92 * (1 - 0.62 * frac);
+        } else {
+          intensity = 0.35 * Math.max(0, 1 - (t + 2.0) / 2.4);
+        }
+      }
+
+      const out = stateRef.current as {
+        timeS: number;
+        intensity: number;
+        windX: number;
+        windZ: number;
+      };
+      out.timeS = t;
+      out.intensity = intensity;
+      out.windX = wx;
+      out.windZ = wz;
+      return out;
+    },
+    []
+  );
+
+  return (
+    <SoftParticleEmitter
+      config={ventConfig}
+      seeds={ventSeeds}
+      getState={getVentState}
+    />
+  );
+}
+
+/**
  * Launch Pad (LC-39A / SLC-40 / SLC-4E concrete pad, open flame trench with deflector,
- * 4x visible hold-down clamps, strongback tower, deflected ignition plume, and
- * physically sequenced water deluge + steam) rendered at local origin (0, 0, 0).
+ * 4x visible hold-down clamps, strongback tower, deflected ignition plume, pre-launch LOX
+ * venting, and physically sequenced water deluge + steam) rendered at local origin (0, 0, 0).
  */
 export function LaunchPadMesh({
   siteId,
@@ -478,6 +628,9 @@ export function LaunchPadMesh({
 
       {/* Physically sequenced water deluge spray (T-5 s) + ignition steam (T-3 s+) */}
       <PadDelugeAndSteam qualityTier={qualityTier} />
+
+      {/* Pre-launch cryogenic LOX boil-off venting (T-60 s -> T-0, Part C) */}
+      <PreLaunchLoxVenting qualityTier={qualityTier} />
 
       {/* Transporter/Erector strongback tower — hinged at base, retracted away in -X */}
       <group position={[-7.5, 2.0, 0]} rotation={[0, 0, retractAngleRad]}>

@@ -111,9 +111,9 @@ describe('Stage 1 ascent through MECO', () => {
     expect(defaultWhatIfPitchKickDeg(200_000, true)).toBeCloseTo(2.45, 2);
   });
 
-  it('executes T-10 s countdown, T-3 s hold-down clamp ignition spool-up, and full-thrust clamp release at T=0', () => {
+  it('executes T-60 s pre-launch countdown, T-3 s hold-down clamp ignition spool-up, and full-thrust clamp release at T=0', () => {
     const res = runAscentToMeco(FALCON9_BLOCK5, DEFAULT_LEO_ASDS_MISSION, 0.5);
-    expect(res.samples[0]!.timeS).toBeCloseTo(-10, 6);
+    expect(res.samples[0]!.timeS).toBeCloseTo(-60, 6);
     expect(res.samples[0]!.phase).toBe('PAD');
     expect(res.samples[0]!.thrustN).toBe(0);
     expect(res.samples[0]!.axialAccelG).toBe(0);
