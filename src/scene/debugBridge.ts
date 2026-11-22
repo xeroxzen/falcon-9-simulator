@@ -194,6 +194,60 @@ export function installDebugHook(): void {
     getAudioState() {
       return soundEngine.getDebugState();
     },
+    /**
+     * Dev-only: start live MediaRecorder capturing WebGL canvas video + live Web Audio
+     * masterGain bus (MediaStreamAudioDestinationNode). Returns true if started.
+     */
+    startLiveAvCapture(fps = 25): boolean {
+      if (!activeCanvas) return false;
+      const audioStream = soundEngine.getCaptureAudioStream();
+      if (!audioStream) return false;
+      const canvasStream = activeCanvas.captureStream(fps);
+      const combined = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...audioStream.getAudioTracks(),
+      ]);
+      const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : 'video/webm;codecs=vp8,opus';
+      const chunks: Blob[] = [];
+      const rec = new MediaRecorder(combined, {
+        mimeType: mime,
+        videoBitsPerSecond: 2_500_000,
+        audioBitsPerSecond: 128_000,
+      });
+      rec.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      };
+      rec.start(250);
+      (window as unknown as Record<string, unknown>)['__f9recorder'] = {
+        rec,
+        chunks,
+        canvasStream,
+      };
+      return true;
+    },
+    stopLiveAvCapture(): Promise<string> {
+      const holder = (window as unknown as Record<string, unknown>)['__f9recorder'] as
+        | { rec: MediaRecorder; chunks: Blob[]; canvasStream: MediaStream }
+        | undefined;
+      if (!holder) return Promise.resolve('');
+      return new Promise<string>((resolve) => {
+        holder.rec.onstop = async () => {
+          holder.canvasStream.getTracks().forEach((t) => t.stop());
+          const blob = new Blob(holder.chunks, { type: holder.rec.mimeType || 'video/webm' });
+          const buf = await blob.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          let bin = '';
+          const chunkSize = 0x8000;
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            bin += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+          }
+          resolve(btoa(bin));
+        };
+        holder.rec.stop();
+      });
+    },
     setHotspots(v: boolean) {
       useSimStore.setState({ showHotspots: v });
     },

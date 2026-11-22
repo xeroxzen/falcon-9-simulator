@@ -184,13 +184,13 @@ export function evaluateAcoustics(inp: AcousticInputs): AcousticOutputs {
   const roarGain = Math.min(0.75, externalLevel * 0.72);
   const crackleGain = Math.min(0.65, engineFactor * crackleDist * airTransmission * 0.58);
 
-  // Aero buffeting (Max-Q / reentry) + pad water deluge spray hiss
+  // Aero buffeting (Max-Q / reentry) + pad water deluge spray hiss (audible from T-5 s + delay)
   const aeroQ = Math.min(1, inp.dynamicPressurePa / 32_000);
-  const delugeAtten = 1 / (1 + distanceM / 120);
+  const delugeAtten = 1 / (1 + distanceM / 220);
   const aeroGain = Math.min(
-    0.45,
+    0.58,
     (aeroQ * distAtten * airTransmission * 0.35) +
-      (inp.delugeIntensity * delugeAtten * airTransmission * 0.22)
+      (inp.delugeIntensity * delugeAtten * airTransmission * 0.52)
   );
 
   return {

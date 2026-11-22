@@ -120,6 +120,22 @@ class Falcon9SoundEngine {
   private boomFired = false;
   private lifecycleBound = false;
 
+  // Dev-only live Web Audio capture destination (used by __f9debug in E2E recording)
+  private captureDest: MediaStreamAudioDestinationNode | null = null;
+
+  /**
+   * Dev-only: tap the live masterGain bus into a MediaStreamAudioDestinationNode
+   * so MediaRecorder can capture authentic Web Audio output from the running app.
+   */
+  public getCaptureAudioStream(): MediaStream | null {
+    if (!this.ctx || !this.masterGain) return null;
+    if (!this.captureDest) {
+      this.captureDest = this.ctx.createMediaStreamDestination();
+      this.masterGain.connect(this.captureDest);
+    }
+    return this.captureDest.stream;
+  }
+
   /**
    * Called synchronously from the user's Unmute / Mute button click or tap.
    * Creates and resumes AudioContext strictly on first unmute (iOS/Safari compliant).
@@ -239,19 +255,19 @@ class Falcon9SoundEngine {
     this.onboardOsc = onboardOsc;
     this.onboardGain = onboardGain;
 
-    // 5. Aerodynamic buffeting & pad water deluge hiss
+    // 5. Aerodynamic buffeting & pad water deluge spray hiss (routed through distance LPF)
     const aeroSrc = ctx.createBufferSource();
     aeroSrc.buffer = createNoiseBuffer(ctx, 4.0, 'white');
     aeroSrc.loop = true;
     const aeroFilter = ctx.createBiquadFilter();
     aeroFilter.type = 'bandpass';
-    aeroFilter.frequency.value = 820;
-    aeroFilter.Q.value = 0.7;
+    aeroFilter.frequency.value = 1_450;
+    aeroFilter.Q.value = 0.55;
     const aeroGain = ctx.createGain();
     aeroGain.gain.value = 0;
     aeroSrc.connect(aeroFilter);
     aeroFilter.connect(aeroGain);
-    aeroGain.connect(masterGain);
+    aeroGain.connect(distFilter);
     aeroSrc.start();
     this.aeroGain = aeroGain;
 
