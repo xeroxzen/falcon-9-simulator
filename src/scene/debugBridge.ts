@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { soundEngine } from '../audio/soundEngine.js';
 import {
   liveSimClock,
   sampleFrameAt,
@@ -186,6 +187,12 @@ export function installDebugHook(): void {
     },
     setQualityTier(tier: QualityTier) {
       useSimStore.getState().setQualityTier(tier);
+    },
+    setSoundMuted(muted: boolean) {
+      useSimStore.getState().setSoundMuted(muted);
+    },
+    getAudioState() {
+      return soundEngine.getDebugState();
     },
     setHotspots(v: boolean) {
       useSimStore.setState({ showHotspots: v });

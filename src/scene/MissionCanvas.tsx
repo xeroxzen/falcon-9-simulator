@@ -17,12 +17,21 @@ import {
 } from '../store/simStore.js';
 import type { Vec3 } from '../sim/types.js';
 import { installDebugHook, updateDebugFrame } from './debugBridge.js';
+import { soundEngine } from '../audio/soundEngine.js';
+import { computePathAtmosphere } from '../audio/acoustics.js';
 import { Stage1Mesh, Stage2Mesh } from './Falcon9Vehicle.js';
 import {
   EarthAndSky,
   LandingPadMesh,
   LaunchPadMesh,
 } from './EnvironmentScene.js';
+
+const SCRATCH_SRC_ENU = { x: 0, y: 0, z: 0 };
+const SCRATCH_LST_ENU = { x: 0, y: 0, z: 0 };
+const SCRATCH_SRC_VEL = { x: 0, y: 0, z: 0 };
+const SCRATCH_LST_VEL = { x: 0, y: 0, z: 0 };
+const PREV_CAM_WORLD = new THREE.Vector3();
+let hasPrevCamWorld = false;
 
 // Pre-allocated scratch math objects (ZERO per-frame heap allocations in useFrame)
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
@@ -289,6 +298,55 @@ function SplitScissorPass({
 
     gl.setScissorTest(false);
     gl.setViewport(0, 0, fullW, fullH);
+
+    // Split View listener = primary (left) pane camera
+    const splitStore = useSimStore.getState();
+    if (splitStore.trajectory) {
+      const nowFrame = sampleFrameAt(splitStore.trajectory, fs.timeS);
+      if (nowFrame) {
+        const s2Snap = nowFrame.stage2;
+        SCRATCH_SRC_ENU.x = fs.s2Pos.x;
+        SCRATCH_SRC_ENU.y = -fs.s2Pos.z;
+        SCRATCH_SRC_ENU.z = fs.s2Pos.y;
+        SCRATCH_LST_ENU.x = camL.position.x;
+        SCRATCH_LST_ENU.y = -camL.position.z;
+        SCRATCH_LST_ENU.z = camL.position.y;
+        SCRATCH_SRC_VEL.x = 0;
+        SCRATCH_SRC_VEL.y = 0;
+        SCRATCH_SRC_VEL.z = s2Snap.verticalSpeedMs;
+        SCRATCH_LST_VEL.x = 0;
+        SCRATCH_LST_VEL.y = 0;
+        SCRATCH_LST_VEL.z = s2Snap.verticalSpeedMs;
+        soundEngine.update(
+          {
+            sourcePosEnuM: SCRATCH_SRC_ENU,
+            sourceVelEnuMs: SCRATCH_SRC_VEL,
+            listenerPosEnuM: SCRATCH_LST_ENU,
+            listenerVelEnuMs: SCRATCH_LST_VEL,
+            sourceAltM: s2Snap.altitudeM,
+            listenerAltM: Math.max(0, s2Snap.altitudeM + 13),
+            isOnboard: false,
+            playbackSpeed: splitStore.playbackSpeed,
+            playing: splitStore.playing,
+            throttle: s2Snap.throttle,
+            activeEngineCount: s2Snap.activeEngineCount,
+            dynamicPressurePa: s2Snap.dynamicPressurePa,
+            delugeIntensity: 0,
+          },
+          {
+            simTimeS: fs.timeS,
+            playing: splitStore.playing,
+            playbackSpeed: splitStore.playbackSpeed,
+            mecoTimeS: splitStore.trajectory.mecoTimeS,
+            stageSepTimeS: splitStore.trajectory.stageSepTimeS,
+            boosterSupersonicDescent: false,
+            boosterAltM: nowFrame.stage1.altitudeM,
+            distanceToListenerM: 82,
+            airTransmission: 0,
+          }
+        );
+      }
+    }
 
     const footHeightAboveDeck = fs.nearLanding
       ? (s1GroupRef.current?.position.y ?? fs.s1Pos.y) +
@@ -657,6 +715,108 @@ function SceneContent({
       camera.lookAt(SCRATCH_DESIRED);
     } else if (cameraMode === 'orbit') {
       camTargetRef.current.copy(SCRATCH_LOOK_TARGET);
+    }
+
+    // Update physically-based Web Audio engine (listener = active camera; zero per-frame node allocs)
+    const store = useSimStore.getState();
+    if (!isSplit && store.trajectory) {
+      const isOnboard = cameraMode === 'onboard-s1' || cameraMode === 'onboard-s2';
+      const nowFrame = sampleFrameAt(store.trajectory, fs.timeS);
+      if (nowFrame) {
+        const isS2Focus =
+          cameraMode === 'onboard-s2' || (viewStage === 'stage2' && nowFrame.separated);
+        const srcSnap = isS2Focus ? nowFrame.stage2 : nowFrame.stage1;
+
+        // Three.js world (X=E, Y=U, Z=-N) -> ENU (x=E, y=N, z=U)
+        SCRATCH_SRC_ENU.x = fs.focusPos.x;
+        SCRATCH_SRC_ENU.y = -fs.focusPos.z;
+        SCRATCH_SRC_ENU.z = fs.focusPos.y;
+        SCRATCH_LST_ENU.x = camera.position.x;
+        SCRATCH_LST_ENU.y = -camera.position.z;
+        SCRATCH_LST_ENU.z = camera.position.y;
+
+        // Listener velocity from camera motion in world space
+        if (hasPrevCamWorld && fs.dtClamped > 1e-4 && !scrubbed && !switched) {
+          const invDt = 1 / fs.dtClamped;
+          SCRATCH_LST_VEL.x = (camera.position.x - PREV_CAM_WORLD.x) * invDt;
+          SCRATCH_LST_VEL.y = -(camera.position.z - PREV_CAM_WORLD.z) * invDt;
+          SCRATCH_LST_VEL.z = (camera.position.y - PREV_CAM_WORLD.y) * invDt;
+        } else {
+          SCRATCH_LST_VEL.x = 0;
+          SCRATCH_LST_VEL.y = 0;
+          SCRATCH_LST_VEL.z = 0;
+        }
+        PREV_CAM_WORLD.copy(camera.position);
+        hasPrevCamWorld = true;
+
+        // Source velocity (approximated along attitude + vertical/horizontal speed)
+        const vMag = srcSnap.speedEarthRelMs;
+        SCRATCH_SRC_VEL.x = srcSnap.attitudePadEnu.x * vMag;
+        SCRATCH_SRC_VEL.y = srcSnap.attitudePadEnu.y * vMag;
+        SCRATCH_SRC_VEL.z = srcSnap.verticalSpeedMs;
+
+        const srcAltM = srcSnap.altitudeM;
+        const lstAltM = fs.nearPad || fs.nearLanding
+          ? Math.max(0, camera.position.y)
+          : Math.max(0, srcAltM + (camera.position.y - fs.focusPos.y));
+
+        // Retarded emission sampling using US76 path-averaged speed of sound
+        const distM = Math.hypot(
+          SCRATCH_LST_ENU.x - SCRATCH_SRC_ENU.x,
+          SCRATCH_LST_ENU.y - SCRATCH_SRC_ENU.y,
+          SCRATCH_LST_ENU.z - SCRATCH_SRC_ENU.z
+        );
+        const { speedOfSoundMs } = computePathAtmosphere(srcAltM, lstAltM);
+        const delayS = isOnboard ? 0 : Math.min(12.0, distM / speedOfSoundMs);
+        const emitFrame =
+          delayS > 0.02
+            ? sampleFrameAt(store.trajectory, fs.timeS - delayS) ?? nowFrame
+            : nowFrame;
+        const emitSnap = isS2Focus ? emitFrame.stage2 : emitFrame.stage1;
+
+        const tDeluge = fs.timeS - delayS;
+        const delugeInt =
+          fs.nearPad && tDeluge >= -5.0 && tDeluge <= 7.0
+            ? tDeluge < -3.5
+              ? Math.min(1, (tDeluge + 5.0) / 1.5)
+              : tDeluge <= 3.0
+                ? 1.0
+                : Math.max(0, 1.0 - (tDeluge - 3.0) / 4.0)
+            : 0;
+
+        const out = soundEngine.update(
+          {
+            sourcePosEnuM: SCRATCH_SRC_ENU,
+            sourceVelEnuMs: SCRATCH_SRC_VEL,
+            listenerPosEnuM: SCRATCH_LST_ENU,
+            listenerVelEnuMs: SCRATCH_LST_VEL,
+            sourceAltM: srcAltM,
+            listenerAltM: lstAltM,
+            isOnboard,
+            playbackSpeed: store.playbackSpeed,
+            playing: store.playing,
+            throttle: emitSnap.throttle,
+            activeEngineCount: emitSnap.activeEngineCount,
+            dynamicPressurePa: emitSnap.dynamicPressurePa,
+            delugeIntensity: delugeInt,
+          },
+          {
+            simTimeS: fs.timeS,
+            playing: store.playing,
+            playbackSpeed: store.playbackSpeed,
+            mecoTimeS: store.trajectory.mecoTimeS,
+            stageSepTimeS: store.trajectory.stageSepTimeS,
+            boosterSupersonicDescent:
+              nowFrame.separated &&
+              nowFrame.stage1.verticalSpeedMs < -20 &&
+              nowFrame.stage1.mach > 1.05,
+            boosterAltM: nowFrame.stage1.altitudeM,
+            distanceToListenerM: distM,
+            airTransmission: 1.0,
+          }
+        );
+        void out;
+      }
     }
   }, 0);
 
