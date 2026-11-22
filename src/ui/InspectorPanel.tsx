@@ -159,71 +159,26 @@ function buildHonestTelemetry(
 
     case 'fss-tower':
       return {
-        rows: [
-          {
-            label: 'Crew Access Arm',
-            value: frame.timeS < -120 ? 'Extended' : 'Retracted (Flight Ready)',
-            origin: 'DERIVED',
-          },
-          {
-            label: 'Mission Clock',
-            value: frame.timeS < 0 ? `T${frame.timeS.toFixed(1)} s` : `T+${frame.timeS.toFixed(1)} s`,
-            origin: 'SIM',
-          },
-        ],
+        rows: [],
+        note: 'No live FSS tower or crew-access-arm telemetry is modeled in the 3-DOF flight simulation.',
       };
 
     case 'hif-hangar':
       return {
-        rows: [
-          {
-            label: 'Stack Mass on Pad',
-            value: `${(s1.totalMassKg / 1000).toFixed(1)} t`,
-            origin: 'SIM',
-          },
-          {
-            label: 'Vehicle Status',
-            value: frame.timeS < 0 ? 'Erected on Pad' : 'Airborne',
-            origin: 'DERIVED',
-          },
-        ],
+        rows: [],
+        note: 'No live HIF hangar telemetry is modeled in the 3-DOF flight simulation.',
       };
 
     case 'propellant-farm':
       return {
-        rows: [
-          {
-            label: 'S1 Loaded Propellant',
-            value: `${(s1.propellantKg / 1000).toFixed(1)} t`,
-            origin: 'SIM',
-          },
-          {
-            label: 'LOX Boil-Off Venting',
-            value: frame.timeS < -2 ? 'Active (Cryo Top-Off)' : 'Closed (Flight Press)',
-            origin: 'DERIVED',
-          },
-        ],
+        rows: [],
+        note: 'No live ground propellant-farm tank or boil-off telemetry is modeled in the 3-DOF flight simulation.',
       };
 
     case 'water-deluge-tower':
       return {
-        rows: [
-          {
-            label: 'Deluge Manifold',
-            value:
-              frame.timeS >= -5 && frame.timeS <= 7
-                ? 'ACTIVE (High Flow)'
-                : frame.timeS < -5
-                  ? 'Armed (T-5 s)'
-                  : 'Secured',
-            origin: 'DERIVED',
-          },
-          {
-            label: 'Pad Acoustic Thrust',
-            value: `${(s1.thrustN / 1000).toFixed(0)} kN`,
-            origin: 'SIM',
-          },
-        ],
+        rows: [],
+        note: 'No live water-deluge tank level or manifold flow telemetry is modeled in the 3-DOF flight simulation.',
       };
 
     case 'interstage':

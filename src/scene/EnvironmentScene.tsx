@@ -692,22 +692,39 @@ export function LaunchPadMesh({
       {isLC39A && (
         <group position={[-25, 0, -24]}>
           {/* Main steel FSS tower */}
-          <mesh position={[0, 39, 0]} castShadow raycast={NO_RAYCAST}>
+          <mesh
+            position={[0, 39, 0]}
+            castShadow
+            raycast={NO_RAYCAST}
+            userData={{ padStructure: true, padPart: 'fss-tower' }}
+          >
             <boxGeometry args={[11, 78, 11]} />
             <meshStandardMaterial color="#3c434d" roughness={0.7} metalness={0.45} />
           </mesh>
           {/* Clad upper weather panels */}
-          <mesh position={[0, 56, 0]} raycast={NO_RAYCAST}>
+          <mesh
+            position={[0, 56, 0]}
+            raycast={NO_RAYCAST}
+            userData={{ padStructure: true, padPart: 'fss-cladding' }}
+          >
             <boxGeometry args={[11.6, 26, 11.6]} />
             <meshStandardMaterial color="#272c34" roughness={0.65} metalness={0.5} />
           </mesh>
-          {/* Retracted Crew Access Arm + White Room at y = 54 m */}
-          <group position={[5.5, 54, 4.5]} rotation={[0, -0.55, 0]}>
-            <mesh position={[9.5, 0, 0]} raycast={NO_RAYCAST}>
+          {/* Retracted Crew Access Arm + White Room at y = 54 m (swung away along -Z, well clear of vehicle) */}
+          <group position={[5.5, 54, -4.5]} rotation={[0, 1.48, 0]}>
+            <mesh
+              position={[9.5, 0, 0]}
+              raycast={NO_RAYCAST}
+              userData={{ padStructure: true, padPart: 'crew-access-arm' }}
+            >
               <boxGeometry args={[19, 3.2, 2.8]} />
               <meshStandardMaterial color="#dde4ee" roughness={0.45} metalness={0.3} />
             </mesh>
-            <mesh position={[19.2, 0, 0]} raycast={NO_RAYCAST}>
+            <mesh
+              position={[19.2, 0, 0]}
+              raycast={NO_RAYCAST}
+              userData={{ padStructure: true, padPart: 'white-room' }}
+            >
               <boxGeometry args={[3.2, 3.8, 3.4]} />
               <meshStandardMaterial color="#f5f8fc" roughness={0.35} />
             </mesh>
@@ -726,7 +743,12 @@ export function LaunchPadMesh({
 
       {/* 2. Horizontal Integration Facility (HIF) Hangar (all 3 sites) */}
       <group position={[-54, 0, -48]}>
-        <mesh position={[0, 7, 0]} receiveShadow raycast={NO_RAYCAST}>
+        <mesh
+          position={[0, 7, 0]}
+          receiveShadow
+          raycast={NO_RAYCAST}
+          userData={{ padStructure: true, padPart: 'hif-hangar' }}
+        >
           <boxGeometry args={[36, 14, 18]} />
           <meshStandardMaterial color="#cfd6df" roughness={0.75} metalness={0.25} />
         </mesh>
@@ -753,7 +775,12 @@ export function LaunchPadMesh({
       {/* 3. Cryogenic LOX Sphere & Subcooled RP-1 Tank Farm (all 3 sites) */}
       <group position={[46, 0, -28]}>
         {/* Spherical white LOX storage tank on 4 support legs */}
-        <mesh position={[0, 8.5, 0]} castShadow raycast={NO_RAYCAST}>
+        <mesh
+          position={[0, 8.5, 0]}
+          castShadow
+          raycast={NO_RAYCAST}
+          userData={{ padStructure: true, padPart: 'propellant-farm' }}
+        >
           <sphereGeometry args={[6.2, 20, 16]} />
           <meshStandardMaterial color="#eef3f8" roughness={0.38} metalness={0.25} />
         </mesh>
@@ -792,7 +819,12 @@ export function LaunchPadMesh({
       <group position={[40, 0, -52]}>
         {isLC39A ? (
           <>
-            <mesh position={[0, 44, 0]} castShadow raycast={NO_RAYCAST}>
+            <mesh
+              position={[0, 44, 0]}
+              castShadow
+              raycast={NO_RAYCAST}
+              userData={{ padStructure: true, padPart: 'water-deluge-tower' }}
+            >
               <cylinderGeometry args={[4.4, 4.4, 9.5, 16]} />
               <meshStandardMaterial color="#d9e2ec" roughness={0.45} metalness={0.3} />
             </mesh>
@@ -836,6 +868,8 @@ export function LandingPadMesh({
 }: {
   readonly mode: 'ASDS' | 'RTLS' | 'EXPENDABLE';
 }) {
+  const landingSiteId = useSimStore((s) => s.trajectory?.landingSiteId ?? 'LZ-40');
+
   if (mode === 'RTLS') {
     return (
       <group position={[0, 0, 0]}>
@@ -863,7 +897,7 @@ export function LandingPadMesh({
         </mesh>
         <InteractableHitbox
           componentId="droneship"
-          label="Landing Zone (LZ-1)"
+          label={`Landing Zone (${landingSiteId})`}
           position={[18, -0.2, 0]}
           shape="cylinder"
           args={[24, 24, 1.4]}

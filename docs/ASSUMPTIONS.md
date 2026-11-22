@@ -180,3 +180,28 @@ Giving the pre-Part-D baseline vehicle the **same** 1-DOF per-flight pitch-kick 
   This smoothly tightens vertical AGL knowledge during terminal descent while preserving a non-zero time-correlated residual (`σ_eff ≈ 0.15 m`, `τ_eff = 2.0 s`) all the way to touchdown. Horizontal position and velocity biases are **unaided** by the radar altimeter and remain at full `τ = 45 s` INS/GPS levels.
 - ASDS station-keeping offset `±10 m` + simplified ocean deck motion: heave `0–1.5 m` (`7 s` swell period) and roll `0–2.5°` (`8 s` period), enforced against relative vertical touchdown speed (`|v_z − v_heave| < 2.0 m/s`) and combined tilt (`tilt + |roll| < 5.0°`).
 - First-order actuator and throttle response lag: `40–120 ms`.
+
+
+---
+
+## Launch Site Range-Safety Corridors & Recovery Asset Status (v1.4 Part E)
+
+### Launch Azimuth & Inclination Corridors
+- **Eastern Range (`LC-39A`, `SLC-40` — USSF Space Launch Delta 45 / FAA):**
+  - Primary eastward ocean corridor: **35°–120° azimuth** (`28.5°–57.0°` direct orbital inclination), plus SSE polar dogleg corridor up to **98.0°** (clearing Florida/Bahamas populated land). Inclinations below pad latitude (`< 28.5°`) are blocked in What-If.
+- **Western Range (`SLC-4E`, Vandenberg SFB — USSF Space Launch Delta 30 / FAA):**
+  - Southward Pacific corridor: **140°–201° azimuth** (`53.0°–104.0°` polar / Sun-Synchronous inclinations). Low-inclination eastward launches (e.g. `28.6°`) are blocked in What-If because they overfly populated Southern California and the U.S. mainland.
+
+### Webcast vs Engineer Altitude Reference
+- **Webcast HUD:** Displays altitude **AGL above the launch pad** during ascent (`altitudeM - launchSite.elevationM`, so `SLC-4E` at `114 m AMSL` reads `0.0 km` on the pad) and AGL above the landing target during Stage 1 recovery.
+- **Engineer Panel:** Explicitly displays geodetic **`Altitude (MSL)`** (`114 m` on the pad at `SLC-4E`).
+
+### Landing Zones & Droneships (Current 2026 Status + Historical Availability)
+Recovery asset availability is resolved by coast and mission date (`getAvailableRecoveryAssets(siteId, missionDate)` in `src/sim/config/falcon9.ts`):
+- **LZ-1 (`28.4858°N, 80.5429°W`, CCSFS former LC-13):** **Retired August 1, 2025** after Crew-11 (55 landing attempts, 54 successes; LC-13 reallocated by USSF to Vaya Space / Phantom Space). Available only for historical missions `2015-12-21` through `2025-08-01`.
+- **LZ-2 (`28.4856°N, 80.5444°W`, CCSFS former LC-13):** Dual-booster Falcon Heavy pad (`activeFrom: 2018-02-06`), phasing out alongside LC-13 transition.
+- **LZ-40 (`28.5631°N, 80.5743°W`, CCSFS adjacent to SLC-40):** **Active** East Coast RTLS pad (`activeFrom: 2025-08-01`), replacing retired LZ-1 for current Cape RTLS missions.
+- **LZ-4 (`34.6342°N, 120.6150°W`, VSFB former SLC-4W):** **Active** West Coast RTLS pad (`activeFrom: 2018-10-08`, first used on SAOCOM 1A).
+- **ASOG (*A Shortfall of Gravitas*, Port Canaveral):** **Active** East Coast ASDS (`activeFrom: 2021-08-29`).
+- **OCISLY (*Of Course I Still Love You*, Port of Long Beach):** **Active** West Coast ASDS (`2021-06-15`–present; served East Coast `2015-06-28`–`2021-06-14`, including DM-1).
+- **JRTI (*Just Read the Instructions*):** **Retired / Repurposed** from Falcon 9 ASDS service in early 2026 for Starship transport (served West Coast `2016-01-17`–`2019-08-01` incl. Iridium NEXT-8; East Coast `2020-05-30`–`2026-02-01`).

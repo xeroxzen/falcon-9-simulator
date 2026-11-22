@@ -1,18 +1,20 @@
 {
   "id": "droneship",
   "name": "ASDS Droneship / Landing Zone",
-  "summary": "Autonomous Spaceport Drone Ship (OCISLY / JRTI / ASOG) or concrete RTLS Landing Zone (LZ-1 / LZ-4).",
+  "summary": "Autonomous Spaceport Drone Ship (ASOG East Coast, OCISLY West Coast; JRTI repurposed early 2026) or concrete RTLS Landing Zone (active LZ-40 at CCSFS, active LZ-4 at VSFB; historical LZ-1 retired Aug 1, 2025).",
   "function": "Provides a stabilized ocean landing deck hundreds of kilometers downrange (ASDS) or a coastal concrete pad (RTLS) for propulsive first-stage booster recovery.",
   "materials": "Modified ocean-going steel deck barge (Marmac 300-series) equipped with four GPS-guided azimuth thrusters, blast walls, and the Octagrabber recovery robot.",
   "specs": [
     { "label": "ASDS Deck Length", "value": "91", "unit": "m", "source": "Public Marmac 300 / OCISLY barge specs", "status": "SOURCED" },
     { "label": "ASDS Deck Width", "value": "52", "unit": "m", "source": "Public Marmac 300 / OCISLY barge specs", "status": "SOURCED" },
-    { "label": "LZ-1 Pad Diameter", "value": "86", "unit": "m", "source": "CCSFS former LC-13 pad geometry", "status": "SOURCED" },
-    { "label": "LZ-1 Coordinates", "value": "28.4858°N, 80.5429°W", "unit": "WGS-84", "source": "CCSFS WGS-84 geodetic coordinates", "status": "SOURCED" }
+    { "label": "Active East Coast RTLS (LZ-40)", "value": "28.5631°N, 80.5743°W", "unit": "WGS-84", "source": "CCSFS SLC-40 adjacent landing pad (replaced retired LZ-1)", "status": "SOURCED" },
+    { "label": "Historical LZ-1 (Retired Aug 2025)", "value": "28.4858°N, 80.5429°W", "unit": "WGS-84", "source": "CCSFS former LC-13 (55 attempts, 54 successes; retired Aug 1, 2025 after Crew-11)", "status": "SOURCED" },
+    { "label": "Active West Coast RTLS (LZ-4)", "value": "34.6342°N, 120.6150°W", "unit": "WGS-84", "source": "VSFB former SLC-4W (active since SAOCOM 1A, Oct 8, 2018)", "status": "SOURCED" }
   ],
-  "history": "SpaceX achieved its first RTLS landing at LZ-1 on Orbcomm-2 (Dec 2015) and its first ASDS ocean landing on OCISLY during CRS-8 (April 2016).",
+  "history": "SpaceX achieved its first RTLS landing at LZ-1 on Orbcomm-2 (Dec 2015) and its first ASDS ocean landing on OCISLY during CRS-8 (April 2016). LZ-1 retired on August 1, 2025 after Crew-11 when USSF reallocated LC-13, with East Coast RTLS operations shifting to LZ-40 adjacent to SLC-40. JRTI retired from Falcon 9 ASDS duties in early 2026 to support Starship transport, leaving ASOG (Port Canaveral) and OCISLY (Port of Long Beach) as the active Falcon 9 droneships.",
   "sources": [
     "SpaceX Autonomous Spaceport Drone Ship Public Specs",
-    "CCSFS / WGS-84 Geodetic Reference"
+    "CCSFS / VSFB WGS-84 Geodetic Reference",
+    "USSF / SpaceX LC-13 Decommissioning & LZ-40 Transition (2025–2026)"
   ]
 }

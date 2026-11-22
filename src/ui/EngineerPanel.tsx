@@ -23,6 +23,14 @@ export function EngineerPanel() {
     <>
       <div className="eng-grid">
         <div className="eng-row">
+          <span>Altitude (MSL)</span>
+          <strong data-testid="eng-altitude-msl">
+            {snap.altitudeM >= 1000
+              ? `${fmtFixed(snap.altitudeM / 1000, 2)} km`
+              : `${fmtFixed(snap.altitudeM, 0)} m`}
+          </strong>
+        </div>
+        <div className="eng-row">
           <span>Dynamic Pressure (q)</span>
           <strong>{fmtFixed(snap.dynamicPressurePa / 1000, 2)} kPa</strong>
         </div>
