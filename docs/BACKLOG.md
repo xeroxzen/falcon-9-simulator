@@ -43,6 +43,11 @@ Known model gaps identified during Phase 2.5 validation and holdout testing, tra
      2. **PEG loft / terminal constraints vs real lofted profiles:** compare our single-phase linear-gravity PEG pitch steering against real SpaceX high-orbit direct-insertion lofting/coasting/throttling profiles.
      3. **Stage 2 propellant load:** test sensitivity to Block 5 Stage 2 subcooled propellant load (`111.3 t` fitted vs published range).
 
-9. **Stretch goals from original spec:**
+9. **Visual polish items from v1.4 Part B review (implemented during v1.4 Part C):**
+   - Liftoff steam scale: larger, longer-lived, buoyant clouds growing with thrust through `~T+10 s` (reusing `SoftParticles`).
+   - Pad camera: `"Pad (Fixed)"` camera mode keeping the launch mount and billowing steam in frame through `~T+10 s`, alongside tracking `"Pad"` mode.
+   - Regenerated `docs/demo.gif` from the `T-10 → T+10` countdown/ignition/liftoff sequence.
+
+10. **Stretch goals from original spec:**
    - Convex-optimization (G-FOLD-style) powered descent guidance.
    - 6-DOF rigid-body rotational dynamics (inertia tensor, TVC gimbal torque, RCS cold-gas thrusters, aerodynamic center-of-pressure / center-of-mass pitching moments).

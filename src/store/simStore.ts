@@ -19,6 +19,7 @@ export type CameraMode =
   | 'orbit'
   | 'chase'
   | 'pad'
+  | 'pad-fixed'
   | 'droneship'
   | 'onboard-s1'
   | 'onboard-s2'
@@ -397,7 +398,9 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
       }
       if (msg.type === 'MISSION_RESULT') {
         const startT = msg.data.startTimeS ?? 0;
-        liveSimClock.timeS = startT;
+        // Start playback at T-10 s terminal count while keeping full T-60 s venting scrubbable
+        const initialT = Math.max(startT, -10);
+        liveSimClock.timeS = initialT;
         liveSimClock.lastHudSyncMs = performance.now();
         set((s) => ({
           trajectory: msg.data,
@@ -406,7 +409,7 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
           loadingProgress: 1,
           loadingStage: '',
           error: null,
-          timeS: startT,
+          timeS: initialT,
           playing: true,
         }));
       } else {
@@ -441,13 +444,14 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
     const { baseMission, nominalTrajectory } = get();
     if (nominalTrajectory) {
       const startT = nominalTrajectory.startTimeS ?? 0;
-      liveSimClock.timeS = startT;
+      const initialT = Math.max(startT, -10);
+      liveSimClock.timeS = initialT;
       liveSimClock.lastHudSyncMs = performance.now();
       set({
         mission: baseMission,
         trajectory: nominalTrajectory,
         isWhatIfActive: false,
-        timeS: startT,
+        timeS: initialT,
         playing: true,
       });
     } else {

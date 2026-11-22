@@ -6,6 +6,7 @@ import { waitForSimReady } from './helpers.js';
 const SHOT_DIR = path.resolve(process.cwd(), 'docs/screenshots/v1.4');
 
 const MOMENTS = [
+  { key: 't-minus-60', timeS: -60.0, clock: 'T-01:00', chip: 'S1: COUNTDOWN' },
   { key: 't-minus-10', timeS: -10.0, clock: 'T-00:10', chip: 'S1: COUNTDOWN' },
   { key: 't-minus-3', timeS: -2.2, clock: 'T-00:03', chip: 'S1: IGNITION' },
   { key: 't-minus-1', timeS: -1.0, clock: 'T-00:01', chip: 'S1: IGNITION' },
@@ -13,8 +14,8 @@ const MOMENTS = [
   { key: 't-plus-5', timeS: 5.0, clock: 'T+00:05', chip: 'S1: IN FLIGHT' },
 ] as const;
 
-test.describe('v1.4 Part B — Countdown, Hold-Down Ignition & Water Deluge E2E', () => {
-  test('verifies T-10 countdown, T-3 ignition with clamps, T+0 clamp release + deluge, T+5 liftoff on desktop and mobile', async ({
+test.describe('v1.4 Parts B & C — Pre-Launch LOX Venting, Countdown, Ignition & Water Deluge E2E', () => {
+  test('verifies T-60 venting, T-10 countdown, T-3/-1 ignition with clamps, T+0 clamp release + deluge, T+5 liftoff & Pad (Fixed) on desktop and mobile', async ({
     page,
   }) => {
     fs.mkdirSync(SHOT_DIR, { recursive: true });
@@ -70,6 +71,47 @@ test.describe('v1.4 Part B — Countdown, Hold-Down Ignition & Water Deluge E2E'
         path: path.join(SHOT_DIR, `desktop-${m.key}.png`),
       });
     }
+
+    // Verify Pad (Fixed) camera mode keeps mount & billowing steam in frame through T+8 s
+    await page.evaluate(() => {
+      const dbg = (
+        window as unknown as {
+          __f9debug: { setCameraMode: (m: string) => void; setTimeS: (t: number) => void };
+        }
+      ).__f9debug;
+      dbg.setCameraMode('pad-fixed');
+      dbg.setTimeS(8.0);
+    });
+    await page.waitForTimeout(300);
+    await expect(page.locator('.hud-clock')).toHaveText('T+00:08');
+
+    // Optional demo.gif frame capture (T-10 -> T+10 in Pad Fixed mode)
+    if (process.env.CAPTURE_DEMO_GIF === '1' && process.env.DEMO_FRAMES_DIR) {
+      const framesDir = process.env.DEMO_FRAMES_DIR;
+      fs.mkdirSync(framesDir, { recursive: true });
+      await page.setViewportSize({ width: 960, height: 600 });
+      await page.waitForTimeout(200);
+      let idx = 0;
+      for (let t = -10.0; t <= 10.01; t += 0.25) {
+        await page.evaluate((ts) => {
+          const dbg = (window as unknown as { __f9debug: { setTimeS: (x: number) => void } })
+            .__f9debug;
+          dbg.setTimeS(ts);
+        }, Number(t.toFixed(2)));
+        await page.waitForTimeout(45);
+        await page.screenshot({
+          path: path.join(framesDir, `frame_${String(idx++).padStart(3, '0')}.png`),
+        });
+      }
+      await page.setViewportSize({ width: 1280, height: 800 });
+    }
+
+    // Switch back to Pad tracking for mobile captures
+    await page.evaluate(() => {
+      const dbg = (window as unknown as { __f9debug: { setCameraMode: (m: string) => void } })
+        .__f9debug;
+      dbg.setCameraMode('pad');
+    });
 
     // Mobile portrait (390x844, iPhone 13) screenshots — close Engineer sheet so mobile HUD & vehicle are clear
     await page.setViewportSize({ width: 390, height: 844 });
