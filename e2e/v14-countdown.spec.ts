@@ -8,6 +8,7 @@ const SHOT_DIR = path.resolve(process.cwd(), 'docs/screenshots/v1.4');
 const MOMENTS = [
   { key: 't-minus-10', timeS: -10.0, clock: 'T-00:10', chip: 'S1: COUNTDOWN' },
   { key: 't-minus-3', timeS: -2.2, clock: 'T-00:03', chip: 'S1: IGNITION' },
+  { key: 't-minus-1', timeS: -1.0, clock: 'T-00:01', chip: 'S1: IGNITION' },
   { key: 't-0', timeS: 0.25, clock: 'T+00:00', chip: 'S1: IN FLIGHT' },
   { key: 't-plus-5', timeS: 5.0, clock: 'T+00:05', chip: 'S1: IN FLIGHT' },
 ] as const;
@@ -41,6 +42,29 @@ test.describe('v1.4 Part B — Countdown, Hold-Down Ignition & Water Deluge E2E'
 
       await expect(page.locator('.hud-clock')).toHaveText(m.clock);
       await expect(page.getByTestId('hud-status-chips')).toContainText(m.chip);
+
+      if (m.key === 't-minus-10') {
+        const occ = await page.evaluate(() => {
+          const dbg = (
+            window as unknown as {
+              __f9debug: {
+                checkPadOcclusion: () => {
+                  totalSamples: number;
+                  occludedSamples: number;
+                  occluders: string[];
+                } | null;
+              };
+            }
+          ).__f9debug;
+          return dbg.checkPadOcclusion();
+        });
+        expect(occ).not.toBeNull();
+        expect(occ!.totalSamples).toBeGreaterThanOrEqual(8);
+        expect(
+          occ!.occludedSamples,
+          `Vehicle occluded in Pad view by: ${occ!.occluders.join(', ')}`
+        ).toBe(0);
+      }
 
       await page.screenshot({
         path: path.join(SHOT_DIR, `desktop-${m.key}.png`),

@@ -1,9 +1,20 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
 import * as THREE from 'three';
-import { liveSimClock, type QualityTier } from '../store/simStore.js';
+import {
+  liveSimClock,
+  sampleFrameAt,
+  useSimStore,
+  type QualityTier,
+} from '../store/simStore.js';
 import { InteractableHitbox } from './InteractableHitbox.js';
+import {
+  SoftParticleEmitter,
+  type SoftParticleEmitterConfig,
+  type SoftParticleSpec,
+  type SoftParticleUpdateArgs,
+} from './SoftParticles.js';
 
 const NO_RAYCAST = () => null;
 
@@ -35,119 +46,350 @@ void main() {
 }
 `;
 
-const DELUGE_COUNTS: Record<QualityTier, number> = {
-  low: 16,
-  med: 32,
-  high: 48,
+const DELUGE_SPRAY_COUNTS: Record<QualityTier, number> = {
+  low: 32,
+  med: 64,
+  high: 96,
 };
 
-/**
- * Water deluge & flame-trench steam plume (T-5 s to T+9 s).
- * Instanced translucent puffs erupting out of the trench sides, zero per-frame allocations.
- */
-function WaterDelugeEffect({ qualityTier }: { readonly qualityTier: QualityTier }) {
-  const count = DELUGE_COUNTS[qualityTier];
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const dummy = useMemo(() => new THREE.Object3D(), []);
+const STEAM_PLUME_COUNTS: Record<QualityTier, number> = {
+  low: 48,
+  med: 96,
+  high: 160,
+};
 
-  const seeds = useMemo(() => {
-    const arr: Array<{
-      angle: number;
-      speed: number;
-      phase: number;
-      rise: number;
-      baseScale: number;
-    }> = [];
-    for (let i = 0; i < count; i++) {
-      // Concentrate jets along the 2 main flame-trench exits (+X/-X) and secondary +/-Z
-      const sector = i % 4;
-      const baseAngle = sector * (Math.PI / 2);
-      const jitter = (((i * 73) % 100) / 100 - 0.5) * 0.55;
-      arr.push({
-        angle: baseAngle + jitter,
-        speed: 14 + ((i * 37) % 18),
-        phase: (i / count) * 2.4,
-        rise: 2.5 + ((i * 29) % 10) * 0.65,
-        baseScale: 2.0 + ((i * 19) % 10) * 0.25,
-      });
-    }
-    return arr;
-  }, [count]);
+const TRENCH_PLUME_VERT = `
+varying vec2 vUv;
+varying vec3 vNormalView;
+varying vec3 vViewDir;
+void main() {
+  vUv = uv;
+  vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+  vNormalView = normalize(normalMatrix * normal);
+  vViewDir = normalize(-mvPos.xyz);
+  gl_Position = projectionMatrix * mvPos;
+}
+`;
+
+const TRENCH_PLUME_FRAG = `
+uniform float uTime;
+uniform float uIntensity;
+varying vec2 vUv;
+varying vec3 vNormalView;
+varying vec3 vViewDir;
+
+void main() {
+  if (uIntensity <= 0.005) discard;
+  float axial = vUv.y; // 1.0 at root (deflector), 0.0 at outer tip
+  float ndotv = abs(dot(normalize(vNormalView), normalize(vViewDir)));
+  float edgeFade = pow(smoothstep(0.05, 0.78, ndotv), 1.5);
+  float tailFade = smoothstep(0.0, 0.62, axial);
+  float rootFade = smoothstep(1.0, 0.90, axial);
+  float flicker = 0.85 + 0.15 * sin(axial * 24.0 + uTime * 38.0);
+  float shock = pow(max(0.0, sin((1.0 - axial) * 18.0 - uTime * 16.0)), 3.0);
+
+  vec3 outerCol = vec3(1.0, 0.44, 0.10);
+  vec3 coreCol = vec3(1.0, 0.94, 0.78);
+  vec3 col = mix(outerCol, coreCol, pow(axial, 1.2) * 0.72 + ndotv * 0.35 + shock * 0.3);
+
+  float alpha = edgeFade * tailFade * rootFade * flicker * uIntensity * 0.92;
+  if (alpha < 0.004) discard;
+  gl_FragColor = vec4(col, alpha);
+}
+`;
+
+/**
+ * Deflected Merlin 1D exhaust plume inside the open flame trench (T-3 s through lift-off).
+ * Scales with live simulated throttle and transitions smoothly to the vertical ascent
+ * plume as the booster climbs from 0 -> 14 m AGL.
+ */
+function TrenchExhaustPlume() {
+  const groupRef = useRef<THREE.Group>(null);
+  const leftRef = useRef<THREE.Mesh>(null);
+  const rightRef = useRef<THREE.Mesh>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
+
+  const jetGeo = useMemo(
+    () => new THREE.CylinderGeometry(0.95, 2.35, 1, 20, 1, true),
+    []
+  );
+  const coreGeo = useMemo(
+    () => new THREE.CylinderGeometry(1.45, 1.85, 1, 20, 1, true),
+    []
+  );
+  const mat = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: TRENCH_PLUME_VERT,
+        fragmentShader: TRENCH_PLUME_FRAG,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        uniforms: {
+          uTime: { value: 0 },
+          uIntensity: { value: 0 },
+        },
+      }),
+    []
+  );
+
+  useEffect(() => {
+    return () => {
+      jetGeo.dispose();
+      coreGeo.dispose();
+      mat.dispose();
+    };
+  }, [jetGeo, coreGeo, mat]);
 
   useFrame(() => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
+    const grp = groupRef.current;
+    if (!grp) return;
+    const store = useSimStore.getState();
     const t = liveSimClock.timeS;
+    const frame = sampleFrameAt(store.trajectory, t);
+    const thr = frame ? frame.stage1.throttle : 0;
+    const aglM = frame ? Math.max(0, frame.stage1.padEnuM.z) : 0;
 
-    // Active from T-5 s (water deluge start) through T+9 s (pad clear)
-    if (t < -5.0 || t > 9.0) {
-      mesh.visible = false;
-      return;
+    // Active from ignition (T-3 s) while throttle > 0 and booster is within 14 m of pad
+    const altFade = 1.0 - Math.min(1, Math.max(0, aglM / 14.0));
+    const intensity = t >= -3.05 && thr > 0.01 ? thr * altFade : 0;
+
+    grp.visible = intensity > 0.008;
+    if (!grp.visible) return;
+
+    mat.uniforms.uTime!.value = t;
+    mat.uniforms.uIntensity!.value = Math.min(1, Math.pow(intensity, 0.72));
+
+    const jetLen = 9.0 + 21.0 * intensity;
+    const jetRad = 0.85 + 0.7 * intensity;
+    if (leftRef.current) {
+      leftRef.current.scale.set(jetRad, jetLen, jetRad);
+      leftRef.current.position.set(-1.0 - jetLen * 0.5, 2.05, 0);
     }
-
-    // Pre-ignition deluge spray (T-5..-3s: 0->0.35), ignition surge (T-3..+3s: 0.35->1.0), fade (+3..+9s)
-    let intensity: number;
-    if (t < -3.0) {
-      intensity = 0.35 * Math.min(1, Math.max(0, (t + 5.0) / 2.0));
-    } else if (t <= 3.0) {
-      const surge = Math.min(1, Math.max(0, (t + 3.0) / 1.8));
-      intensity = 0.35 + 0.65 * surge;
-    } else {
-      intensity = Math.max(0, 1.0 - (t - 3.0) / 6.0);
+    if (rightRef.current) {
+      rightRef.current.scale.set(jetRad, jetLen, jetRad);
+      rightRef.current.position.set(1.0 + jetLen * 0.5, 2.05, 0);
     }
-
-    mesh.visible = intensity > 0.01;
-    if (!mesh.visible) return;
-
-    const mat = mesh.material as THREE.MeshStandardMaterial;
-    mat.opacity = 0.42 * intensity;
-
-    const cycleLen = 2.4;
-    for (let i = 0; i < count; i++) {
-      const s = seeds[i]!;
-      const age = (((t + 10.0) + s.phase) % cycleLen) / cycleLen; // 0..1
-      const dist = 4.5 + age * s.speed * (0.65 + 0.7 * intensity);
-      const y = 1.6 + age * age * s.rise * (0.7 + 1.2 * intensity);
-      const scale = s.baseScale * (0.45 + 1.55 * age) * (0.55 + 0.65 * intensity) * (1 - 0.3 * age);
-
-      dummy.position.set(
-        Math.cos(s.angle) * dist,
-        y,
-        Math.sin(s.angle) * dist
-      );
-      dummy.scale.set(scale * 1.15, scale * 0.85, scale * 1.15);
-      dummy.rotation.set(age * 1.2, s.angle, age * 0.7);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+    if (coreRef.current) {
+      const coreH = 3.2 + Math.min(10, aglM);
+      coreRef.current.scale.set(0.8 + 0.35 * intensity, coreH, 0.8 + 0.35 * intensity);
+      coreRef.current.position.set(0, 1.3 + coreH * 0.5, 0);
     }
-    mesh.instanceMatrix.needsUpdate = true;
   });
 
   return (
-    <instancedMesh
-      ref={meshRef}
-      args={[undefined, undefined, count]}
-      visible={false}
-      raycast={NO_RAYCAST}
-      frustumCulled={false}
-    >
-      <dodecahedronGeometry args={[1, 1]} />
-      <meshStandardMaterial
-        color="#eef4fb"
-        emissive="#a8bed6"
-        emissiveIntensity={0.22}
-        roughness={0.95}
-        transparent
-        opacity={0.38}
-        depthWrite={false}
+    <group ref={groupRef} visible={false}>
+      {/* Vertical core from nozzles down onto the flame deflector */}
+      <mesh ref={coreRef} geometry={coreGeo} material={mat} raycast={NO_RAYCAST} />
+      {/* Horizontal deflected plume exiting -X trench */}
+      <mesh
+        ref={leftRef}
+        geometry={jetGeo}
+        material={mat}
+        rotation={[0, 0, -Math.PI / 2]}
+        raycast={NO_RAYCAST}
       />
-    </instancedMesh>
+      {/* Horizontal deflected plume exiting +X trench */}
+      <mesh
+        ref={rightRef}
+        geometry={jetGeo}
+        material={mat}
+        rotation={[0, 0, Math.PI / 2]}
+        raycast={NO_RAYCAST}
+      />
+    </group>
   );
 }
 
 /**
- * Launch Pad (LC-39A / SLC-40 / SLC-4E concrete pad, flame trench, 4x hold-down clamps,
- * strongback tower, and water deluge system) rendered at local origin (0, 0, 0).
+ * Physically sequenced Water Deluge spray (T-5 s) + Ignition-driven Steam Plume (T-3 s+).
+ * Reuses the shared GPU-billboarded SoftParticleEmitter with zero per-frame allocations.
+ */
+function PadDelugeAndSteam({ qualityTier }: { readonly qualityTier: QualityTier }) {
+  const sprayCount = DELUGE_SPRAY_COUNTS[qualityTier];
+  const steamCount = STEAM_PLUME_COUNTS[qualityTier];
+
+  const sprayStateRef = useRef<SoftParticleUpdateArgs>({
+    timeS: 0,
+    intensity: 0,
+    windX: 0,
+    windZ: 0,
+  });
+  const steamStateRef = useRef<SoftParticleUpdateArgs>({
+    timeS: 0,
+    intensity: 0,
+    windX: 0,
+    windZ: 0,
+  });
+
+  const sprayConfig = useMemo<SoftParticleEmitterConfig>(
+    () => ({
+      count: sprayCount,
+      color: '#d9ecff',
+      glowColor: '#ffd6a8',
+      glowStrength: 0.25,
+      lifeS: 1.5,
+      startRadiusM: 0.9,
+      endRadiusM: 3.0,
+      maxOpacity: 0.34,
+      softGroundFadeM: 1.2,
+    }),
+    [sprayCount]
+  );
+
+  const steamConfig = useMemo<SoftParticleEmitterConfig>(
+    () => ({
+      count: steamCount,
+      color: '#f2f6fb',
+      glowColor: '#ffae5c',
+      glowStrength: 0.65,
+      lifeS: 4.8,
+      startRadiusM: 2.6,
+      endRadiusM: 13.5,
+      maxOpacity: 0.42,
+      softGroundFadeM: 2.2,
+    }),
+    [steamCount]
+  );
+
+  const spraySeeds = useMemo<SoftParticleSpec[]>(() => {
+    const arr: SoftParticleSpec[] = [];
+    for (let i = 0; i < sprayCount; i++) {
+      const ang = (i / sprayCount) * Math.PI * 2 + ((i * 37) % 100) * 0.005;
+      const r0 = 2.0 + ((i * 19) % 10) * 0.35;
+      arr.push({
+        originX: Math.cos(ang) * r0,
+        originY: 1.2 + ((i * 13) % 10) * 0.22,
+        originZ: Math.sin(ang) * r0,
+        dirX: Math.cos(ang) * 0.85,
+        dirY: 0.25 + ((i * 23) % 10) * 0.04,
+        dirZ: Math.sin(ang) * 0.85,
+        speed: 4.5 + ((i * 29) % 10) * 0.45,
+        buoyancy: -0.6, // water spray stays tight near the mount & trench
+        phase: i / sprayCount,
+        radiusJitter: 0.75 + ((i * 41) % 10) * 0.06,
+        spin: 0.3,
+      });
+    }
+    return arr;
+  }, [sprayCount]);
+
+  const steamSeeds = useMemo<SoftParticleSpec[]>(() => {
+    const arr: SoftParticleSpec[] = [];
+    for (let i = 0; i < steamCount; i++) {
+      // Exhaust-driven steam shoots out both ends of the X-axis flame trench (+X and -X)
+      const signX = i % 2 === 0 ? 1 : -1;
+      const spreadZ = (((i * 73) % 100) / 100 - 0.5) * 0.55;
+      const len = Math.hypot(1, spreadZ);
+      arr.push({
+        originX: signX * (5.5 + ((i * 17) % 10) * 0.65),
+        originY: 1.8 + ((i * 11) % 10) * 0.25,
+        originZ: (((i * 31) % 100) / 100 - 0.5) * 4.2,
+        dirX: (signX * 1.0) / len,
+        dirY: 0.14 + ((i * 19) % 10) * 0.025,
+        dirZ: spreadZ / len,
+        speed: 8.0 + ((i * 43) % 12) * 0.85,
+        buoyancy: 0.85 + ((i * 29) % 10) * 0.09, // warm steam rises buoyantly
+        phase: i / steamCount,
+        radiusJitter: 0.72 + ((i * 53) % 10) * 0.07,
+        spin: 0.18,
+      });
+    }
+    return arr;
+  }, [steamCount]);
+
+  const getSprayState = useMemo(
+    () => (): SoftParticleUpdateArgs => {
+      const store = useSimStore.getState();
+      const t = liveSimClock.timeS;
+      const wind = store.mission.wind;
+      // Three.js world: X = East, Z = -North
+      const wx = Math.abs(wind.eastMs) > 0.1 ? wind.eastMs : 2.2;
+      const wz = Math.abs(wind.northMs) > 0.1 ? -wind.northMs : -0.8;
+
+      let intensity = 0;
+      if (t >= -5.0 && t <= 7.0) {
+        if (t < -3.5) {
+          intensity = Math.min(1, (t + 5.0) / 1.5);
+        } else if (t <= 3.0) {
+          intensity = 1.0;
+        } else {
+          intensity = Math.max(0, 1.0 - (t - 3.0) / 4.0);
+        }
+      }
+      const out = sprayStateRef.current as {
+        timeS: number;
+        intensity: number;
+        windX: number;
+        windZ: number;
+      };
+      out.timeS = t;
+      out.intensity = intensity;
+      out.windX = wx * 0.35;
+      out.windZ = wz * 0.35;
+      return out;
+    },
+    []
+  );
+
+  const getSteamState = useMemo(
+    () => (): SoftParticleUpdateArgs => {
+      const store = useSimStore.getState();
+      const t = liveSimClock.timeS;
+      const frame = sampleFrameAt(store.trajectory, t);
+      const thr = frame ? frame.stage1.throttle : 0;
+      const aglM = frame ? Math.max(0, frame.stage1.padEnuM.z) : 0;
+      const wind = store.mission.wind;
+      const wx = Math.abs(wind.eastMs) > 0.1 ? wind.eastMs : 2.5;
+      const wz = Math.abs(wind.northMs) > 0.1 ? -wind.northMs : -1.0;
+
+      // Steam appears ONLY after ignition (T >= -3.0 s) and scales with exhaust thrust,
+      // then lingers and dissipates slowly as the vehicle clears the tower.
+      let intensity = 0;
+      if (t >= -3.0 && t <= 11.0) {
+        const thrustDrive = Math.min(1, thr * 1.15);
+        const postLiftDecay =
+          aglM <= 12 ? 1.0 : Math.max(0, 1.0 - (aglM - 12) / 95.0);
+        const timeTail = t > 4.0 ? Math.max(0, 1.0 - (t - 4.0) / 7.0) : 1.0;
+        intensity = thrustDrive * Math.max(postLiftDecay, timeTail * 0.65);
+      }
+
+      const out = steamStateRef.current as {
+        timeS: number;
+        intensity: number;
+        windX: number;
+        windZ: number;
+      };
+      out.timeS = t;
+      out.intensity = intensity;
+      out.windX = wx;
+      out.windZ = wz;
+      return out;
+    },
+    []
+  );
+
+  return (
+    <>
+      <SoftParticleEmitter
+        config={sprayConfig}
+        seeds={spraySeeds}
+        getState={getSprayState}
+      />
+      <SoftParticleEmitter
+        config={steamConfig}
+        seeds={steamSeeds}
+        getState={getSteamState}
+      />
+    </>
+  );
+}
+
+/**
+ * Launch Pad (LC-39A / SLC-40 / SLC-4E concrete pad, open flame trench with deflector,
+ * 4x visible hold-down clamps, strongback tower, deflected ignition plume, and
+ * physically sequenced water deluge + steam) rendered at local origin (0, 0, 0).
  */
 export function LaunchPadMesh({
   siteId,
@@ -158,15 +400,16 @@ export function LaunchPadMesh({
   readonly timeS?: number;
   readonly qualityTier?: QualityTier;
 }) {
-  // Strongback retracts smoothly from ~18 deg pre-ignition to ~20 deg at T-0,
+  // Strongback retracts smoothly from ~13 deg pre-ignition to ~20 deg at T-0,
   // then throws back to ~40 deg during T+0..3 s — never intersects the vehicle.
   const preRetract = Math.min(1, Math.max(0, (timeS + 3.0) / 3.0));
   const throwFrac = Math.min(1, Math.max(0, timeS / 3.0));
   const retractAngleRad = 0.22 + 0.13 * preRetract + 0.33 * throwFrac;
 
-  // 4x hold-down clamps: engaged inward for t < 0, swing open rapidly at T+0..0.4 s
-  const clampOpenFrac = Math.min(1, Math.max(0, timeS / 0.4));
-  const clampAngleRad = 0.15 - 1.05 * clampOpenFrac;
+  // 4x hold-down clamps: engaged inward gripping Stage 1 base for t < 0,
+  // swing visibly open outward over T+0..0.5 s at clamp release.
+  const clampOpenFrac = Math.min(1, Math.max(0, timeS / 0.5));
+  const clampAngleRad = 0.22 - 1.18 * clampOpenFrac;
 
   return (
     <group position={[0, 0, 0]}>
@@ -177,30 +420,73 @@ export function LaunchPadMesh({
       </mesh>
       {/* Concrete pad apron */}
       <mesh position={[0, 0.25, 0]} receiveShadow raycast={NO_RAYCAST}>
-        <boxGeometry args={[46, 0.5, 46]} />
+        <boxGeometry args={[48, 0.5, 48]} />
         <meshStandardMaterial color="#595e66" roughness={0.88} />
       </mesh>
-      {/* Launch mount / flame trench */}
-      <mesh position={[0, 1.6, 0]} receiveShadow raycast={NO_RAYCAST}>
-        <boxGeometry args={[12, 3.2, 12]} />
-        <meshStandardMaterial color="#3c4047" roughness={0.8} />
+
+      {/* Open Flame Trench & Concrete Launch Mount (channel open along +X / -X) */}
+      {/* Dark recessed flame trench floor */}
+      <mesh position={[0, 0.52, 0]} receiveShadow raycast={NO_RAYCAST}>
+        <boxGeometry args={[22, 0.12, 6.2]} />
+        <meshStandardMaterial color="#1b1e23" roughness={0.95} />
       </mesh>
-      {/* 4x Hold-down clamps around Stage 1 base (release at T = 0) */}
+      {/* Sloped steel flame deflector wedge inside trench */}
+      <mesh position={[0, 1.15, 0]} rotation={[0, Math.PI / 4, 0]} raycast={NO_RAYCAST}>
+        <cylinderGeometry args={[0.2, 2.5, 1.25, 4]} />
+        <meshStandardMaterial color="#2b3038" metalness={0.65} roughness={0.5} />
+      </mesh>
+      {/* North (+Z) & South (-Z) concrete launch mount piers framing the open trench */}
+      <mesh position={[0, 2.1, 4.6]} receiveShadow raycast={NO_RAYCAST}>
+        <boxGeometry args={[15, 3.3, 3.2]} />
+        <meshStandardMaterial color="#464b54" roughness={0.85} />
+      </mesh>
+      <mesh position={[0, 2.1, -4.6]} receiveShadow raycast={NO_RAYCAST}>
+        <boxGeometry args={[15, 3.3, 3.2]} />
+        <meshStandardMaterial color="#464b54" roughness={0.85} />
+      </mesh>
+      {/* Steel launch mount hold-down ring collar (open center for exhaust) */}
+      <mesh position={[0, 3.55, 0]} rotation={[Math.PI / 2, 0, 0]} raycast={NO_RAYCAST}>
+        <torusGeometry args={[2.55, 0.34, 10, 24]} />
+        <meshStandardMaterial color="#383d46" metalness={0.7} roughness={0.4} />
+      </mesh>
+
+      {/* 4x Visible Hold-Down Clamps around Stage 1 base (release at T = 0) */}
       {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((az, idx) => (
         <group key={idx} rotation={[0, az, 0]}>
-          <group position={[2.35, 3.1, 0]} rotation={[0, 0, clampAngleRad]}>
-            <mesh position={[0, 0.65, 0]} raycast={NO_RAYCAST}>
-              <boxGeometry args={[0.45, 1.5, 0.55]} />
-              <meshStandardMaterial color="#8f98a6" metalness={0.75} roughness={0.35} />
+          {/* Clamp pedestal */}
+          <mesh position={[2.65, 3.7, 0]} raycast={NO_RAYCAST}>
+            <boxGeometry args={[0.75, 0.7, 0.75]} />
+            <meshStandardMaterial color="#4d5460" metalness={0.6} roughness={0.45} />
+          </mesh>
+          {/* Pivoting clamp arm (inward for t < 0, swings open at T = 0) */}
+          <group position={[2.45, 3.85, 0]} rotation={[0, 0, clampAngleRad]}>
+            <mesh position={[0, 1.05, 0]} raycast={NO_RAYCAST}>
+              <boxGeometry args={[0.48, 2.1, 0.56]} />
+              <meshStandardMaterial color="#a6b0bf" metalness={0.75} roughness={0.3} />
+            </mesh>
+            {/* High-contrast amber clamp jaw tip */}
+            <mesh position={[-0.22, 1.95, 0]} raycast={NO_RAYCAST}>
+              <boxGeometry args={[0.52, 0.42, 0.62]} />
+              <meshStandardMaterial color="#e09f3e" metalness={0.5} roughness={0.35} />
             </mesh>
           </group>
         </group>
       ))}
-      {/* Water deluge & trench steam plume (T-5 s .. T+9 s) */}
-      <WaterDelugeEffect qualityTier={qualityTier} />
+
+      {/* Deflected Merlin ignition exhaust plume inside open flame trench */}
+      <TrenchExhaustPlume />
+
+      {/* Physically sequenced water deluge spray (T-5 s) + ignition steam (T-3 s+) */}
+      <PadDelugeAndSteam qualityTier={qualityTier} />
+
       {/* Transporter/Erector strongback tower — hinged at base, retracted away in -X */}
       <group position={[-7.5, 2.0, 0]} rotation={[0, 0, retractAngleRad]}>
-        <mesh position={[0, 31, 0]} castShadow raycast={NO_RAYCAST}>
+        <mesh
+          position={[0, 31, 0]}
+          castShadow
+          raycast={NO_RAYCAST}
+          userData={{ padStructure: true, padPart: 'strongback' }}
+        >
           <boxGeometry args={[3.2, 62, 3.2]} />
           <meshStandardMaterial color="#4a505a" roughness={0.6} metalness={0.5} />
         </mesh>
@@ -221,7 +507,12 @@ export function LaunchPadMesh({
         [36, -36],
         [-36, -36],
       ].map(([x, z], i) => (
-        <mesh key={i} position={[x!, 42, z!]} raycast={NO_RAYCAST}>
+        <mesh
+          key={i}
+          position={[x!, 42, z!]}
+          raycast={NO_RAYCAST}
+          userData={{ padStructure: true, padPart: `lightning-tower-${i}` }}
+        >
           <cylinderGeometry args={[0.35, 0.8, 84, 8]} />
           <meshStandardMaterial color="#70757d" metalness={0.5} />
         </mesh>
