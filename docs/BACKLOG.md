@@ -2,10 +2,10 @@
 
 Known model gaps identified during Phase 2.5 validation and holdout testing, tracked for future physics iterations:
 
-1. **[HIGH PRIORITY — Own branch after v1.4] System-ID v2 (`WEBCAST_LIFTOFF_OFFSET_S = 0` fixed):**
-   - `v1.4 Part B` demonstrated that with hold-down clamp release modeled at `T = 0`, early ascent (`T+0..30 s`) fits best at `0.0 s` (`38–40 m / 2.8–3.0 m/s` RMS) and `v1.3`'s `+1.92 s` webcast offset was a compensating error hiding excess late-S1 acceleration.
-   - Re-run joint MAP system identification on the exact same 3-flight fit / 7-flight holdout protocol with **`liftoffOffsetS` fixed at `0.0 s`**, adding **max-Q throttle-bucket depth & duration** and the **Stage 1 late-burn axial acceleration limit** as fitted parameters.
-   - **Unified hypothesis:** a single throttle-bucket / late-S1 acceleration mechanism explains both the late-S1 excess acceleration on LEO flights and the `10–13 s` early Max-Q on heavy GTO flights.
+1. **[COMPLETED — FALSIFIED ON HOLDOUTS (`feat/system-id-v2`)] System-ID v2 (`WEBCAST_LIFTOFF_OFFSET_S = 0` fixed):**
+   - Fitted 17 parameters (`10` vehicle + `maxQMinThrottle = 0.713 ± 0.045`, `maxQThrottleStartMach = 0.963 ± 0.076`, `maxQThrottleDurationS = 30.7 ± 3.8 s`, `s1MaxAxialAccelG = 3.16 ± 0.13 g`, + 3 fit-set kicks) on the exact 3-flight fit set (`DM-1`, `CRS-16`, `Iridium NEXT 8`) with `tOff = 0` fixed.
+   - **Result:** Slashed fit-set S1 Velocity RMS (`105.2 → 28.8 m/s`) and improved LEO holdouts (`Iridium 7`, `SAOCOM 1A`, `SSO-A`, `GPS III`), but **overfit the LEO fit set and degraded all 7-flight holdout aggregate metrics vs v1 (`tOff = 0`)**: `|MaxQ(phys)| 5.19 → 8.38 s`, `|MECO Δ| 3.71 → 8.45 s`, `S1 Alt 0.96 → 2.39 km`, `S1 Vel 67.1 → 72.5 m/s`, `5-flt S2 Vel 202.6 → 302.5 m/s`.
+   - **Hypothesis falsified:** The `10–13 s` early GTO Max-Q (`Bangabandhu-1`, `TelStar v19`, `Iridium NEXT 7`) and LEO late-S1 excess do **not** share a single universal cause — real flights use mission-class throttle schedules (`20–27 s` buckets + `~3.0–3.2 g` late-S1 accel on LEO Dragon/SSO vs `12–18 s` buckets + `~3.7–3.8 g` late-S1 accel + `2–5 s` webcast callout lag on GTO). Retained v1 `FALCON9_BLOCK5` parameters as the holdout winner; kept parameterized bucket support (`maxQThrottleStartMach`, `maxQThrottleDurationS`) in `src/sim/guidance/ascent.ts` for future mission-class scheduling.
 
 2. **Two-burn Stage 2 orbital insertion (SES-1 → coast → SES-2):**
    - Current Stage 2 guidance performs a single continuous burn to circular LEO (~200 km).

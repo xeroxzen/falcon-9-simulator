@@ -22,6 +22,7 @@ export interface AscentGuidanceInput {
   readonly ambientPressurePa: number;
   readonly launchAzimuthDeg: number;
   readonly pitchKickStartTimeS: number | null;
+  readonly throttleBucketStartTimeS?: number | null;
 }
 
 export interface AscentGuidanceCommand {
@@ -29,6 +30,7 @@ export interface AscentGuidanceCommand {
   readonly targetAttitudeEci: Vec3;
   readonly throttle: number;
   readonly pitchKickStartTimeS: number | null;
+  readonly throttleBucketStartTimeS: number | null;
   readonly mecoTriggered: boolean;
 }
 
@@ -55,6 +57,8 @@ export function computeAscentGuidance(
   const basis = localEnuBasisEci(input.latRad, input.lonRad, input.timeS);
   const speedAir = norm(input.vAirRelEci);
 
+  let throttleBucketStartTimeS = input.throttleBucketStartTimeS ?? null;
+
   // Check MECO cutoff
   if (input.stage1PropellantKg <= reservePropKg) {
     const att =
@@ -64,6 +68,7 @@ export function computeAscentGuidance(
       targetAttitudeEci: att,
       throttle: 0,
       pitchKickStartTimeS: input.pitchKickStartTimeS,
+      throttleBucketStartTimeS,
       mecoTriggered: true,
     };
   }
@@ -108,8 +113,42 @@ export function computeAscentGuidance(
   // validation comparisons, selected by holdout performance.)
   let throttle = 1.0;
 
-  // Max-Q throttle bucket (ASSUMED smooth transonic bucket centered on Mach 1.02..1.42)
+  // Max-Q throttle bucket:
+  // System-ID v2 parameterized trapezoidal bucket (startMach, durationS, depth),
+  // falling back to legacy Mach 1.02..maxQThrottleEndMach when omitted.
   if (
+    gCfg.maxQThrottleStartMach !== undefined &&
+    gCfg.maxQThrottleDurationS !== undefined &&
+    gCfg.maxQThrottleDurationS > 0.5
+  ) {
+    if (
+      throttleBucketStartTimeS === null &&
+      input.altitudeM < 28_000 &&
+      input.mach >= gCfg.maxQThrottleStartMach
+    ) {
+      throttleBucketStartTimeS = input.timeS;
+    }
+    if (throttleBucketStartTimeS !== null) {
+      const dtBucket = input.timeS - throttleBucketStartTimeS;
+      const dur = gCfg.maxQThrottleDurationS;
+      if (dtBucket >= 0 && dtBucket < dur) {
+        phase = 'MAX_Q_THROTTLE';
+        const rampS = clamp(0.2 * dur, 2.0, 5.0);
+        if (dtBucket < rampS) {
+          const frac = clamp(dtBucket / rampS, 0, 1);
+          throttle = Math.min(throttle, 1.0 - frac * (1.0 - gCfg.maxQMinThrottle));
+        } else if (dtBucket <= dur - rampS) {
+          throttle = Math.min(throttle, gCfg.maxQMinThrottle);
+        } else {
+          const frac = clamp((dtBucket - (dur - rampS)) / rampS, 0, 1);
+          throttle = Math.min(
+            throttle,
+            gCfg.maxQMinThrottle + frac * (1.0 - gCfg.maxQMinThrottle)
+          );
+        }
+      }
+    }
+  } else if (
     input.altitudeM < 28_000 &&
     input.dynamicPressurePa >= gCfg.maxQThrottleStartPa &&
     input.mach < gCfg.maxQThrottleEndMach
@@ -154,6 +193,7 @@ export function computeAscentGuidance(
     targetAttitudeEci,
     throttle,
     pitchKickStartTimeS,
+    throttleBucketStartTimeS,
     mecoTriggered: false,
   };
 }

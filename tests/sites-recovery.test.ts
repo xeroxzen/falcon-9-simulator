@@ -41,6 +41,12 @@ describe('Launch site range-safety corridors and historical recovery asset avail
     const capePostNrol77 = getAvailableRecoveryAssets('SLC-40', '2025-12-10');
     expect(capePostNrol77.landingZones.map((z) => z.id)).not.toContain('LZ-2');
 
+    // JRTI final F9 landing on April 21, 2026 (East Coast); retired April 22, 2026
+    const capeJrtiFinal = getAvailableRecoveryAssets('SLC-40', '2026-04-21');
+    expect(capeJrtiFinal.droneships.map((d) => d.id)).toContain('JRTI');
+    const capePostJrti = getAvailableRecoveryAssets('SLC-40', '2026-04-22');
+    expect(capePostJrti.droneships.map((d) => d.id)).not.toContain('JRTI');
+
     // Current 2026 East Coast (routine June 2026): LZ-40 active, LZ-1/LZ-2 retired
     const cape2026 = getAvailableRecoveryAssets('SLC-40', '2026-06-01');
     expect(cape2026.defaultLandingSiteId).toBe('LZ-40');

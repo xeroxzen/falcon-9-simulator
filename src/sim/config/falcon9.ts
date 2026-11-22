@@ -304,16 +304,16 @@ export const DRONESHIPS: Record<'ASOG' | 'OCISLY' | 'JRTI', DroneshipConfig> = {
   JRTI: {
     id: 'JRTI',
     name: 'Just Read the Instructions (JRTI)',
-    status: 'REPURPOSED',
+    status: 'RETIRED',
     currentCoast: null,
-    homePort: 'Port Canaveral, FL (2026 status UNVERIFIED)',
+    homePort: 'Port Canaveral, FL (retired from F9; repurposed for Starship transport)',
     serviceHistory: [
       { coast: 'WEST', from: '2016-01-17', until: '2019-08-01' },
-      { coast: 'EAST', from: '2020-05-30', until: '2026-02-01' },
+      { coast: 'EAST', from: '2020-05-30', until: '2026-04-21' },
     ],
     statusNote:
-      'Served West Coast 2016–2019 (incl. Iridium NEXT-8) and East Coast from 2020. Early-2026 retirement/repurposing for Starship transport is UNVERIFIED against primary SpaceX mission pages.',
-    source: 'SpaceX Iridium-8 Press Kit; 2026 status UNVERIFIED',
+      'Retired from Falcon 9 ASDS service after its final F9 landing on April 21, 2026 and repurposed for Starship transport (served West Coast 2016–2019 incl. Iridium NEXT-8, East Coast 2020–April 21, 2026).',
+    source: 'SpaceX mission records (Iridium-8 Press Kit; final F9 landing April 21, 2026)',
   },
 };
 

@@ -55,7 +55,7 @@ export interface LandingSiteConfig {
 export interface DroneshipConfig {
   readonly id: 'ASOG' | 'OCISLY' | 'JRTI';
   readonly name: string;
-  readonly status: 'ACTIVE' | 'REPURPOSED';
+  readonly status: 'ACTIVE' | 'RETIRED';
   readonly currentCoast: LaunchCoast | null;
   readonly homePort: string;
   readonly serviceHistory: readonly {
@@ -163,11 +163,15 @@ export interface AscentGuidanceConfig {
   readonly pitchKickAngleDeg: number;
   /** Duration over which pitchover kick is applied in seconds (ASSUMED) */
   readonly pitchKickDurationS: number;
-  /** Dynamic pressure threshold (Pa) to begin max-Q throttle bucket (ASSUMED) */
+  /** Dynamic pressure threshold (Pa) to begin max-Q throttle bucket (legacy fallback) */
   readonly maxQThrottleStartPa: number;
-  /** Mach number above which max-Q throttle ramps back to 100% (ASSUMED) */
+  /** Mach number to enter max-Q throttle bucket (System-ID v2 fitted) */
+  readonly maxQThrottleStartMach?: number;
+  /** Total duration (s) of max-Q throttle bucket including smooth ramp down/up (System-ID v2 fitted) */
+  readonly maxQThrottleDurationS?: number;
+  /** Mach number above which max-Q throttle ramps back to 100% (legacy fallback) */
   readonly maxQThrottleEndMach: number;
-  /** Minimum throttle fraction during max-Q bucket (ASSUMED) */
+  /** Minimum throttle fraction during max-Q bucket (System-ID v2 fitted) */
   readonly maxQMinThrottle: number;
   /** Minimum S1 propellant fraction reserved at MECO for recovery */
   readonly mecoPropellantReserveFraction: number;
