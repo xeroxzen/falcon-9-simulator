@@ -1,23 +1,28 @@
 import type { AscentGuidanceConfig, MissionConfig } from '../types.js';
+import { MISSION_CLASS_SCHEDULES } from '../guidance/mission-design.js';
 import { LAUNCH_SITES } from './falcon9.js';
 
 /**
- * Shared baseline Falcon 9 Block 5 ascent guidance parameters (ASSUMED).
- * Used WITHOUT per-mission retuning on holdout validation flights.
+ * Shared baseline Falcon 9 Block 5 LEO ascent guidance parameters.
+ * Throttle-bucket & S1 late-burn accel limit from Mission-Class MAP fit (Class 0 LEO);
+ * used WITHOUT per-mission retuning on holdout validation flights.
  */
 const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
   /** ASSUMED: Clear tower (~150 m) before pitchover */
   pitchKickAltitudeM: 150,
-  /** Mission-design pitchover kick solved by solveMissionPitchKickDeg (meets orbit + >=4,000 kg ASDS 3-sigma margin) */
-  pitchKickAngleDeg: 1.90,
+  /** Mission-design pitchover kick solved by solveMissionPitchKickDeg with Class 0 LEO schedule */
+  pitchKickAngleDeg: 1.45,
   /** ASSUMED: Smooth pitchover duration */
   pitchKickDurationS: 8.0,
-  /** ASSUMED: Max-Q throttle bucket entry threshold (triggers ~T+46-52 s) */
+  /** Legacy fallback dynamic pressure threshold (Pa) */
   maxQThrottleStartPa: 22_000,
-  /** ASSUMED: Ramp back to 100% by Mach 1.38 */
+  /** Mission-Class MAP (Class 0 LEO): start Mach, duration, depth & S1 late-burn accel cap */
+  maxQThrottleStartMach: MISSION_CLASS_SCHEDULES.LEO.maxQThrottleStartMach,
+  maxQThrottleDurationS: MISSION_CLASS_SCHEDULES.LEO.maxQThrottleDurationS,
+  /** Legacy fallback Mach end */
   maxQThrottleEndMach: 1.38,
-  /** ASSUMED: Throttle-down to 72% through max-Q */
-  maxQMinThrottle: 0.72,
+  maxQMinThrottle: MISSION_CLASS_SCHEDULES.LEO.maxQMinThrottle,
+  maxAxialAccelG: MISSION_CLASS_SCHEDULES.LEO.maxAxialAccelG,
   /** ASSUMED: 7.5% S1 propellant reserve at MECO for ASDS entry + landing */
   mecoPropellantReserveFraction: 0.075,
   stageSepDelayS: 3.5,
@@ -27,8 +32,8 @@ const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
 
 const BASELINE_RTLS_GUIDANCE: AscentGuidanceConfig = {
   ...BASELINE_ASDS_GUIDANCE,
-  /** Mission-design pitchover kick & MECO reserve solved jointly by solveMissionAscentDesign (meets orbit + >=7,500 kg RTLS 3-sigma margin) */
-  pitchKickAngleDeg: 1.40,
+  /** Mission-design pitchover kick & MECO reserve solved jointly by solveMissionAscentDesign with Class 0 LEO schedule */
+  pitchKickAngleDeg: 1.30,
   mecoPropellantReserveFraction: 0.145,
 };
 
@@ -63,8 +68,8 @@ export const DEFAULT_LEO_RTLS_MISSION: MissionConfig = {
   landingSiteId: 'LZ-40',
   guidance: {
     ...BASELINE_RTLS_GUIDANCE,
-    /** Mission-design pitchover kick solved by solveMissionAscentDesign for SLC-40 -> LZ-40 */
-    pitchKickAngleDeg: 1.35,
+    /** Mission-design pitchover kick solved by solveMissionAscentDesign for SLC-40 -> LZ-40 with Class 0 LEO schedule */
+    pitchKickAngleDeg: 1.30,
   },
 };
 
@@ -103,13 +108,10 @@ export const DM1_MISSION: MissionConfig = {
   engineOuts: [],
   guidance: {
     ...BASELINE_ASDS_GUIDANCE,
-    /** Part D MAP Variant A per-flight nuisance pitch-kick estimate (replaces hard-coded 1.25 deg) */
-    pitchKickAngleDeg: 1.28,
-    /** ASSUMED: Human-rated max-Q bucket & 3.0 g axial cap */
-    maxQThrottleStartPa: 21_500,
-    maxQThrottleEndMach: 1.42,
-    maxQMinThrottle: 0.62,
+    /** Mission-Class MAP (Class 0 LEO) per-flight pitch-kick estimate for DM-1 */
+    pitchKickAngleDeg: 0.97,
     mecoPropellantReserveFraction: 0.085,
+    /** ASSUMED: Human-rated 3.0 g axial cap for Crew Dragon */
     maxAxialAccelG: 3.0,
     /** Sourced: DM-1 events.json (MECO 158 s -> SES-1 169 s = 11 s) */
     ses1DelayFromMecoS: 11.0,
@@ -186,5 +188,9 @@ export const SAOCOM_1A_MISSION: MissionConfig = {
   maxSimTimeS: 900,
   wind: { eastMs: 0, northMs: 0, upMs: 0 },
   engineOuts: [],
-  guidance: BASELINE_RTLS_GUIDANCE,
+  guidance: {
+    ...BASELINE_RTLS_GUIDANCE,
+    /** Mission-design pitchover kick solved by solveMissionAscentDesign for 620 km direct RTLS under Class 0 LEO schedule */
+    pitchKickAngleDeg: 1.10,
+  },
 };

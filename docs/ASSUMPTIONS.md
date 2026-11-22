@@ -218,3 +218,23 @@ Recovery asset availability is resolved by coast and mission date (`getAvailable
 - **Fitted v2 posteriors (fit set only):** `maxQMinThrottle = 0.713 ± 0.045`, `maxQThrottleStartMach = 0.963 ± 0.076`, `maxQThrottleDurationS = 30.69 ± 3.81 s`, `s1MaxAxialAccelG = 3.156 ± 0.133 g`, `s1PropKg = 419,246 ± 3,991 kg`, `m1dThrustVac = 906.65 ± 4.56 kN`.
 - **Holdout verdict (v1 retained):** While v2 cut fit-set S1 Vel RMS from `105.2 → 28.8 m/s` and improved LEO holdouts (`Iridium NEXT 7`, `SAOCOM 1A`, `SSO-A`, `GPS III`), it degraded every 7-flight holdout aggregate metric vs v1 (`tOff = 0`) because the 3-flight fit set consists exclusively of gently throttled LEO missions (`peak late-S1 dv/dt = 2.58–3.14 g`, `20–27 s` buckets), whereas GTO holdouts (`Bangabandhu-1`, `TelStar v19`, `Eshail 2`) fly shorter buckets (`12–18 s`, creating a post-bucket second `q` peak at `T+67–70 s` plus `2–5 s` webcast callout lag) and higher late-S1 acceleration (`peak dv/dt = 3.38–3.43 g`, true axial `~3.7–3.8 g`).
 - **Decision:** Keep v1 `FALCON9_BLOCK5` parameters (`maxAxialAccelG = 3.69 g`) as the holdout-superior single shared vehicle model, while retaining the parameterized trapezoidal throttle bucket (`maxQThrottleStartMach`, `maxQThrottleDurationS`) in `src/sim/guidance/ascent.ts` for mission-class guidance.
+
+
+---
+
+## Mission-Class Ascent Guidance Schedules (`feat/mission-class-schedules`)
+
+### Physical Max-Q Validation Metric
+- Primary Max-Q timing comparisons in `src/validation/compare.ts` now compare simulated peak dynamic pressure time against the **physical `q` peak computed from 1 Hz telemetry (`q(t) = 0.5 · ρ_US76(alt) · v²`)** across `T+30..100 s`, rather than the webcast announcer callout (`events.maxq`, retained as secondary `maxQCalloutTimeDelta`). On heavy GTO/polar flights (`Bangabandhu-1`, `TelStar v19`, `Iridium NEXT 7`), the webcast callout trails the physical telemetry `q` peak by `2–5 s`.
+
+### Data-Driven Flight Clustering (10 Pure Block 5 Flights)
+Standardized `k = 2` clustering on `(bucketDurS, v140Ms, peakLateS1AccelG)` partitions the 10 pure Block 5 flights without assuming orbit labels:
+- **Class 0 (`LEO-like`, 5 flights):** `DM-1` (`27 s`, `1,489 m/s`, `2.58 g`), `SpaceX CRS-16` (`20 s`, `1,516 m/s`, `2.78 g`), `Iridium NEXT 8` (`21 s`, `1,621 m/s`, `3.14 g`), `SAOCOM 1A` (`27 s`, `1,611 m/s`, `2.71 g`), `SSO-A` (`22 s`, `1,591 m/s`, `2.69 g`).
+- **Class 1 (`GTO-like`, 5 flights):** `Bangabandhu-1` (`18 s`, `1,901 m/s`, `3.38 g`), `TelStar v19` (`12 s`, `1,868 m/s`, `3.41 g`), `Iridium NEXT 7` (`15 s`, `1,740 m/s`, `3.28 g`), `Eshail 2` (`46 s`, `1,990 m/s`, `3.43 g`), `GPS III SV01` (`35 s`, `1,763 m/s`, `3.45 g`).
+- *Boundary note:* `GPS III SV01` (expendable MEO) exhibits a LEO-like long bucket (`35 s`) and moderate `v140` (`1,763 m/s`), while its late-burn peak `dv/dt` (`3.45 g` right before expendable MECO) places it in Class 1; conversely `Iridium NEXT 7` (polar LEO) flew a short `15 s` bucket (`phys Max-Q = 67 s`) and clusters into Class 1.
+
+### Fitted Per-Class Schedules (Shared v1 `FALCON9_BLOCK5`, 4-Flight Fit Set, `tOff = 0` Fixed)
+Fitted strictly on `DM-1`, `SpaceX CRS-16`, `Iridium NEXT 8` (Class 0) + `Bangabandhu-1` (Class 1):
+- **Class 0 (`LEO`):** `maxQMinThrottle = 0.743 ± 0.039`, `maxQThrottleStartMach = 0.959 ± 0.059`, `maxQThrottleDurationS = 30.2 ± 3.9 s`, `maxAxialAccelG = 3.15 ± 0.15 g`.
+- **Class 1 (`GTO`):** `maxQMinThrottle = 0.756 ± 0.054`, `maxQThrottleStartMach = 0.818 ± 0.098`, `maxQThrottleDurationS = 17.5 ± 4.0 s`, `maxAxialAccelG = 3.62 ± 0.32 g`.
+- **What-If Schedule Selection (`ASSUMED`):** `selectMissionClassSchedule()` in `src/sim/guidance/mission-design.ts` selects the `GTO` schedule when `targetOrbitAltitudeM >= 10,000 km` (or `isGto = true`), and the `LEO` schedule otherwise.

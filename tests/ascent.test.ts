@@ -6,6 +6,8 @@ import {
 } from '../src/sim/config/missions.js';
 import {
   defaultWhatIfPitchKickDeg,
+  MISSION_CLASS_SCHEDULES,
+  selectMissionClassSchedule,
   solveMissionPitchKickDeg,
 } from '../src/sim/guidance/mission-design.js';
 import { runAscentToMeco } from '../src/sim/simulation.js';
@@ -109,7 +111,12 @@ describe('Stage 1 ascent through MECO', () => {
     expect(defaultWhatIfPitchKickDeg(200_000)).toBeCloseTo(1.3, 2);
     expect(defaultWhatIfPitchKickDeg(625_000)).toBeCloseTo(1.7, 2);
     expect(defaultWhatIfPitchKickDeg(200_000, true)).toBeCloseTo(2.45, 2);
-  });
+
+    expect(selectMissionClassSchedule(200_000)).toEqual(MISSION_CLASS_SCHEDULES.LEO);
+    expect(selectMissionClassSchedule(625_000)).toEqual(MISSION_CLASS_SCHEDULES.LEO);
+    expect(selectMissionClassSchedule(35_786_000)).toEqual(MISSION_CLASS_SCHEDULES.GTO);
+    expect(selectMissionClassSchedule(200_000, true)).toEqual(MISSION_CLASS_SCHEDULES.GTO);
+  }, 60_000);
 
   it('executes T-60 s pre-launch countdown, T-3 s hold-down clamp ignition spool-up, and full-thrust clamp release at T=0', () => {
     const res = runAscentToMeco(FALCON9_BLOCK5, DEFAULT_LEO_ASDS_MISSION, 0.5);

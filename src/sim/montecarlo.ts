@@ -102,6 +102,7 @@ export function runMonteCarlo(
 
     const trialMission: MissionConfig = {
       ...baseMission,
+      countdownS: 0,
       dtS: 0.02,
       wind: {
         eastMs: baseMission.wind.eastMs + uniform(rng, -12, 12),

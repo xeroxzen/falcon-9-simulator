@@ -3,6 +3,56 @@ import type { MissionConfig, VehicleConfig } from '../types.js';
 
 export type AscentTrajectoryProfile = 'LEO_DIRECT' | 'LEO_TWO_BURN' | 'GTO';
 
+export type MissionGuidanceClass = 'LEO' | 'GTO';
+
+export interface MissionClassSchedule {
+  readonly missionClass: MissionGuidanceClass;
+  readonly maxQMinThrottle: number;
+  readonly maxQThrottleStartMach: number;
+  readonly maxQThrottleDurationS: number;
+  readonly maxAxialAccelG: number;
+}
+
+/**
+ * Per-class Stage 1 guidance schedules fitted via MAP on the 4-flight fit set
+ * (WEBCAST_LIFTOFF_OFFSET_S = 0 fixed; shared v1 FALCON9_BLOCK5 vehicle):
+ *  - LEO (Class 0, fit on DM-1, CRS-16, Iridium NEXT 8):
+ *      minThrottle 0.743 ± 0.039, startMach 0.959 ± 0.059, duration 30.2 ± 3.9 s, maxAccel 3.15 ± 0.15 g
+ *  - GTO (Class 1, fit on Bangabandhu-1):
+ *      minThrottle 0.756 ± 0.054, startMach 0.818 ± 0.098, duration 17.5 ± 4.0 s, maxAccel 3.62 ± 0.32 g
+ */
+export const MISSION_CLASS_SCHEDULES: Readonly<
+  Record<MissionGuidanceClass, MissionClassSchedule>
+> = {
+  LEO: {
+    missionClass: 'LEO',
+    maxQMinThrottle: 0.743,
+    maxQThrottleStartMach: 0.959,
+    maxQThrottleDurationS: 30.2,
+    maxAxialAccelG: 3.15,
+  },
+  GTO: {
+    missionClass: 'GTO',
+    maxQMinThrottle: 0.756,
+    maxQThrottleStartMach: 0.818,
+    maxQThrottleDurationS: 17.5,
+    maxAxialAccelG: 3.62,
+  },
+};
+
+/**
+ * Select a mission-class Stage 1 guidance schedule for What-If missions (ASSUMED:
+ * GTO target >= 10,000 km apogee -> GTO schedule; otherwise LEO schedule).
+ */
+export function selectMissionClassSchedule(
+  targetOrbitAltitudeM: number,
+  isGto = false
+): MissionClassSchedule {
+  return isGto || targetOrbitAltitudeM >= 10_000_000
+    ? MISSION_CLASS_SCHEDULES.GTO
+    : MISSION_CLASS_SCHEDULES.LEO;
+}
+
 /**
  * Profile-based default pitch-kick angles derived from Part D per-flight MAP fits:
  *  - LEO direct  : 1.30 deg (DM-1 1.28°, CRS-16 1.37°, SAOCOM 1A 1.22°, SSO-A 1.19°)
@@ -78,6 +128,7 @@ function evaluateCandidate(
 ): MissionDesignResult {
   const candidate: MissionConfig = {
     ...mission,
+    countdownS: 0,
     dtS: solverDtS,
     guidance: {
       ...mission.guidance,
