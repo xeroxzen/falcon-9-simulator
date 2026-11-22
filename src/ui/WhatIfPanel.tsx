@@ -122,9 +122,6 @@ export function WhatIfPanel() {
       guidance: {
         ...baseMission.guidance,
         pitchKickAngleDeg: profilePitchKickDeg,
-        maxQMinThrottle: classSchedule.maxQMinThrottle,
-        maxQThrottleStartMach: classSchedule.maxQThrottleStartMach,
-        maxQThrottleDurationS: classSchedule.maxQThrottleDurationS,
         maxAxialAccelG: classSchedule.maxAxialAccelG,
         twoBurn: undefined,
         mecoPropellantReserveFraction: initialReserveFraction,

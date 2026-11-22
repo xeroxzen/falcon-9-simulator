@@ -7,48 +7,45 @@ export type MissionGuidanceClass = 'LEO' | 'GTO';
 
 export interface MissionClassSchedule {
   readonly missionClass: MissionGuidanceClass;
-  readonly maxQMinThrottle: number;
-  readonly maxQThrottleStartMach: number;
-  readonly maxQThrottleDurationS: number;
+  /** Per-class Stage 1 late-burn axial acceleration limit (g). */
   readonly maxAxialAccelG: number;
 }
 
 /**
- * Per-class Stage 1 guidance schedules fitted via MAP on the 4-flight fit set
- * (WEBCAST_LIFTOFF_OFFSET_S = 0 fixed; shared v1 FALCON9_BLOCK5 vehicle):
- *  - LEO (Class 0, fit on DM-1, CRS-16, Iridium NEXT 8):
- *      minThrottle 0.743 ± 0.039, startMach 0.959 ± 0.059, duration 30.2 ± 3.9 s, maxAccel 3.15 ± 0.15 g
- *  - GTO (Class 1, fit on Bangabandhu-1):
- *      minThrottle 0.756 ± 0.054, startMach 0.818 ± 0.098, duration 17.5 ± 4.0 s, maxAccel 3.62 ± 0.32 g
+ * Simplified per-class Stage 1 late-burn axial acceleration limits fitted via MAP
+ * on the 4-flight fit set (WEBCAST_LIFTOFF_OFFSET_S = 0 fixed; shared v1 vehicle
+ * and shared v1 max-Q throttle bucket):
+ *  - LEO (Class 0, fit on DM-1, CRS-16, Iridium NEXT 8): maxAxialAccelG = 2.90 g
+ *  - GTO (Class 1, fit on Bangabandhu-1):                maxAxialAccelG = 3.60 g
+ *
+ * Bucket duration did not separate clusters (C1 spans 12-46 s) and a 30.2 s LEO
+ * bucket regressed Class 0 holdout altitude (0.44 -> 2.98 km). Keeping the shared
+ * v1 bucket and varying only S1 late-burn accel improves or holds BOTH classes.
  */
 export const MISSION_CLASS_SCHEDULES: Readonly<
   Record<MissionGuidanceClass, MissionClassSchedule>
 > = {
   LEO: {
     missionClass: 'LEO',
-    maxQMinThrottle: 0.743,
-    maxQThrottleStartMach: 0.959,
-    maxQThrottleDurationS: 30.2,
-    maxAxialAccelG: 3.15,
+    maxAxialAccelG: 2.9,
   },
   GTO: {
     missionClass: 'GTO',
-    maxQMinThrottle: 0.756,
-    maxQThrottleStartMach: 0.818,
-    maxQThrottleDurationS: 17.5,
-    maxAxialAccelG: 3.62,
+    maxAxialAccelG: 3.6,
   },
 };
 
 /**
- * Select a mission-class Stage 1 guidance schedule for What-If missions (ASSUMED:
- * GTO target >= 10,000 km apogee -> GTO schedule; otherwise LEO schedule).
+ * Select a mission-class Stage 1 late-burn accel limit for What-If missions (ASSUMED).
+ * Orbit-type predictor (MEO/GTO >= 2,000 km target -> GTO 3.60 g; LEO/SSO -> LEO 2.90 g)
+ * achieved 9/10 (90%) LOO accuracy on the 10 Block 5 flights vs 5/10 (50%) for
+ * payload/capability demand and 6/10 (60%) for demand + recovery mode.
  */
 export function selectMissionClassSchedule(
   targetOrbitAltitudeM: number,
   isGto = false
 ): MissionClassSchedule {
-  return isGto || targetOrbitAltitudeM >= 10_000_000
+  return isGto || targetOrbitAltitudeM >= 2_000_000
     ? MISSION_CLASS_SCHEDULES.GTO
     : MISSION_CLASS_SCHEDULES.LEO;
 }

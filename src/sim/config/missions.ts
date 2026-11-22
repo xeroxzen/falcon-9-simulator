@@ -10,18 +10,15 @@ import { LAUNCH_SITES } from './falcon9.js';
 const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
   /** ASSUMED: Clear tower (~150 m) before pitchover */
   pitchKickAltitudeM: 150,
-  /** Mission-design pitchover kick solved by solveMissionPitchKickDeg with Class 0 LEO schedule */
-  pitchKickAngleDeg: 1.45,
+  /** Mission-design pitchover kick solved by solveMissionPitchKickDeg with Class 0 LEO 2.90 g cap */
+  pitchKickAngleDeg: 1.80,
   /** ASSUMED: Smooth pitchover duration */
   pitchKickDurationS: 8.0,
-  /** Legacy fallback dynamic pressure threshold (Pa) */
+  /** Shared v1 max-Q throttle bucket (22 kPa, Mach 1.02..1.38, 72% min throttle) */
   maxQThrottleStartPa: 22_000,
-  /** Mission-Class MAP (Class 0 LEO): start Mach, duration, depth & S1 late-burn accel cap */
-  maxQThrottleStartMach: MISSION_CLASS_SCHEDULES.LEO.maxQThrottleStartMach,
-  maxQThrottleDurationS: MISSION_CLASS_SCHEDULES.LEO.maxQThrottleDurationS,
-  /** Legacy fallback Mach end */
   maxQThrottleEndMach: 1.38,
-  maxQMinThrottle: MISSION_CLASS_SCHEDULES.LEO.maxQMinThrottle,
+  maxQMinThrottle: 0.72,
+  /** Simplified Mission-Class MAP (Class 0 LEO): per-class S1 late-burn accel limit only */
   maxAxialAccelG: MISSION_CLASS_SCHEDULES.LEO.maxAxialAccelG,
   /** ASSUMED: 7.5% S1 propellant reserve at MECO for ASDS entry + landing */
   mecoPropellantReserveFraction: 0.075,
@@ -32,8 +29,8 @@ const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
 
 const BASELINE_RTLS_GUIDANCE: AscentGuidanceConfig = {
   ...BASELINE_ASDS_GUIDANCE,
-  /** Mission-design pitchover kick & MECO reserve solved jointly by solveMissionAscentDesign with Class 0 LEO schedule */
-  pitchKickAngleDeg: 1.30,
+  /** Mission-design pitchover kick & MECO reserve solved jointly by solveMissionAscentDesign with Class 0 LEO 2.90 g cap */
+  pitchKickAngleDeg: 1.35,
   mecoPropellantReserveFraction: 0.145,
 };
 
@@ -68,8 +65,8 @@ export const DEFAULT_LEO_RTLS_MISSION: MissionConfig = {
   landingSiteId: 'LZ-40',
   guidance: {
     ...BASELINE_RTLS_GUIDANCE,
-    /** Mission-design pitchover kick solved by solveMissionAscentDesign for SLC-40 -> LZ-40 with Class 0 LEO schedule */
-    pitchKickAngleDeg: 1.30,
+    /** Mission-design pitchover kick solved by solveMissionAscentDesign for SLC-40 -> LZ-40 with Class 0 LEO 2.90 g cap */
+    pitchKickAngleDeg: 1.35,
   },
 };
 
@@ -108,11 +105,9 @@ export const DM1_MISSION: MissionConfig = {
   engineOuts: [],
   guidance: {
     ...BASELINE_ASDS_GUIDANCE,
-    /** Mission-Class MAP (Class 0 LEO) per-flight pitch-kick estimate for DM-1 */
-    pitchKickAngleDeg: 0.97,
+    /** Simplified Class 0 LEO per-flight pitch-kick estimate for DM-1 */
+    pitchKickAngleDeg: 1.41,
     mecoPropellantReserveFraction: 0.085,
-    /** ASSUMED: Human-rated 3.0 g axial cap for Crew Dragon */
-    maxAxialAccelG: 3.0,
     /** Sourced: DM-1 events.json (MECO 158 s -> SES-1 169 s = 11 s) */
     ses1DelayFromMecoS: 11.0,
   },
@@ -188,9 +183,5 @@ export const SAOCOM_1A_MISSION: MissionConfig = {
   maxSimTimeS: 900,
   wind: { eastMs: 0, northMs: 0, upMs: 0 },
   engineOuts: [],
-  guidance: {
-    ...BASELINE_RTLS_GUIDANCE,
-    /** Mission-design pitchover kick solved by solveMissionAscentDesign for 620 km direct RTLS under Class 0 LEO schedule */
-    pitchKickAngleDeg: 1.10,
-  },
+  guidance: BASELINE_RTLS_GUIDANCE,
 };

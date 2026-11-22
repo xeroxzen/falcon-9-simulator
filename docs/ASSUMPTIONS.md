@@ -233,8 +233,14 @@ Standardized `k = 2` clustering on `(bucketDurS, v140Ms, peakLateS1AccelG)` part
 - **Class 1 (`GTO-like`, 5 flights):** `Bangabandhu-1` (`18 s`, `1,901 m/s`, `3.38 g`), `TelStar v19` (`12 s`, `1,868 m/s`, `3.41 g`), `Iridium NEXT 7` (`15 s`, `1,740 m/s`, `3.28 g`), `Eshail 2` (`46 s`, `1,990 m/s`, `3.43 g`), `GPS III SV01` (`35 s`, `1,763 m/s`, `3.45 g`).
 - *Boundary note:* `GPS III SV01` (expendable MEO) exhibits a LEO-like long bucket (`35 s`) and moderate `v140` (`1,763 m/s`), while its late-burn peak `dv/dt` (`3.45 g` right before expendable MECO) places it in Class 1; conversely `Iridium NEXT 7` (polar LEO) flew a short `15 s` bucket (`phys Max-Q = 67 s`) and clusters into Class 1.
 
-### Fitted Per-Class Schedules (Shared v1 `FALCON9_BLOCK5`, 4-Flight Fit Set, `tOff = 0` Fixed)
-Fitted strictly on `DM-1`, `SpaceX CRS-16`, `Iridium NEXT 8` (Class 0) + `Bangabandhu-1` (Class 1):
-- **Class 0 (`LEO`):** `maxQMinThrottle = 0.743 ± 0.039`, `maxQThrottleStartMach = 0.959 ± 0.059`, `maxQThrottleDurationS = 30.2 ± 3.9 s`, `maxAxialAccelG = 3.15 ± 0.15 g`.
-- **Class 1 (`GTO`):** `maxQMinThrottle = 0.756 ± 0.054`, `maxQThrottleStartMach = 0.818 ± 0.098`, `maxQThrottleDurationS = 17.5 ± 4.0 s`, `maxAxialAccelG = 3.62 ± 0.32 g`.
-- **What-If Schedule Selection (`ASSUMED`):** `selectMissionClassSchedule()` in `src/sim/guidance/mission-design.ts` selects the `GTO` schedule when `targetOrbitAltitudeM >= 10,000 km` (or `isGto = true`), and the `LEO` schedule otherwise.
+### Simplified Per-Class Model (Shared v1 Bucket + Per-Class S1 Late-Burn Accel Limit)
+- **Why the 30.2 s LEO bucket was dropped:** Diagnostic time-series on `SAOCOM 1A` and `SSO-A` showed the `30.2 s` bucket caused `-78` to `-87 m/s` velocity deficits at `T+80 s`, causing gravity to turn the trajectory downward (`AltΔ = -3.0` to `-6.9 km` by `T+100–140 s`, regressing Class 0 holdout Alt RMS from `0.44 → 2.98 km`). Moreover, bucket duration does not separate the clusters (`C1` spans `12–46 s`).
+- **Adopted simplified schedules** (shared v1 `FALCON9_BLOCK5` vehicle + shared v1 bucket `22 kPa / Mach 1.02–1.38 / 72%`, fitted strictly on the 4-flight fit set at `tOff = 0`):
+  - **Class 0 (`LEO`):** `maxAxialAccelG = 2.90 g` (Class 0 holdouts vs v1: `|PhysMaxQ|` `0.59 → 0.59 s`, `S1 Alt` `0.82 → 0.40 km`, `S1 Vel` `69.8 → 47.1 m/s`, `SAOCOM 1A MECO` `-4.7 → 0.0 s`).
+  - **Class 1 (`GTO`):** `maxAxialAccelG = 3.60 g` (Class 1 holdouts vs v1: `|PhysMaxQ|` `6.18 → 6.18 s`, `|MECO Δ|` `3.04 → 2.69 s`, `S1 Alt` `1.10 → 1.07 km`, `S1 Vel` `66.4 → 64.4 m/s`).
+- **What-If Class Predictor (Leave-One-Out Evaluation on 10 Flights, `ASSUMED`):**
+  - Tested against Falcon 9 Block 5 capability ratios (`payload / capability`; SpaceX Falcon User's Guide: `22.8 t` LEO exp., `8.3 t` GTO exp., `5.5 t` GTO ASDS; operational/ASSUMED `17.5 t` LEO ASDS, `10.0 t` LEO RTLS, `11.5 t` polar ASDS, `6.0 t` polar RTLS, `5.0 t` MEO exp.):
+    - Orbit type (`MEO/GTO >= 2,000 km → GTO 3.60 g`, else `LEO 2.90 g`): **`9/10 (90%)`** LOO accuracy (theoretical ceiling: `Iridium NEXT 7` and `Iridium NEXT 8` have identical payload `9,600 kg`, orbit `625 km 86.6°`, and recovery mode `ASDS`).
+    - Performance demand (`payload / capability`): `5/10 (50%)` LOO accuracy.
+    - Demand + recovery mode: `6/10 (60%)` LOO accuracy.
+  - Adopted the LOO-winning orbit-type rule in `selectMissionClassSchedule()`.
