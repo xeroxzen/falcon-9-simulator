@@ -41,11 +41,13 @@ export interface LandingSiteConfig {
   readonly latDeg: number;
   readonly lonDeg: number;
   readonly elevationM: number;
-  readonly status: 'ACTIVE' | 'RETIRED' | 'PHASING_OUT';
-  /** ISO date (YYYY-MM-DD) when pad entered Falcon 9 service. */
-  readonly activeFrom: string;
-  /** ISO date (YYYY-MM-DD) when pad was retired from Falcon 9 service, if applicable. */
-  readonly activeUntil?: string;
+  readonly status: 'ACTIVE' | 'RETIRED';
+  /** ISO date windows (YYYY-MM-DD) when pad was available for recovery. */
+  readonly activeWindows: readonly {
+    readonly from: string;
+    readonly until?: string;
+    readonly note?: string;
+  }[];
   readonly statusNote: string;
   readonly source: string;
 }

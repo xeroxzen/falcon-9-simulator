@@ -209,8 +209,8 @@ export const LANDING_SITES: Record<LandingSiteId, LandingSiteConfig> = {
     lonDeg: -80.5743,
     elevationM: 4.0,
     status: 'ACTIVE',
-    activeFrom: '2025-08-01',
-    statusNote: 'Active East Coast RTLS pad adjacent to SLC-40; replaced retired LZ-1.',
+    activeWindows: [{ from: '2025-08-01', note: 'Active East Coast RTLS pad adjacent to SLC-40' }],
+    statusNote: 'Active East Coast RTLS pad adjacent to SLC-40 for current Cape Falcon 9 landings.',
     source: 'CCSFS SLC-40 / LZ-40 WGS-84 coordinates (28°33\'47"N, 80°34\'28"W, ~4 m AMSL)',
   },
   'LZ-1': {
@@ -221,11 +221,21 @@ export const LANDING_SITES: Record<LandingSiteId, LandingSiteConfig> = {
     lonDeg: -80.54294,
     elevationM: 3.0,
     status: 'RETIRED',
-    activeFrom: '2015-12-21',
-    activeUntil: '2025-08-01',
+    activeWindows: [
+      {
+        from: '2015-12-21',
+        until: '2025-08-01',
+        note: 'Routine Falcon 9/Heavy RTLS through Crew-11 (planned final F9 landing, Aug 1, 2025)',
+      },
+      {
+        from: '2026-10-01',
+        until: '2026-10-01',
+        note: 'Reused for Falcon Heavy NROL-97 side booster B1104 (Oct 1, 2026; SpaceX / Spaceflight Now)',
+      },
+    ],
     statusNote:
-      'Retired Aug 1, 2025 after Crew-11 (55 attempts, 54 successes); LC-13 reallocated by USSF.',
-    source: 'CCSFS former LC-13 / WGS-84 (28°29\'08.7"N, 80°32\'34.6"W, ~3 m AMSL)',
+      'Crew-11 (Aug 1, 2025) was planned as final routine F9 landing before LC-13 lease expiry, but LZ-1 was reused on Oct 1, 2026 for Falcon Heavy NROL-97 (B1104).',
+    source: 'SpaceX / Spaceflight Now (Crew-11 Aug 1, 2025; NROL-97 Oct 1, 2026); CCSFS LC-13 WGS-84',
   },
   'LZ-2': {
     id: 'LZ-2',
@@ -234,10 +244,22 @@ export const LANDING_SITES: Record<LandingSiteId, LandingSiteConfig> = {
     latDeg: 28.48556,
     lonDeg: -80.54444,
     elevationM: 3.0,
-    status: 'PHASING_OUT',
-    activeFrom: '2018-02-06',
-    statusNote: 'Adjacent to former LZ-1 at LC-13; dual-booster Falcon Heavy pad phasing out with LC-13 transition.',
-    source: 'CCSFS former LC-13 / WGS-84 (28°29\'08"N, 80°32\'40"W, ~3 m AMSL)',
+    status: 'RETIRED',
+    activeWindows: [
+      {
+        from: '2018-02-06',
+        until: '2025-12-09',
+        note: 'Final scheduled Falcon 9 landing on NROL-77 (Dec 9, 2025; SpaceX / Spaceflight Now)',
+      },
+      {
+        from: '2026-10-01',
+        until: '2026-10-01',
+        note: 'Reused for Falcon Heavy NROL-97 side booster B1072 (Oct 1, 2026; SpaceX / Spaceflight Now)',
+      },
+    ],
+    statusNote:
+      'Retired from routine Falcon 9 service after NROL-77 on Dec 9, 2025 (B1096); later reused on Oct 1, 2026 for Falcon Heavy NROL-97 (B1072).',
+    source: 'SpaceX / Spaceflight Now (NROL-77 Dec 9, 2025; NROL-97 Oct 1, 2026); CCSFS LC-13 WGS-84',
   },
   'LZ-4': {
     id: 'LZ-4',
@@ -247,9 +269,9 @@ export const LANDING_SITES: Record<LandingSiteId, LandingSiteConfig> = {
     lonDeg: -120.6150,
     elevationM: 114.0,
     status: 'ACTIVE',
-    activeFrom: '2018-10-08',
+    activeWindows: [{ from: '2018-10-08', note: 'Active West Coast RTLS pad since SAOCOM 1A' }],
     statusNote: 'Active West Coast RTLS pad at Vandenberg SFB (first used on SAOCOM 1A, Oct 8, 2018).',
-    source: 'VSFB former SLC-4W / WGS-84 (34°38\'03"N, 120°36\'54"W, ~114 m AMSL)',
+    source: 'SpaceX SAOCOM 1A Press Kit; VSFB former SLC-4W WGS-84 (34°38\'03"N, 120°36\'54"W, ~114 m AMSL)',
   },
 };
 
@@ -259,36 +281,39 @@ export const DRONESHIPS: Record<'ASOG' | 'OCISLY' | 'JRTI', DroneshipConfig> = {
     name: 'A Shortfall of Gravitas (ASOG)',
     status: 'ACTIVE',
     currentCoast: 'EAST',
-    homePort: 'Port Canaveral, FL',
+    homePort: 'Port Canaveral, FL (2026 coast assignment UNVERIFIED)',
     serviceHistory: [{ coast: 'EAST', from: '2021-08-29' }],
-    statusNote: 'Active primary East Coast ASDS supporting LC-39A and SLC-40.',
-    source: 'SpaceX / Port Canaveral fleet records (Marmac 302, operational since Aug 2021)',
+    statusNote:
+      'Entered East Coast service Aug 2021 (Port Canaveral). 2026 coast assignment UNVERIFIED against primary SpaceX mission pages (conflicting April 2026 reports of West Coast operation).',
+    source: 'SpaceX fleet records (2021 commissioning); 2026 coast UNVERIFIED',
   },
   OCISLY: {
     id: 'OCISLY',
     name: 'Of Course I Still Love You (OCISLY)',
     status: 'ACTIVE',
     currentCoast: 'WEST',
-    homePort: 'Port of Long Beach, CA',
+    homePort: 'Port of Long Beach, CA (2026 coast assignment UNVERIFIED)',
     serviceHistory: [
       { coast: 'EAST', from: '2015-06-28', until: '2021-06-14' },
       { coast: 'WEST', from: '2021-06-15' },
     ],
-    statusNote: 'Active West Coast ASDS supporting SLC-4E (served East Coast 2015–2021, incl. DM-1).',
-    source: 'SpaceX / Port of Long Beach fleet records (Marmac 304)',
+    statusNote:
+      'Served East Coast 2015–2021 (incl. DM-1) and transited Panama Canal to West Coast in June 2021. 2026 coast assignment UNVERIFIED against primary SpaceX mission pages (conflicting April 2026 reports of Cape operation).',
+    source: 'SpaceX DM-1 Press Kit; Spaceflight Now (2021 Panama Canal transit); 2026 coast UNVERIFIED',
   },
   JRTI: {
     id: 'JRTI',
     name: 'Just Read the Instructions (JRTI)',
     status: 'REPURPOSED',
     currentCoast: null,
-    homePort: 'Port Canaveral, FL (repurposed)',
+    homePort: 'Port Canaveral, FL (2026 status UNVERIFIED)',
     serviceHistory: [
       { coast: 'WEST', from: '2016-01-17', until: '2019-08-01' },
       { coast: 'EAST', from: '2020-05-30', until: '2026-02-01' },
     ],
-    statusNote: 'Retired from Falcon 9 ASDS service in early 2026 and converted for Starship transport.',
-    source: 'SpaceX fleet records (Marmac 303; West Coast 2016–2019 incl. Iridium-8, East Coast 2020–2026)',
+    statusNote:
+      'Served West Coast 2016–2019 (incl. Iridium NEXT-8) and East Coast from 2020. Early-2026 retirement/repurposing for Starship transport is UNVERIFIED against primary SpaceX mission pages.',
+    source: 'SpaceX Iridium-8 Press Kit; 2026 status UNVERIFIED',
   },
 };
 
@@ -307,9 +332,9 @@ export function getAvailableRecoveryAssets(
   const coast = LAUNCH_SITES[siteId].coast;
   const landingZones = Object.values(LANDING_SITES).filter((lz) => {
     if (lz.coast !== coast) return false;
-    if (missionDateIso < lz.activeFrom) return false;
-    if (lz.activeUntil && missionDateIso > lz.activeUntil) return false;
-    return true;
+    return lz.activeWindows.some(
+      (w) => missionDateIso >= w.from && (!w.until || missionDateIso <= w.until)
+    );
   });
   const droneships = Object.values(DRONESHIPS).filter((ds) =>
     ds.serviceHistory.some(

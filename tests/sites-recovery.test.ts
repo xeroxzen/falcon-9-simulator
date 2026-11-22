@@ -35,15 +35,25 @@ describe('Launch site range-safety corridors and historical recovery asset avail
     expect(vandy2019.landingZones.map((z) => z.id)).toEqual(['LZ-4']);
     expect(vandy2019.droneships.map((d) => d.id)).toEqual(['JRTI']);
 
-    // Current 2026 East Coast: LZ-40 active (LZ-1 retired Aug 1, 2025), ASOG active (JRTI repurposed early 2026)
+    // LZ-2 final scheduled Falcon 9 landing on NROL-77 (Dec 9, 2025), retired Dec 10, 2025
+    const capeNrol77 = getAvailableRecoveryAssets('SLC-40', '2025-12-09');
+    expect(capeNrol77.landingZones.map((z) => z.id)).toContain('LZ-2');
+    const capePostNrol77 = getAvailableRecoveryAssets('SLC-40', '2025-12-10');
+    expect(capePostNrol77.landingZones.map((z) => z.id)).not.toContain('LZ-2');
+
+    // Current 2026 East Coast (routine June 2026): LZ-40 active, LZ-1/LZ-2 retired
     const cape2026 = getAvailableRecoveryAssets('SLC-40', '2026-06-01');
     expect(cape2026.defaultLandingSiteId).toBe('LZ-40');
     expect(cape2026.landingZones.map((z) => z.id)).not.toContain('LZ-1');
-    expect(cape2026.droneships.map((d) => d.id)).toEqual(['ASOG']);
+    expect(cape2026.landingZones.map((z) => z.id)).not.toContain('LZ-2');
 
-    // Current 2026 West Coast: LZ-4 + OCISLY
+    // NROL-97 Falcon Heavy reuse of LZ-1 & LZ-2 on Oct 1, 2026
+    const capeNrol97 = getAvailableRecoveryAssets('LC-39A', '2026-10-01');
+    expect(capeNrol97.landingZones.map((z) => z.id)).toContain('LZ-1');
+    expect(capeNrol97.landingZones.map((z) => z.id)).toContain('LZ-2');
+
+    // Current 2026 West Coast: LZ-4 active
     const vandy2026 = getAvailableRecoveryAssets('SLC-4E', '2026-06-01');
     expect(vandy2026.defaultLandingSiteId).toBe('LZ-4');
-    expect(vandy2026.droneships.map((d) => d.id)).toEqual(['OCISLY']);
   });
 });

@@ -196,12 +196,15 @@ Giving the pre-Part-D baseline vehicle the **same** 1-DOF per-flight pitch-kick 
 - **Webcast HUD:** Displays altitude **AGL above the launch pad** during ascent (`altitudeM - launchSite.elevationM`, so `SLC-4E` at `114 m AMSL` reads `0.0 km` on the pad) and AGL above the landing target during Stage 1 recovery.
 - **Engineer Panel:** Explicitly displays geodetic **`Altitude (MSL)`** (`114 m` on the pad at `SLC-4E`).
 
-### Landing Zones & Droneships (Current 2026 Status + Historical Availability)
+### Landing Zones & Droneships (Primary-Sourced History + UNVERIFIED 2026 Fleet Notes)
 Recovery asset availability is resolved by coast and mission date (`getAvailableRecoveryAssets(siteId, missionDate)` in `src/sim/config/falcon9.ts`):
-- **LZ-1 (`28.4858°N, 80.5429°W`, CCSFS former LC-13):** **Retired August 1, 2025** after Crew-11 (55 landing attempts, 54 successes; LC-13 reallocated by USSF to Vaya Space / Phantom Space). Available only for historical missions `2015-12-21` through `2025-08-01`.
-- **LZ-2 (`28.4856°N, 80.5444°W`, CCSFS former LC-13):** Dual-booster Falcon Heavy pad (`activeFrom: 2018-02-06`), phasing out alongside LC-13 transition.
-- **LZ-40 (`28.5631°N, 80.5743°W`, CCSFS adjacent to SLC-40):** **Active** East Coast RTLS pad (`activeFrom: 2025-08-01`), replacing retired LZ-1 for current Cape RTLS missions.
-- **LZ-4 (`34.6342°N, 120.6150°W`, VSFB former SLC-4W):** **Active** West Coast RTLS pad (`activeFrom: 2018-10-08`, first used on SAOCOM 1A).
-- **ASOG (*A Shortfall of Gravitas*, Port Canaveral):** **Active** East Coast ASDS (`activeFrom: 2021-08-29`).
-- **OCISLY (*Of Course I Still Love You*, Port of Long Beach):** **Active** West Coast ASDS (`2021-06-15`–present; served East Coast `2015-06-28`–`2021-06-14`, including DM-1).
-- **JRTI (*Just Read the Instructions*):** **Retired / Repurposed** from Falcon 9 ASDS service in early 2026 for Starship transport (served West Coast `2016-01-17`–`2019-08-01` incl. Iridium NEXT-8; East Coast `2020-05-30`–`2026-02-01`).
+- **LZ-1 (`28.4858°N, 80.5429°W`, CCSFS former LC-13):** Routine Falcon 9/Heavy service `2015-12-21` through `2025-08-01` (Crew-11 was planned as the final routine Falcon 9 landing ahead of LC-13 reallocation; SpaceX / Spaceflight Now), **reused on `2026-10-01`** for Falcon Heavy `NROL-97` side booster `B1104` (SpaceX / Spaceflight Now). Modeled with explicit date windows (`2015-12-21..2025-08-01` and `2026-10-01`).
+- **LZ-2 (`28.4856°N, 80.5444°W`, CCSFS former LC-13):** Retired from routine Falcon 9 service after **`NROL-77` on `2025-12-09`** (`B1096`, final scheduled Falcon 9 landing ahead of LC-13 lease expiry; SpaceX / Spaceflight Now); reused on `2026-10-01` for Falcon Heavy `NROL-97` side booster `B1072`. Modeled as `RETIRED` with explicit windows (`2018-02-06..2025-12-09` and `2026-10-01`).
+- **LZ-40 (`28.5631°N, 80.5743°W`, CCSFS adjacent to SLC-40):** **Active** East Coast RTLS pad (`activeFrom: 2025-08-01`), primary pad for current Cape Falcon 9 RTLS missions.
+- **LZ-4 (`34.6342°N, 120.6150°W`, VSFB former SLC-4W):** **Active** West Coast RTLS pad (`activeFrom: 2018-10-08`, first used on SAOCOM 1A; SpaceX SAOCOM 1A Press Kit).
+- **ASDS Droneships (`ASOG`, `OCISLY`, `JRTI`) — 2026 coast assignments `UNVERIFIED`:**
+  - Verified historical assignments: `OCISLY` served East Coast `2015-06-28`–`2021-06-14` (incl. `DM-1`, March 2019) before transiting the Panama Canal to Long Beach in June 2021; `JRTI` served West Coast `2016-01-17`–`2019-08-01` (incl. `Iridium NEXT 8`, Jan 2019) and East Coast from May 2020; `ASOG` entered East Coast service in Aug 2021.
+  - **2026 status `UNVERIFIED`:** Secondary trackers list `ASOG` East / `OCISLY` West (and report `JRTI` repurposed in early 2026), which conflicts with an April 2026 report of `OCISLY` off the Cape and `ASOG` on the West Coast. Because primary 2026 `spacex.com` mission pages did not resolve this discrepancy, 2026 droneship coast assignments and `JRTI` status are explicitly marked `UNVERIFIED`.
+
+### Sonic Boom Acoustic Arrival Approximation (v1.4 Part D)
+- `sonicBoomArrivalTimeS` in `src/scene/MissionCanvas.tsx` uses a **single-point transonic-cutoff approximation**: it finds the last supersonic booster descent sample (`Mach >= 1.02`, `vz < -20 m/s`, `alt < 15 km`) and computes `t_arrival = t_emit + slantDist / c_path_avg` using the US76 harmonic-mean path speed of sound (`ASSUMED` approximation). In reality, a sonic boom Mach cone is generated continuously along the entire supersonic descent path, with the ground-level double N-wave envelope shaped by ray refraction through atmospheric temperature and wind gradients.
