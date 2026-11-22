@@ -220,7 +220,7 @@ export function computeStage2Guidance(
       }
     }
     const tau = mdot > 1e-6 ? totalMassKg / mdot : 1_000;
-    const tGo = clamp(tGoRaw, 5.0, tau * 0.96);
+    const tGo = clamp(tGoRaw, 3.0, tau * 0.96);
 
     let aRadCmd: number;
     const gEff = EARTH_MU / (r * r) - (vHoriz * vHoriz) / r;

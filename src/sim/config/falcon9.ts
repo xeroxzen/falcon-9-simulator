@@ -111,8 +111,8 @@ export const FALCON9_BLOCK5: VehicleConfig = {
   },
   /** MAP Variant A (prior 4.0 ± 0.5 g, fit set only): Stage 1 axial acceleration limit */
   maxAxialAccelG: 3.69,
-  /** MAP S2-only fit (prior 3.35 ± 0.20 g, fit set only): Stage 2 MVac late-burn axial acceleration limit */
-  stage2MaxAccelG: 3.36,
+  /** MAP S2-only fit (prior 3.50 ± 0.40 g, fit set only): Stage 2 MVac late-burn axial acceleration limit */
+  stage2MaxAccelG: 3.52,
   /** ASSUMED: Simplified 3-DOF ascent attitude slew rate limit (5 deg/s) */
   maxAttitudeSlewRateRadS: (5.0 * Math.PI) / 180.0,
   /** ASSUMED: Simplified cold-gas RCS booster flip slew rate (12 deg/s -> ~15 s for 180 deg flip) */
