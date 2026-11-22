@@ -17,7 +17,11 @@ export function TimelineBar() {
 
   if (!trajectory) return null;
 
+  const startTimeS = trajectory.startTimeS ?? 0;
   const duration = Math.max(1, trajectory.durationS);
+  const totalSpan = Math.max(1, duration - startTimeS);
+  const fmtT = (t: number) => (t < 0 ? `T${t.toFixed(1)}s` : `T+${t.toFixed(1)}s`);
+  const pct = (t: number) => ((t - startTimeS) / totalSpan) * 100;
 
   if (isPhone) {
     return (
@@ -41,7 +45,7 @@ export function TimelineBar() {
         <input
           className="scrubber-input mobile-scrubber"
           type="range"
-          min={0}
+          min={startTimeS}
           max={duration}
           step={0.1}
           value={timeS}
@@ -82,7 +86,7 @@ export function TimelineBar() {
             <button
               key={ev.id}
               className={`event-pill ${Math.abs(timeS - ev.timeS) < 2.5 ? 'current' : ''}`}
-              title={`${ev.label} @ T+${ev.timeS.toFixed(1)}s — ${ev.detail}`}
+              title={`${ev.label} @ ${fmtT(ev.timeS)} — ${ev.detail}`}
               onClick={() => setTimeS(ev.timeS)}
             >
               {ev.label}
@@ -97,14 +101,14 @@ export function TimelineBar() {
           <span className="track-label">S1</span>
           <div className="track-rail">
             {s1Segments.map((seg) => {
-              const left = (seg.startTimeS / duration) * 100;
-              const width = Math.max(0.4, ((seg.endTimeS - seg.startTimeS) / duration) * 100);
+              const left = pct(seg.startTimeS);
+              const width = Math.max(0.4, ((seg.endTimeS - seg.startTimeS) / totalSpan) * 100);
               return (
                 <div
                   key={seg.id}
                   className={`seg-block seg-${seg.kind.toLowerCase()}`}
                   style={{ left: `${left}%`, width: `${width}%` }}
-                  title={`${seg.label} (T+${seg.startTimeS.toFixed(0)}s..${seg.endTimeS.toFixed(0)}s)`}
+                  title={`${seg.label} (${fmtT(seg.startTimeS)}..${fmtT(seg.endTimeS)})`}
                 />
               );
             })}
@@ -115,14 +119,14 @@ export function TimelineBar() {
           <span className="track-label">S2</span>
           <div className="track-rail">
             {s2Segments.map((seg) => {
-              const left = (seg.startTimeS / duration) * 100;
-              const width = Math.max(0.4, ((seg.endTimeS - seg.startTimeS) / duration) * 100);
+              const left = pct(seg.startTimeS);
+              const width = Math.max(0.4, ((seg.endTimeS - seg.startTimeS) / totalSpan) * 100);
               return (
                 <div
                   key={seg.id}
                   className={`seg-block seg-${seg.kind.toLowerCase()}`}
                   style={{ left: `${left}%`, width: `${width}%` }}
-                  title={`${seg.label} (T+${seg.startTimeS.toFixed(0)}s..${seg.endTimeS.toFixed(0)}s)`}
+                  title={`${seg.label} (${fmtT(seg.startTimeS)}..${fmtT(seg.endTimeS)})`}
                 />
               );
             })}
@@ -137,8 +141,8 @@ export function TimelineBar() {
             <button
               key={ev.id}
               className="event-tick"
-              style={{ left: `${(ev.timeS / duration) * 100}%` }}
-              title={`${ev.label} @ T+${ev.timeS.toFixed(1)}s`}
+              style={{ left: `${pct(ev.timeS)}%` }}
+              title={`${ev.label} @ ${fmtT(ev.timeS)}`}
               onClick={() => setTimeS(ev.timeS)}
             />
           ))}
@@ -146,7 +150,7 @@ export function TimelineBar() {
         <input
           className="scrubber-input"
           type="range"
-          min={0}
+          min={startTimeS}
           max={duration}
           step={0.1}
           value={timeS}

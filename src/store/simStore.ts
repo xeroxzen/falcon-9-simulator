@@ -396,7 +396,8 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
         return;
       }
       if (msg.type === 'MISSION_RESULT') {
-        liveSimClock.timeS = 0;
+        const startT = msg.data.startTimeS ?? 0;
+        liveSimClock.timeS = startT;
         liveSimClock.lastHudSyncMs = performance.now();
         set((s) => ({
           trajectory: msg.data,
@@ -405,7 +406,7 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
           loadingProgress: 1,
           loadingStage: '',
           error: null,
-          timeS: 0,
+          timeS: startT,
           playing: true,
         }));
       } else {
@@ -439,13 +440,14 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   resetToNominal: () => {
     const { baseMission, nominalTrajectory } = get();
     if (nominalTrajectory) {
-      liveSimClock.timeS = 0;
+      const startT = nominalTrajectory.startTimeS ?? 0;
+      liveSimClock.timeS = startT;
       liveSimClock.lastHudSyncMs = performance.now();
       set({
         mission: baseMission,
         trajectory: nominalTrajectory,
         isWhatIfActive: false,
-        timeS: 0,
+        timeS: startT,
         playing: true,
       });
     } else {
@@ -454,8 +456,10 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   },
 
   setTimeS: (t) => {
-    const dur = get().trajectory?.durationS ?? 0;
-    const clamped = Math.max(0, Math.min(dur, t));
+    const traj = get().trajectory;
+    const minT = traj?.startTimeS ?? 0;
+    const dur = traj?.durationS ?? 0;
+    const clamped = Math.max(minT, Math.min(dur, t));
     liveSimClock.timeS = clamped;
     liveSimClock.lastHudSyncMs = performance.now();
     set({ timeS: clamped });

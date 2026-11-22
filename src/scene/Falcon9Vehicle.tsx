@@ -297,8 +297,15 @@ export function Stage1Mesh({ snapshot, separated }: Stage1MeshProps) {
         labelOffset={[2.4, 0, 0]}
       />
 
+      {/* Transition smoothly from deflected trench exhaust (T-3..T+0) to vertical ascent plume */}
       <PlumeEffect
-        throttle={snapshot.throttle}
+        throttle={
+          snapshot.phase === 'IGNITION'
+            ? 0
+            : snapshot.padEnuM.z < 8.0 && snapshot.altitudeM < 500
+              ? snapshot.throttle * Math.min(1, Math.max(0, (snapshot.padEnuM.z - 0.5) / 6.0))
+              : snapshot.throttle
+        }
         activeEngineCount={snapshot.activeEngineCount}
         ambientPressurePa={snapshot.ambientPressurePa}
         reentryIntensity={reentryIntensity}

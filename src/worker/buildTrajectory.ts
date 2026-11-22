@@ -61,6 +61,8 @@ function eventLabelAndStage(ev: MissionEvent): {
   stage: TimelineEvent['stage'];
 } {
   switch (ev.type) {
+    case 'IGNITION':
+      return { label: 'T-3s Ignition', stage: 'STACK' };
     case 'LIFTOFF':
       return { label: 'T-0 Liftoff', stage: 'STACK' };
     case 'PITCHOVER':
@@ -116,6 +118,8 @@ function classifyStageKind(
   if (snap.phase === 'SECO' || snap.phase === 'ORBIT') {
     return { kind: 'ORBIT', label: 'Orbit' };
   }
+  if (snap.phase === 'PAD') return { kind: 'COAST', label: 'Countdown' };
+  if (snap.phase === 'IGNITION') return { kind: 'BURN', label: 'Ignition' };
   if (snap.thrustN > 100) {
     if (snap.phase === 'BOOSTBACK_BURN') return { kind: 'BURN', label: 'Boostback' };
     if (snap.phase === 'ENTRY_BURN') return { kind: 'BURN', label: 'Entry Burn' };
@@ -209,8 +213,10 @@ function buildSnapshotFromAscent(
     axialAccelG: s.axialAccelG,
     totalMassKg: s.totalMassKg,
     propellantKg: s.dynamic.stage1PropellantKg,
-    propellantFraction:
-      s.dynamic.stage1PropellantKg / vehicle.stage1.propellantMassKg,
+    propellantFraction: Math.min(
+      1,
+      s.dynamic.stage1PropellantKg / vehicle.stage1.propellantMassKg
+    ),
     phase: s.phase,
     activeEngineCount: s.engines.filter((e) => e.active).length,
     engines: s.engines,
@@ -488,6 +494,7 @@ export function buildMissionTrajectory(
     landingMode: mission.landingMode,
     launchSiteId: mission.launchSite.id,
     hasFairing: mission.hasFairing,
+    startTimeS: frames.length > 0 ? frames[0]!.timeS : 0,
     durationS: maxT,
     stageSepTimeS,
     frames,

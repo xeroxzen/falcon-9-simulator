@@ -20,6 +20,7 @@ const SCRATCH_BOX3 = new THREE.Box3();
 const SCRATCH_CORNER = new THREE.Vector3();
 let activeCamera: THREE.Camera | null = null;
 let activeCanvas: HTMLCanvasElement | null = null;
+let activeScene: THREE.Scene | null = null;
 let activeEarthGroup: THREE.Object3D | null = null;
 let boosterFootHeightAboveDeckM: number | null = null;
 
@@ -66,13 +67,17 @@ export function updateDebugFrame(
   canvas: HTMLCanvasElement,
   footHeightAboveDeckM: number | null,
   renderInfo?: { readonly calls: number; readonly triangles: number },
-  earthGroup?: THREE.Object3D | null
+  earthGroup?: THREE.Object3D | null,
+  scene?: THREE.Scene | null
 ): void {
   if (!import.meta.env.DEV) return;
   activeCamera = camera;
   activeCanvas = canvas;
   if (earthGroup !== undefined) {
     activeEarthGroup = earthGroup;
+  }
+  if (scene !== undefined) {
+    activeScene = scene;
   }
   boosterFootHeightAboveDeckM = footHeightAboveDeckM;
   if (renderInfo) {
@@ -324,6 +329,76 @@ export function installDebugHook(): void {
         y >= rect.top + 4 &&
         y <= rect.bottom - 4;
       return { x, y, inFront, visible };
+    },
+    /**
+     * Raycast from the active camera to sample points on the vehicle & launch mount
+     * against all pad structures tagged `userData.padStructure = true` (lightning towers,
+     * strongback). Returns how many vehicle sample rays are occluded by pad structures.
+     */
+    checkPadOcclusion(): {
+      totalSamples: number;
+      occludedSamples: number;
+      occluders: string[];
+    } | null {
+      if (!activeCamera || !activeScene) return null;
+      activeCamera.updateMatrixWorld();
+      activeScene.updateMatrixWorld(true);
+
+      const padMeshes: THREE.Mesh[] = [];
+      activeScene.traverse((obj) => {
+        if ((obj as THREE.Mesh).isMesh && obj.userData?.padStructure === true) {
+          padMeshes.push(obj as THREE.Mesh);
+        }
+      });
+
+      const samplePts: Array<[number, number, number]> = [
+        [0, 3, 0],
+        [0, 12, 0],
+        [0, 24, 0],
+        [0, 36, 0],
+        [0, 48, 0],
+        [0, 60, 0],
+        [0, 68, 0],
+        [-1.8, 12, 0],
+        [1.8, 12, 0],
+        [-1.8, 42, 0],
+        [1.8, 42, 0],
+      ];
+
+      const raycaster = new THREE.Raycaster();
+      const origin = activeCamera.position.clone();
+      const target = new THREE.Vector3();
+      const dir = new THREE.Vector3();
+      const hits: THREE.Intersection[] = [];
+      const occluderSet = new Set<string>();
+      let occludedSamples = 0;
+
+      for (const [px, py, pz] of samplePts) {
+        target.set(px, py, pz);
+        dir.copy(target).sub(origin);
+        const distToVehicle = dir.length();
+        dir.normalize();
+        raycaster.set(origin, dir);
+        raycaster.near = 0.1;
+        raycaster.far = Math.max(0.2, distToVehicle - 1.5);
+
+        hits.length = 0;
+        for (const m of padMeshes) {
+          THREE.Mesh.prototype.raycast.call(m, raycaster, hits);
+        }
+        if (hits.length > 0) {
+          occludedSamples++;
+          for (const h of hits) {
+            occluderSet.add(String(h.object.userData?.padPart ?? 'pad-structure'));
+          }
+        }
+      }
+
+      return {
+        totalSamples: samplePts.length,
+        occludedSamples,
+        occluders: Array.from(occluderSet),
+      };
     },
   };
 }

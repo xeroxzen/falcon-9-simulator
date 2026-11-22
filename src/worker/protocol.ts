@@ -86,6 +86,8 @@ export interface MissionTrajectoryData {
   readonly landingMode: MissionConfig['landingMode'];
   readonly launchSiteId: MissionConfig['launchSite']['id'];
   readonly hasFairing: boolean;
+  /** First trajectory timestamp in seconds (e.g. -10 during terminal countdown, or 0). */
+  readonly startTimeS: number;
   readonly durationS: number;
   readonly stageSepTimeS: number;
   readonly frames: readonly PlaybackFrame[];

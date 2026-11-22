@@ -110,4 +110,38 @@ describe('Stage 1 ascent through MECO', () => {
     expect(defaultWhatIfPitchKickDeg(625_000)).toBeCloseTo(1.7, 2);
     expect(defaultWhatIfPitchKickDeg(200_000, true)).toBeCloseTo(2.45, 2);
   });
+
+  it('executes T-10 s countdown, T-3 s hold-down clamp ignition spool-up, and full-thrust clamp release at T=0', () => {
+    const res = runAscentToMeco(FALCON9_BLOCK5, DEFAULT_LEO_ASDS_MISSION, 0.5);
+    expect(res.samples[0]!.timeS).toBeCloseTo(-10, 6);
+    expect(res.samples[0]!.phase).toBe('PAD');
+    expect(res.samples[0]!.thrustN).toBe(0);
+    expect(res.samples[0]!.axialAccelG).toBe(0);
+
+    const ignEv = res.events.find((e) => e.type === 'IGNITION');
+    const liftEv = res.events.find((e) => e.type === 'LIFTOFF');
+    expect(ignEv).toBeDefined();
+    expect(ignEv!.timeS).toBeCloseTo(-3.0, 2);
+    expect(liftEv).toBeDefined();
+    expect(liftEv!.timeS).toBe(0);
+
+    // At T-0.5 s (full-thrust hold-down check): thrust at 100%, vehicle still clamped (0 g, 0 speed)
+    const holdDown = res.samples.find((s) => Math.abs(s.timeS - -0.5) < 0.05);
+    expect(holdDown).toBeDefined();
+    expect(holdDown!.phase).toBe('IGNITION');
+    expect(holdDown!.throttle).toBeCloseTo(1.0, 3);
+    expect(holdDown!.thrustN).toBeGreaterThan(7_000_000);
+    expect(holdDown!.axialAccelG).toBe(0);
+    expect(holdDown!.speedAirRelMs).toBeLessThan(0.1);
+
+    // At T=0 clamp release: full propellant load and 100% thrust, positive axial acceleration
+    const t0 = res.samples.find((s) => s.timeS === 0);
+    expect(t0).toBeDefined();
+    expect(t0!.dynamic.stage1PropellantKg).toBeCloseTo(
+      FALCON9_BLOCK5.stage1.propellantMassKg,
+      0
+    );
+    expect(t0!.throttle).toBe(1.0);
+    expect(t0!.axialAccelG).toBeGreaterThan(1.2);
+  });
 });

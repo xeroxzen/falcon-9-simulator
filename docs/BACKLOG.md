@@ -2,7 +2,12 @@
 
 Known model gaps identified during Phase 2.5 validation and holdout testing, tracked for future physics iterations:
 
-1. **Two-burn Stage 2 orbital insertion (SES-1 → coast → SES-2):**
+1. **[HIGH PRIORITY — Own branch after v1.4] System-ID v2 (`WEBCAST_LIFTOFF_OFFSET_S = 0` fixed):**
+   - `v1.4 Part B` demonstrated that with hold-down clamp release modeled at `T = 0`, early ascent (`T+0..30 s`) fits best at `0.0 s` (`38–40 m / 2.8–3.0 m/s` RMS) and `v1.3`'s `+1.92 s` webcast offset was a compensating error hiding excess late-S1 acceleration.
+   - Re-run joint MAP system identification on the exact same 3-flight fit / 7-flight holdout protocol with **`liftoffOffsetS` fixed at `0.0 s`**, adding **max-Q throttle-bucket depth & duration** and the **Stage 1 late-burn axial acceleration limit** as fitted parameters.
+   - **Unified hypothesis:** a single throttle-bucket / late-S1 acceleration mechanism explains both the late-S1 excess acceleration on LEO flights and the `10–13 s` early Max-Q on heavy GTO flights.
+
+2. **Two-burn Stage 2 orbital insertion (SES-1 → coast → SES-2):**
    - Current Stage 2 guidance performs a single continuous burn to circular LEO (~200 km).
    - High-altitude polar/SSO/GTO flights (`Iridium NEXT 8` 625 km, `SAOCOM 1A` 620 km) perform a 2-burn Hohmann transfer (SES-1 to parking/transfer orbit, coast to apogee, SES-2 circularization).
    - The worker protocol and timeline/event model are designed to support arbitrary burn/coast sequences per stage so this can be added without UI changes.

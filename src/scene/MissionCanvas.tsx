@@ -324,7 +324,7 @@ function SceneContent({
   qualityTier,
   touchAdjustRef,
 }: SceneContentProps) {
-  const { camera, gl, size } = useThree();
+  const { camera, gl, size, scene } = useThree();
   const qCfg = QUALITY_PRESETS[qualityTier];
   const bottomSheetHeightPx = useSimStore((s) => s.bottomSheetHeightPx);
   const rightDrawerWidthPx = useSimStore((s) => s.rightDrawerWidthPx);
@@ -459,7 +459,8 @@ function SceneContent({
         calls,
         triangles,
       },
-      earthGroupRef.current
+      earthGroupRef.current,
+      scene
     );
 
     // 3. Compute exact current-frame lookTarget (aimed at selected component center when a mobile panel is open)
@@ -574,11 +575,16 @@ function SceneContent({
         SCRATCH_LOOK_TARGET.z + dist * cosE * Math.cos(yaw)
       );
 
-      // On mode/stage switch, smooth only the relative switch delta (clamped <= 60 m)
-      if (switched) {
-        switchOffsetRef.current.copy(camera.position).sub(SCRATCH_DESIRED);
-        if (switchOffsetRef.current.lengthSq() > 60 * 60) {
+      // On mode/stage switch, smooth only the relative switch delta (clamped <= 60 m),
+      // except on discontinuous timeline scrubs where the camera snaps immediately.
+      if (switched || scrubbed) {
+        if (scrubbed) {
           switchOffsetRef.current.set(0, 0, 0);
+        } else {
+          switchOffsetRef.current.copy(camera.position).sub(SCRATCH_DESIRED);
+          if (switchOffsetRef.current.lengthSq() > 60 * 60) {
+            switchOffsetRef.current.set(0, 0, 0);
+          }
         }
         switchOffsetVelRef.current.set(0, 0, 0);
       }
@@ -599,15 +605,20 @@ function SceneContent({
       camera.lookAt(camTargetRef.current);
     } else if (cameraMode === 'pad') {
       if (fs.nearPad) {
-        camera.position.set(95, 18, 125);
+        // Positioned off-diagonal (+14, 24, +146) looking at y=16 so:
+        //  - zero lightning towers [±36, ±36] or strongback (-X) occlude the vehicle
+        //  - the base launch mount, open flame trench, 4 hold-down clamps, and deflected
+        //    ignition plume all sit cleanly ABOVE the bottom Webcast HUD & Timeline Bar.
+        camera.position.set(14, 24, 146);
+        camTargetRef.current.set(0, Math.max(16, SCRATCH_LOOK_TARGET.y - 16), 0);
       } else {
         camera.position.set(
           SCRATCH_LOOK_TARGET.x + 90,
           SCRATCH_LOOK_TARGET.y + 20,
           SCRATCH_LOOK_TARGET.z + 110
         );
+        camTargetRef.current.copy(SCRATCH_LOOK_TARGET);
       }
-      camTargetRef.current.copy(SCRATCH_LOOK_TARGET);
       camera.lookAt(camTargetRef.current);
     } else if (cameraMode === 'droneship') {
       if (fs.nearLanding) {
@@ -675,7 +686,13 @@ function SceneContent({
         color="#6aa6ff"
       />
 
-      {nearPad && <LaunchPadMesh siteId={trajectory.launchSiteId} timeS={timeS} />}
+      {nearPad && (
+        <LaunchPadMesh
+          siteId={trajectory.launchSiteId}
+          timeS={timeS}
+          qualityTier={qualityTier}
+        />
+      )}
       {nearLanding && <LandingPadMesh mode={trajectory.landingMode} />}
 
       <group ref={s1GroupRef}>

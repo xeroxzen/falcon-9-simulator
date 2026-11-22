@@ -176,6 +176,8 @@ export interface MissionConfig {
   readonly landingSiteId?: 'LZ-1' | 'LZ-4';
   readonly enableJ2: boolean;
   readonly dtS: number;
+  /** Optional pre-launch terminal countdown duration in seconds (e.g. 10 -> T-10 s to T-0 clamp release). */
+  readonly countdownS?: number;
   readonly maxSimTimeS: number;
   readonly wind: WindConfig;
   readonly dispersions?: DispersionConfig;
@@ -185,6 +187,7 @@ export interface MissionConfig {
 
 export type AscentPhase =
   | 'PAD'
+  | 'IGNITION'
   | 'VERTICAL_RISE'
   | 'PITCHOVER'
   | 'GRAVITY_TURN'
@@ -330,6 +333,7 @@ export interface OrbitalElements {
 }
 
 export type MissionEventType =
+  | 'IGNITION'
   | 'LIFTOFF'
   | 'PITCHOVER'
   | 'MAX_Q'
