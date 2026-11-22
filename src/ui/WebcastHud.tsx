@@ -3,7 +3,13 @@ import { fmtFixed } from './format.js';
 import { useViewport } from './useViewport.js';
 
 function formatMissionClock(timeS: number): string {
-  const total = Math.max(0, Math.floor(timeS));
+  if (timeS < 0) {
+    const total = Math.ceil(-timeS);
+    const mins = Math.floor(total / 60);
+    const secs = total % 60;
+    return `T-${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  const total = Math.floor(timeS);
   const mins = Math.floor(total / 60);
   const secs = total % 60;
   return `T+${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
@@ -68,6 +74,12 @@ export function WebcastHud() {
   } else if (trajectory.landingMode === 'EXPENDABLE' && frame.separated) {
     s1ChipLabel = 'S1: EXPENDED';
     s1ChipClass = 'warn';
+  } else if (s1Phase === 'IGNITION') {
+    s1ChipLabel = 'S1: IGNITION';
+    s1ChipClass = 'warn';
+  } else if (timeS < 0) {
+    s1ChipLabel = 'S1: COUNTDOWN';
+    s1ChipClass = 'neutral';
   } else if (timeS <= 0.1) {
     s1ChipLabel = 'S1: ON PAD';
     s1ChipClass = 'neutral';

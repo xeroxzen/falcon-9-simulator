@@ -185,9 +185,12 @@ function buildSimState(
     geodetic.lonRad
   );
 
-  // Felt axial acceleration (non-gravitational acceleration along vehicle axis) in g's
+  // Felt axial acceleration (non-gravitational acceleration along vehicle axis) in g's.
+  // While held down by the 4 pad clamps (t < 0), net vehicle acceleration is 0 g
+  // (clamps react T - m*g until release at T = 0).
   const netAxialForceN = prop.totalThrustN - aero.dragMagnitudeN;
-  const axialAccelG = netAxialForceN / (totalMassKg * G0);
+  const axialAccelG =
+    timeS < 0 ? 0 : netAxialForceN / (totalMassKg * G0);
 
   const pitchFromVerticalDeg =
     angleBetweenRad(dynamic.attitudeEci, basis.up) * RAD_TO_DEG;
@@ -392,7 +395,24 @@ export function stepAscent(
 }
 
 /**
- * Run a full deterministic Stage 1 ascent from T-0 until MECO (or maxSimTimeS).
+ * Pre-launch hold-down ignition constants:
+ *  - IGNITION_START_S = -3.0 s: Merlin 1D TEA-TEB ignition command (SpaceX Falcon User's Guide / webcast)
+ *  - SPOOL_UP_DURATION_S = 2.2 s (ASSUMED): smoothstep thrust spool-up 0 -> 100% (-3.0 to -0.8 s),
+ *    followed by 0.8 s full-thrust hold-down health verification (-0.8 to 0.0 s) before clamp release at T = 0.
+ */
+export const IGNITION_START_S = -3.0;
+export const WATER_DELUGE_START_S = -5.0;
+const SPOOL_UP_DURATION_S = 2.2;
+
+export function computeIgnitionSpoolThrottle(timeS: number): number {
+  if (timeS < IGNITION_START_S) return 0;
+  if (timeS >= IGNITION_START_S + SPOOL_UP_DURATION_S) return 1.0;
+  const u = (timeS - IGNITION_START_S) / SPOOL_UP_DURATION_S;
+  return u * u * (3 - 2 * u);
+}
+
+/**
+ * Run a full deterministic Stage 1 ascent from T-countdownS (if > 0) through T-0 clamp release until MECO.
  * Records sampled telemetry every `sampleIntervalS` seconds plus all mission events.
  */
 export function runAscentToMeco(
@@ -407,28 +427,128 @@ export function runAscentToMeco(
     mission.launchDirection === 'DESCENDING'
   );
 
+  const padLatRad = mission.launchSite.latDeg * DEG_TO_RAD;
+  const padLonRad = mission.launchSite.lonDeg * DEG_TO_RAD;
+
   const ctx: AscentStepContext = {
     launchAzimuthDeg,
-    padLatRad: mission.launchSite.latDeg * DEG_TO_RAD,
-    padLonRad: mission.launchSite.lonDeg * DEG_TO_RAD,
+    padLatRad,
+    padLonRad,
     pitchKickStartTimeS: null,
-    actualThrottle: 0.72,
+    actualThrottle: 1.0,
   };
 
-  let state = createInitialAscentState(vehicle, mission);
-  const events: MissionEvent[] = [
-    {
-      type: 'LIFTOFF',
-      timeS: 0,
-      altitudeM: state.geodetic.altitudeM,
-      speedMs: state.speedAirRelMs,
-      downrangeM: 0,
-      detail: `${mission.launchSite.id} liftoff (azimuth ${launchAzimuthDeg.toFixed(1)}°, mass ${(state.totalMassKg / 1000).toFixed(1)} t)`,
-    },
-  ];
-
-  const samples: SimState[] = [state];
+  const samples: SimState[] = [];
+  const events: MissionEvent[] = [];
   const sampleEverySteps = Math.max(1, Math.round(sampleIntervalS / mission.dtS));
+
+  // Optional pre-launch terminal countdown & hold-down clamp ignition sequence (T-countdownS .. T-0)
+  const countdownS = Math.max(0, mission.countdownS ?? 0);
+  if (countdownS > 0) {
+    const padPosEcef = geodeticToEcef({
+      latRad: padLatRad,
+      lonRad: padLonRad,
+      altitudeM: mission.launchSite.elevationM,
+    });
+    const padAtmo = sampleAtmosphere(mission.launchSite.elevationM);
+    const disp = mission.dispersions;
+    const propScale = disp?.propellantLoadScale ?? 1;
+    const liftoffPropKg = vehicle.stage1.propellantMassKg * propScale;
+
+    // Pre-integrate hold-down propellant burn (T-3.0..0.0 s) so tank mass at T=0
+    // clamp release equals exact liftoffPropKg while physically burning ~5.1 t on the clamps.
+    const preSteps = Math.round(countdownS / mission.dtS);
+    let holdDownBurnKg = 0;
+    for (let k = 0; k < preSteps; k++) {
+      const t = Number((-countdownS + k * mission.dtS).toFixed(6));
+      const thr = computeIgnitionSpoolThrottle(t);
+      if (thr > 0) {
+        const p = evaluateStagePropulsion(
+          vehicle.stage1,
+          thr,
+          padAtmo.pressurePa,
+          t,
+          liftoffPropKg + 10_000,
+          mission.engineOuts,
+          disp?.thrustScale ?? 1,
+          disp?.ispScale ?? 1
+        );
+        holdDownBurnKg += p.totalMassFlowKgS * mission.dtS;
+      }
+    }
+
+    let propKg = liftoffPropKg + holdDownBurnKg;
+    let ignitionEventRecorded = false;
+
+    for (let k = 0; k < preSteps; k++) {
+      const t = Number((-countdownS + k * mission.dtS).toFixed(6));
+      const thr = computeIgnitionSpoolThrottle(t);
+      const phase: AscentPhase = t < IGNITION_START_S ? 'PAD' : 'IGNITION';
+
+      if (k % sampleEverySteps === 0 || (!ignitionEventRecorded && t >= IGNITION_START_S)) {
+        // Rotate pad ECEF position into ECI at negative timestamp t
+        const posEci = eciToEcef(padPosEcef, -t);
+        const velEci = earthRotationVelocityEci(posEci);
+        const basis = localEnuBasisEci(padLatRad, padLonRad, t);
+        const dyn: DynamicState = {
+          positionEci: posEci,
+          velocityEci: velEci,
+          stage1PropellantKg: propKg,
+          attitudeEci: basis.up,
+        };
+        const st = buildSimState(
+          t,
+          phase,
+          dyn,
+          thr,
+          vehicle,
+          mission,
+          padLatRad,
+          padLonRad
+        );
+        if (k % sampleEverySteps === 0) {
+          samples.push(st);
+        }
+        if (!ignitionEventRecorded && t >= IGNITION_START_S) {
+          ignitionEventRecorded = true;
+          events.push({
+            type: 'IGNITION',
+            timeS: t,
+            altitudeM: st.geodetic.altitudeM,
+            speedMs: 0,
+            downrangeM: 0,
+            detail: `9× Merlin 1D TEA-TEB ignition on hold-down clamps (~${(holdDownBurnKg / 1000).toFixed(1)} t pre-release burn)`,
+          });
+        }
+      }
+
+      if (thr > 0) {
+        const p = evaluateStagePropulsion(
+          vehicle.stage1,
+          thr,
+          padAtmo.pressurePa,
+          t,
+          propKg,
+          mission.engineOuts,
+          disp?.thrustScale ?? 1,
+          disp?.ispScale ?? 1
+        );
+        propKg = Math.max(liftoffPropKg, propKg - p.totalMassFlowKgS * mission.dtS);
+      }
+    }
+  }
+
+  let state = createInitialAscentState(vehicle, mission);
+  events.push({
+    type: 'LIFTOFF',
+    timeS: 0,
+    altitudeM: state.geodetic.altitudeM,
+    speedMs: state.speedAirRelMs,
+    downrangeM: 0,
+    detail: `${mission.launchSite.id} clamp release & liftoff (azimuth ${launchAzimuthDeg.toFixed(1)}°, mass ${(state.totalMassKg / 1000).toFixed(1)} t)`,
+  });
+
+  samples.push(state);
   const maxSteps = Math.round(mission.maxSimTimeS / mission.dtS);
 
   let peakQ = 0;

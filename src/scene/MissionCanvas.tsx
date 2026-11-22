@@ -675,7 +675,13 @@ function SceneContent({
         color="#6aa6ff"
       />
 
-      {nearPad && <LaunchPadMesh siteId={trajectory.launchSiteId} timeS={timeS} />}
+      {nearPad && (
+        <LaunchPadMesh
+          siteId={trajectory.launchSiteId}
+          timeS={timeS}
+          qualityTier={qualityTier}
+        />
+      )}
       {nearLanding && <LandingPadMesh mode={trajectory.landingMode} />}
 
       <group ref={s1GroupRef}>

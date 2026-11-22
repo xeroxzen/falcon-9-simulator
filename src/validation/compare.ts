@@ -82,12 +82,12 @@ function makeDelta(real: number, sim: number): EventDelta {
 }
 
 /**
- * Part D MAP Variant (a) webcast-clock offset (s), fitted jointly on the
- * 3-flight fit set (DM-1, CRS-16, Iridium NEXT 8) after removing the
- * EMPIRICAL 2.0 s liftoff ramp. Applied consistently in all validation
- * comparisons against SpaceX webcast telemetry (+1.92 ± 1.31 s).
+ * Webcast-clock offset (s), 1-DOF MAP refitted on the 3-flight fit set
+ * (DM-1, CRS-16, Iridium NEXT 8) with hold-down clamp release at T = 0
+ * (+2.00 ± 0.57 s; v1.3.1 vehicle frozen). Applied consistently in all
+ * validation comparisons against SpaceX webcast telemetry.
  */
-export const WEBCAST_LIFTOFF_OFFSET_S = 1.92;
+export const WEBCAST_LIFTOFF_OFFSET_S = 2.00;
 
 /**
  * Compare a simulated full mission against real SpaceX webcast telemetry.
@@ -120,6 +120,7 @@ export function compareMissionToTelemetry(
   const tOff = WEBCAST_LIFTOFF_OFFSET_S;
   const simTimeline: TelemetryPointSI[] = [];
   for (const s of sim.ascent.samples) {
+    if (s.timeS < 0) continue; // exclude pre-launch countdown samples from flight telemetry comparison
     simTimeline.push({
       timeS: s.timeS + tOff,
       altitudeM: s.geodetic.altitudeM,

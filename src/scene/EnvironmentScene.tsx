@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
 import * as THREE from 'three';
+import { liveSimClock, type QualityTier } from '../store/simStore.js';
 import { InteractableHitbox } from './InteractableHitbox.js';
 
 const NO_RAYCAST = () => null;
@@ -33,21 +35,138 @@ void main() {
 }
 `;
 
+const DELUGE_COUNTS: Record<QualityTier, number> = {
+  low: 16,
+  med: 32,
+  high: 48,
+};
+
 /**
- * Launch Pad (LC-39A / SLC-40 concrete pad, flame trench, strongback tower)
- * rendered at local origin (0, 0, 0).
+ * Water deluge & flame-trench steam plume (T-5 s to T+9 s).
+ * Instanced translucent puffs erupting out of the trench sides, zero per-frame allocations.
+ */
+function WaterDelugeEffect({ qualityTier }: { readonly qualityTier: QualityTier }) {
+  const count = DELUGE_COUNTS[qualityTier];
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+
+  const seeds = useMemo(() => {
+    const arr: Array<{
+      angle: number;
+      speed: number;
+      phase: number;
+      rise: number;
+      baseScale: number;
+    }> = [];
+    for (let i = 0; i < count; i++) {
+      // Concentrate jets along the 2 main flame-trench exits (+X/-X) and secondary +/-Z
+      const sector = i % 4;
+      const baseAngle = sector * (Math.PI / 2);
+      const jitter = (((i * 73) % 100) / 100 - 0.5) * 0.55;
+      arr.push({
+        angle: baseAngle + jitter,
+        speed: 14 + ((i * 37) % 18),
+        phase: (i / count) * 2.4,
+        rise: 2.5 + ((i * 29) % 10) * 0.65,
+        baseScale: 2.0 + ((i * 19) % 10) * 0.25,
+      });
+    }
+    return arr;
+  }, [count]);
+
+  useFrame(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const t = liveSimClock.timeS;
+
+    // Active from T-5 s (water deluge start) through T+9 s (pad clear)
+    if (t < -5.0 || t > 9.0) {
+      mesh.visible = false;
+      return;
+    }
+
+    // Pre-ignition deluge spray (T-5..-3s: 0->0.35), ignition surge (T-3..+3s: 0.35->1.0), fade (+3..+9s)
+    let intensity: number;
+    if (t < -3.0) {
+      intensity = 0.35 * Math.min(1, Math.max(0, (t + 5.0) / 2.0));
+    } else if (t <= 3.0) {
+      const surge = Math.min(1, Math.max(0, (t + 3.0) / 1.8));
+      intensity = 0.35 + 0.65 * surge;
+    } else {
+      intensity = Math.max(0, 1.0 - (t - 3.0) / 6.0);
+    }
+
+    mesh.visible = intensity > 0.01;
+    if (!mesh.visible) return;
+
+    const mat = mesh.material as THREE.MeshStandardMaterial;
+    mat.opacity = 0.42 * intensity;
+
+    const cycleLen = 2.4;
+    for (let i = 0; i < count; i++) {
+      const s = seeds[i]!;
+      const age = (((t + 10.0) + s.phase) % cycleLen) / cycleLen; // 0..1
+      const dist = 4.5 + age * s.speed * (0.65 + 0.7 * intensity);
+      const y = 1.6 + age * age * s.rise * (0.7 + 1.2 * intensity);
+      const scale = s.baseScale * (0.45 + 1.55 * age) * (0.55 + 0.65 * intensity) * (1 - 0.3 * age);
+
+      dummy.position.set(
+        Math.cos(s.angle) * dist,
+        y,
+        Math.sin(s.angle) * dist
+      );
+      dummy.scale.set(scale * 1.15, scale * 0.85, scale * 1.15);
+      dummy.rotation.set(age * 1.2, s.angle, age * 0.7);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh
+      ref={meshRef}
+      args={[undefined, undefined, count]}
+      visible={false}
+      raycast={NO_RAYCAST}
+      frustumCulled={false}
+    >
+      <dodecahedronGeometry args={[1, 1]} />
+      <meshStandardMaterial
+        color="#eef4fb"
+        emissive="#a8bed6"
+        emissiveIntensity={0.22}
+        roughness={0.95}
+        transparent
+        opacity={0.38}
+        depthWrite={false}
+      />
+    </instancedMesh>
+  );
+}
+
+/**
+ * Launch Pad (LC-39A / SLC-40 / SLC-4E concrete pad, flame trench, 4x hold-down clamps,
+ * strongback tower, and water deluge system) rendered at local origin (0, 0, 0).
  */
 export function LaunchPadMesh({
   siteId,
   timeS = 0,
+  qualityTier = 'high',
 }: {
   readonly siteId: string;
   readonly timeS?: number;
+  readonly qualityTier?: QualityTier;
 }) {
-  // Strongback is already retracted ~20 deg away from the vehicle before T-0,
-  // and throws back smoothly to ~40 deg during T+0..3 s — never intersects the vehicle.
+  // Strongback retracts smoothly from ~18 deg pre-ignition to ~20 deg at T-0,
+  // then throws back to ~40 deg during T+0..3 s — never intersects the vehicle.
+  const preRetract = Math.min(1, Math.max(0, (timeS + 3.0) / 3.0));
   const throwFrac = Math.min(1, Math.max(0, timeS / 3.0));
-  const retractAngleRad = 0.35 + 0.33 * throwFrac;
+  const retractAngleRad = 0.22 + 0.13 * preRetract + 0.33 * throwFrac;
+
+  // 4x hold-down clamps: engaged inward for t < 0, swing open rapidly at T+0..0.4 s
+  const clampOpenFrac = Math.min(1, Math.max(0, timeS / 0.4));
+  const clampAngleRad = 0.15 - 1.05 * clampOpenFrac;
 
   return (
     <group position={[0, 0, 0]}>
@@ -66,6 +185,19 @@ export function LaunchPadMesh({
         <boxGeometry args={[12, 3.2, 12]} />
         <meshStandardMaterial color="#3c4047" roughness={0.8} />
       </mesh>
+      {/* 4x Hold-down clamps around Stage 1 base (release at T = 0) */}
+      {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((az, idx) => (
+        <group key={idx} rotation={[0, az, 0]}>
+          <group position={[2.35, 3.1, 0]} rotation={[0, 0, clampAngleRad]}>
+            <mesh position={[0, 0.65, 0]} raycast={NO_RAYCAST}>
+              <boxGeometry args={[0.45, 1.5, 0.55]} />
+              <meshStandardMaterial color="#8f98a6" metalness={0.75} roughness={0.35} />
+            </mesh>
+          </group>
+        </group>
+      ))}
+      {/* Water deluge & trench steam plume (T-5 s .. T+9 s) */}
+      <WaterDelugeEffect qualityTier={qualityTier} />
       {/* Transporter/Erector strongback tower — hinged at base, retracted away in -X */}
       <group position={[-7.5, 2.0, 0]} rotation={[0, 0, retractAngleRad]}>
         <mesh position={[0, 31, 0]} castShadow raycast={NO_RAYCAST}>
