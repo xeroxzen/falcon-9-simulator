@@ -488,6 +488,23 @@ export function buildMissionTrajectory(
       ...res.boosterSamples.map((b) => b.geodetic.altitudeM)
     );
 
+  // Locate the last supersonic descent sample (Mach >= 1.02, descending, below 15 km)
+  // where the transonic cutoff N-wave sonic boom detaches toward the landing zone.
+  let sonicBoomEmit: MissionTrajectoryData['sonicBoomEmit'] = null;
+  for (let i = frames.length - 1; i >= 0; i--) {
+    const fr = frames[i]!;
+    if (!fr.separated) break;
+    const s1 = fr.stage1;
+    if (s1.verticalSpeedMs < -20 && s1.mach >= 1.02 && s1.altitudeM < 15_000) {
+      sonicBoomEmit = {
+        timeS: fr.timeS,
+        altitudeM: s1.altitudeM,
+        posTargetEnuM: s1.landingEnuM,
+      };
+      break;
+    }
+  }
+
   return {
     missionId: mission.id,
     missionName: mission.name,
@@ -510,6 +527,7 @@ export function buildMissionTrajectory(
     boosterPropRemainingKg: res.boosterFinal.dynamic.propellantKg,
     stage2PropRemainingKg: res.stage2Final.dynamic.propellantKg,
     landingTarget: res.landingTarget,
+    sonicBoomEmit,
     computeTimeMs,
   };
 }

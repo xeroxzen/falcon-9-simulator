@@ -10,6 +10,8 @@ interface AudioDebugSnapshot {
   continuousMuted: boolean;
   graphNodesBuilt: number;
   oneShotsFired: number;
+  oneShotLog: Array<{ type: string; simTimeS: number }>;
+  lastBoomArrivalTimeS: number | null;
   lastOutputs: {
     airTransmission: number;
     rumbleGain: number;
@@ -158,13 +160,105 @@ test.describe('v1.4 Part D — Procedural Physically-Based Web Audio E2E', () =>
     const delugeCheck = await getAudio();
     expect(delugeCheck.lastOutputs?.aeroGain ?? 0).toBeGreaterThan(0.12);
 
-    // Optional live 27 s MediaRecorder capture from the running app (WebGL canvas + live Web Audio master bus)
+    // 8. RTLS Sonic Boom: seek across boom-arrival time -> ZERO sonic-boom events;
+    //    real-time playback across boom-arrival time -> EXACTLY ONE sonic-boom event.
+    await page.evaluate(() => {
+      const dbg = (window as unknown as { __f9debug: { setPlaying: (p: boolean) => void } })
+        .__f9debug;
+      dbg.setPlaying(false);
+    });
+    await missionSelect.selectOption({ index: 1 }); // RTLS mission
+    await page.waitForTimeout(900);
+
+    // Position camera at LZ-1 during final descent so lastBoomArrivalTimeS is computed
+    await page.evaluate(() => {
+      const dbg = (
+        window as unknown as {
+          __f9debug: {
+            setFocusStage: (s: 'stage1' | 'stage2') => void;
+            setCameraMode: (m: string) => void;
+            setPlaybackSpeed: (v: number) => void;
+            setTimeS: (t: number) => void;
+            setPlaying: (p: boolean) => void;
+            clearAudioOneShotLog: () => void;
+          };
+        }
+      ).__f9debug;
+      dbg.setFocusStage('stage1');
+      dbg.setCameraMode('droneship');
+      dbg.setPlaybackSpeed(1);
+      dbg.setTimeS(476);
+      dbg.setPlaying(false);
+      dbg.clearAudioOneShotLog();
+    });
+    await page.waitForTimeout(250);
+    const rtlsPre = await getAudio();
+    expect(rtlsPre.lastBoomArrivalTimeS).not.toBeNull();
+    const tBoom = rtlsPre.lastBoomArrivalTimeS!;
+
+    // 8a. Seek across tBoom -> ZERO sonic-boom events
+    await page.evaluate((tb: number) => {
+      const dbg = (
+        window as unknown as {
+          __f9debug: {
+            setPlaying: (p: boolean) => void;
+            setTimeS: (t: number) => void;
+            clearAudioOneShotLog: () => void;
+          };
+        }
+      ).__f9debug;
+      dbg.clearAudioOneShotLog();
+      dbg.setPlaying(false);
+      dbg.setTimeS(tb - 2.0);
+    }, tBoom);
+    await page.waitForTimeout(120);
+    await page.evaluate((tb: number) => {
+      const dbg = (window as unknown as { __f9debug: { setTimeS: (t: number) => void } })
+        .__f9debug;
+      dbg.setTimeS(tb + 2.0);
+    }, tBoom);
+    await page.waitForTimeout(150);
+    const afterBoomSeek = await getAudio();
+    const seekBooms = afterBoomSeek.oneShotLog.filter((e) => e.type === 'sonic-boom');
+    expect(seekBooms.length).toBe(0);
+
+    // 8b. Real-time 1x playback across tBoom -> EXACTLY ONE sonic-boom event
+    await page.evaluate((tb: number) => {
+      const dbg = (
+        window as unknown as {
+          __f9debug: {
+            setPlaying: (p: boolean) => void;
+            setPlaybackSpeed: (v: number) => void;
+            setTimeS: (t: number) => void;
+            clearAudioOneShotLog: () => void;
+          };
+        }
+      ).__f9debug;
+      dbg.setPlaying(false);
+      dbg.setPlaybackSpeed(1);
+      dbg.setTimeS(tb - 0.9);
+      dbg.clearAudioOneShotLog();
+    }, tBoom);
+    await page.waitForTimeout(120);
+    await page.evaluate(() => {
+      const dbg = (window as unknown as { __f9debug: { setPlaying: (p: boolean) => void } })
+        .__f9debug;
+      dbg.setPlaying(true);
+    });
+    await page.waitForTimeout(1_900);
+    const afterBoomRealtime = await getAudio();
+    const realtimeBooms = afterBoomRealtime.oneShotLog.filter((e) => e.type === 'sonic-boom');
+    expect(realtimeBooms.length).toBe(1);
+
+    // Optional live MediaRecorder capture from the running app (WebGL canvas + live Web Audio master bus)
     if (process.env.CAPTURE_SOUND_DEMO === '1' && process.env.SOUND_DEMO_WEBM) {
       const webmPath = process.env.SOUND_DEMO_WEBM;
       fs.mkdirSync(path.dirname(webmPath), { recursive: true });
       await page.setViewportSize({ width: 960, height: 600 });
 
-      // Segment 1: 15.5 s real-time 1x liftoff from Pad (Fixed) (T-5.5 -> T+10.0 s)
+      // Segment 1: 13.0 s real-time 1x liftoff from Pad (Fixed) (T-5.5 -> T+7.5 s)
+      await missionSelect.selectOption({ index: 0 });
+      await page.waitForTimeout(900);
       await page.evaluate(() => {
         const dbg = (
           window as unknown as {
@@ -185,9 +279,9 @@ test.describe('v1.4 Part D — Procedural Physically-Based Web Audio E2E', () =>
         dbg.setPlaying(true);
         return dbg.startLiveAvCapture(25);
       });
-      await page.waitForTimeout(15_500);
+      await page.waitForTimeout(13_000);
 
-      // Segment 2: 11.5 s real-time 1x RTLS supersonic descent, double sonic boom & LZ-1 touchdown
+      // Segment 2: real-time 1x RTLS sonic-boom arrival -> landing burn -> LZ-1 touchdown
       await page.evaluate(() => {
         const dbg = (window as unknown as { __f9debug: { setPlaying: (p: boolean) => void } })
           .__f9debug;
@@ -195,30 +289,54 @@ test.describe('v1.4 Part D — Procedural Physically-Based Web Audio E2E', () =>
       });
       await missionSelect.selectOption({ index: 1 }); // RTLS mission
       await page.waitForTimeout(900);
-      await page.evaluate(() => {
+      const rtlsCaptureWindow = await page.evaluate(() => {
         const dbg = (
           window as unknown as {
             __f9debug: {
               getState: () => { events: Array<{ type: string; timeS: number }> };
+              getAudioState: () => AudioDebugSnapshot;
               setFocusStage: (s: 'stage1' | 'stage2') => void;
               setCameraMode: (m: string) => void;
               setPlaybackSpeed: (v: number) => void;
               setTimeS: (t: number) => void;
               setPlaying: (p: boolean) => void;
+              clearAudioOneShotLog: () => void;
             };
           }
         ).__f9debug;
         const td = dbg.getState().events.find((e) => e.type === 'TOUCHDOWN');
-        const tLand = td ? td.timeS : 472;
+        const tLand = td ? td.timeS : 504.64;
         dbg.setFocusStage('stage1');
         dbg.setCameraMode('droneship');
         dbg.setPlaybackSpeed(1);
-        // Start slightly above 4,200 m supersonic so boom arms & fires in real-time playback
-        dbg.setTimeS(Math.max(400, tLand - 20.0));
-        dbg.setPlaying(true);
+        dbg.setTimeS(tLand - 25.0);
+        dbg.clearAudioOneShotLog();
+        return { tLand };
       });
-      // Let booster cross supersonic descent -> double sonic boom -> landing burn -> touchdown
-      await page.waitForTimeout(12_000);
+      await page.waitForTimeout(180);
+      const captureBoomInfo = await getAudio();
+      const tBoomCap = captureBoomInfo.lastBoomArrivalTimeS ?? rtlsCaptureWindow.tLand - 21.0;
+      const startT = tBoomCap - 2.0;
+      const durationMs = Math.ceil((rtlsCaptureWindow.tLand + 1.8 - startT) * 1000);
+      await page.evaluate((tStart: number) => {
+        const dbg = (
+          window as unknown as {
+            __f9debug: {
+              setTimeS: (t: number) => void;
+              setPlaying: (p: boolean) => void;
+              clearAudioOneShotLog: () => void;
+            };
+          }
+        ).__f9debug;
+        dbg.clearAudioOneShotLog();
+        dbg.setTimeS(tStart);
+        dbg.setPlaying(true);
+      }, startT);
+      await page.waitForTimeout(durationMs);
+
+      const postCapAudio = await getAudio();
+      const capBooms = postCapAudio.oneShotLog.filter((e) => e.type === 'sonic-boom');
+      expect(capBooms.length).toBe(1);
 
       const b64 = await page.evaluate(async () => {
         const dbg = (

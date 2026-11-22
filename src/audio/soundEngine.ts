@@ -1,9 +1,20 @@
 import {
-  computePathAtmosphere,
   evaluateAcoustics,
   type AcousticInputs,
   type AcousticOutputs,
 } from './acoustics.js';
+
+export type SoundOneShotType =
+  | 'ignition'
+  | 'clamp-release'
+  | 'meco'
+  | 'stage-sep'
+  | 'sonic-boom';
+
+export interface SoundOneShotEntry {
+  readonly type: SoundOneShotType;
+  readonly simTimeS: number;
+}
 
 export interface SoundDebugState {
   readonly hasAudioContext: boolean;
@@ -12,6 +23,8 @@ export interface SoundDebugState {
   readonly continuousMuted: boolean;
   readonly graphNodesBuilt: number;
   readonly oneShotsFired: number;
+  readonly oneShotLog: readonly SoundOneShotEntry[];
+  readonly lastBoomArrivalTimeS: number | null;
   readonly lastOutputs: AcousticOutputs | null;
 }
 
@@ -21,11 +34,10 @@ export interface SoundEventTriggers {
   readonly playbackSpeed: number;
   readonly mecoTimeS: number;
   readonly stageSepTimeS: number;
-  /** True when booster is descending supersonically toward listener (Mach > 1.05, alt < 12 km). */
-  readonly boosterSupersonicDescent: boolean;
-  /** Current booster altitude (m) & distance to listener (m) for sonic boom arrival. */
-  readonly boosterAltM: number;
-  readonly distanceToListenerM: number;
+  /** Physical sonic boom arrival time at the active listener (s), or null if N/A. */
+  readonly sonicBoomArrivalTimeS: number | null;
+  /** Slant distance from transonic boom emission point to active listener (m). */
+  readonly sonicBoomDistM: number;
   readonly airTransmission: number;
 }
 
@@ -116,9 +128,13 @@ class Falcon9SoundEngine {
 
   // Real-time event crossing tracker (prevents firing one-shots on scrub/seek)
   private prevSimTimeS: number | null = null;
-  private boomArmed = false;
-  private boomFired = false;
+  private oneShotLog: SoundOneShotEntry[] = [];
+  private lastBoomArrivalTimeS: number | null = null;
   private lifecycleBound = false;
+
+  public clearOneShotLog(): void {
+    this.oneShotLog = [];
+  }
 
   // Dev-only live Web Audio capture destination (used by __f9debug in E2E recording)
   private captureDest: MediaStreamAudioDestinationNode | null = null;
@@ -334,12 +350,7 @@ class Falcon9SoundEngine {
 
     const prevT = this.prevSimTimeS;
     this.prevSimTimeS = events.simTimeS;
-
-    // Reset sonic boom arming if scrubbed before descent
-    if (prevT !== null && Math.abs(events.simTimeS - prevT) > 1.5) {
-      this.boomArmed = false;
-      this.boomFired = false;
-    }
+    this.lastBoomArrivalTimeS = events.sonicBoomArrivalTimeS;
 
     if (!this.ctx || this.muted) {
       return out;
@@ -373,71 +384,80 @@ class Falcon9SoundEngine {
       const delay = out.delayS;
 
       if (crossed(-3.0) && out.airTransmission > 0.05) {
-        this.triggerThump(now + delay, 0.55 * out.airTransmission, 160, 0.28);
+        this.triggerThump('ignition', events.simTimeS, now + delay, 0.55 * out.airTransmission, 160, 0.28);
       }
       if (crossed(0.0) && out.airTransmission > 0.05) {
         // Hold-down clamp release metallic thump
-        this.triggerThump(now + delay, 0.45 * out.airTransmission, 520, 0.14);
+        this.triggerThump('clamp-release', events.simTimeS, now + delay, 0.45 * out.airTransmission, 520, 0.14);
       }
       if (crossed(events.mecoTimeS)) {
         // MECO structural thump (audible onboard even in vacuum, or close external)
         const lvl = inputs.isOnboard ? 0.35 : 0.3 * out.airTransmission;
-        if (lvl > 0.02) this.triggerThump(now + delay, lvl, 140, 0.22);
+        if (lvl > 0.02) this.triggerThump('meco', events.simTimeS, now + delay, lvl, 140, 0.22);
       }
       if (crossed(events.stageSepTimeS)) {
         const lvl = inputs.isOnboard ? 0.3 : 0.25 * out.airTransmission;
-        if (lvl > 0.02) this.triggerThump(now + delay, lvl, 280, 0.16);
+        if (lvl > 0.02) this.triggerThump('stage-sep', events.simTimeS, now + delay, lvl, 280, 0.16);
       }
 
-      // RTLS / ASDS Double Sonic Boom (arm during supersonic descent, fire on acoustic arrival)
-      if (events.boosterSupersonicDescent && events.boosterAltM < 12_000) {
-        this.boomArmed = true;
-      }
+      // RTLS / ASDS Double Sonic Boom: fires strictly when real-time playback crosses
+      // the US76-computed acoustic arrival time (t_emit + slantDist / c_path_avg).
       if (
-        this.boomArmed &&
-        !this.boomFired &&
+        events.sonicBoomArrivalTimeS !== null &&
         !inputs.isOnboard &&
-        events.boosterAltM < 4_200 &&
+        crossed(events.sonicBoomArrivalTimeS) &&
         events.airTransmission > 0.2
       ) {
-        this.boomFired = true;
-        const { speedOfSoundMs } = computePathAtmosphere(events.boosterAltM, inputs.listenerAltM);
-        const boomDelay = Math.min(2.5, events.distanceToListenerM / speedOfSoundMs);
-        const boomLevel = Math.min(0.88, (1 / (1 + events.distanceToListenerM / 2_800)) * 0.9);
-        this.triggerDoubleSonicBoom(now + boomDelay * 0.25, boomLevel);
+        const boomLevel = Math.min(0.94, (1 / (1 + events.sonicBoomDistM / 4_200)) * 0.96);
+        this.triggerDoubleSonicBoom(events.simTimeS, now + 0.005, boomLevel);
       }
     }
 
     return out;
   }
 
-  private triggerThump(when: number, level: number, cutoffHz: number, decayS: number): void {
+  private recordOneShot(type: SoundOneShotType, simTimeS: number): void {
+    this.oneShotsFired++;
+    this.oneShotLog.push({ type, simTimeS });
+    if (this.oneShotLog.length > 64) {
+      this.oneShotLog.shift();
+    }
+  }
+
+  private triggerThump(
+    type: SoundOneShotType,
+    simTimeS: number,
+    when: number,
+    level: number,
+    cutoffHz: number,
+    decayS: number
+  ): void {
     if (!this.oneShotNoiseGain || !this.oneShotFilter) return;
     this.oneShotFilter.frequency.setValueAtTime(cutoffHz, when);
     this.oneShotNoiseGain.gain.cancelScheduledValues(when);
     this.oneShotNoiseGain.gain.setValueAtTime(0.0001, when);
     this.oneShotNoiseGain.gain.linearRampToValueAtTime(level, when + 0.015);
     this.oneShotNoiseGain.gain.exponentialRampToValueAtTime(0.0001, when + decayS);
-    this.oneShotsFired++;
+    this.recordOneShot(type, simTimeS);
   }
 
-  private triggerDoubleSonicBoom(when: number, level: number): void {
+  private triggerDoubleSonicBoom(simTimeS: number, when: number, level: number): void {
     if (!this.boomGain || !this.boomOsc || !this.oneShotNoiseGain || !this.oneShotFilter) return;
-    // Iconic Falcon 9 double N-wave sonic boom (aft octaweb + forward nose/grid-fins, ~120 ms apart)
-    for (const offset of [0, 0.125]) {
+    // Iconic Falcon 9 double N-wave sonic boom (aft octaweb + forward nose/grid-fins, ~135 ms apart)
+    for (const offset of [0, 0.135]) {
       const t0 = when + offset;
-      this.boomOsc.frequency.setValueAtTime(62, t0);
-      this.boomOsc.frequency.exponentialRampToValueAtTime(28, t0 + 0.16);
+      this.boomOsc.frequency.setValueAtTime(74, t0);
+      this.boomOsc.frequency.exponentialRampToValueAtTime(24, t0 + 0.19);
       this.boomGain.gain.setValueAtTime(0.0001, t0);
       this.boomGain.gain.linearRampToValueAtTime(level, t0 + 0.008);
-      this.boomGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+      this.boomGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.25);
 
-      this.oneShotFilter.frequency.setValueAtTime(190, t0);
+      this.oneShotFilter.frequency.setValueAtTime(260, t0);
       this.oneShotNoiseGain.gain.setValueAtTime(0.0001, t0);
-      this.oneShotNoiseGain.gain.linearRampToValueAtTime(level * 0.72, t0 + 0.01);
-      this.oneShotNoiseGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.26);
+      this.oneShotNoiseGain.gain.linearRampToValueAtTime(level * 0.85, t0 + 0.01);
+      this.oneShotNoiseGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
     }
-    this.oneShotsFired++;
+    this.recordOneShot('sonic-boom', simTimeS);
   }
 
   public getDebugState(): SoundDebugState {
@@ -448,6 +468,8 @@ class Falcon9SoundEngine {
       continuousMuted: this.lastOutputs?.continuousMuted ?? true,
       graphNodesBuilt: this.graphNodesBuilt,
       oneShotsFired: this.oneShotsFired,
+      oneShotLog: this.oneShotLog,
+      lastBoomArrivalTimeS: this.lastBoomArrivalTimeS,
       lastOutputs: this.lastOutputs,
     };
   }

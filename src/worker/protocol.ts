@@ -103,6 +103,12 @@ export interface MissionTrajectoryData {
   readonly boosterPropRemainingKg: number;
   readonly stage2PropRemainingKg: number;
   readonly landingTarget: GeodeticCoord;
+  /** Last supersonic descent frame (Mach >= 1.02) where the landing sonic boom detaches. */
+  readonly sonicBoomEmit: {
+    readonly timeS: number;
+    readonly altitudeM: number;
+    readonly posTargetEnuM: Vec3;
+  } | null;
   readonly computeTimeMs: number;
 }
 
