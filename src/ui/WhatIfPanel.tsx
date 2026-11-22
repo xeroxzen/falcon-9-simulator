@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { FALCON9_BLOCK5 } from '../sim/config/falcon9.js';
+import { FALCON9_BLOCK5, LAUNCH_SITES } from '../sim/config/falcon9.js';
 import { defaultWhatIfPitchKickDeg } from '../sim/guidance/mission-design.js';
-import type { LandingMode, MissionConfig } from '../sim/types.js';
+import type { LandingMode, LaunchSiteConfig, MissionConfig } from '../sim/types.js';
 import { AVAILABLE_MISSIONS, useSimStore } from '../store/simStore.js';
 import { BottomSheet } from './BottomSheet.js';
 import { fmtSignedDelta } from './format.js';
@@ -36,6 +36,9 @@ export function WhatIfPanel() {
   const [engineOutTimeS, setEngineOutTimeS] = useState(
     mission.engineOuts[0]?.timeS ?? 65
   );
+  const [launchSiteId, setLaunchSiteId] = useState<LaunchSiteConfig['id']>(
+    mission.launchSite.id
+  );
   const [payloadMassKg, setPayloadMassKg] = useState(mission.payloadMassKg);
   const [landingMode, setLandingMode] = useState<LandingMode>(
     mission.landingMode
@@ -53,6 +56,7 @@ export function WhatIfPanel() {
     setEngineOutEnabled(baseMission.engineOuts.length > 0);
     setEngineOutIndex(baseMission.engineOuts[0]?.engineIndex ?? 2);
     setEngineOutTimeS(baseMission.engineOuts[0]?.timeS ?? 65);
+    setLaunchSiteId(baseMission.launchSite.id);
     setPayloadMassKg(baseMission.payloadMassKg);
     setLandingMode(baseMission.landingMode);
     setWindEastMs(baseMission.wind.eastMs);
@@ -73,19 +77,27 @@ export function WhatIfPanel() {
             ? baseMission.guidance.mecoPropellantReserveFraction
             : 0.075;
 
+    const selectedSite = LAUNCH_SITES[launchSiteId];
+    const isVandenberg = launchSiteId === 'SLC-4E';
+    const effectiveInclDeg =
+      isVandenberg && targetInclDeg < 55 ? 97.5 : targetInclDeg;
     const isTwoBurnTarget = targetAltKm > 250;
     const profilePitchKickDeg = defaultWhatIfPitchKickDeg(targetAltKm * 1000);
     const customMission: MissionConfig = {
       ...baseMission,
+      launchSite: selectedSite,
+      launchDirection: isVandenberg ? 'DESCENDING' : 'ASCENDING',
       ascentProfile: undefined, // What-If falls back to >250 km two-burn default
       payloadMassKg,
       landingMode,
       landingSiteId:
         landingMode === 'RTLS'
-          ? (baseMission.landingSiteId ?? 'LZ-1')
+          ? isVandenberg
+            ? 'LZ-4'
+            : 'LZ-1'
           : baseMission.landingSiteId,
       targetOrbitAltitudeM: targetAltKm * 1000,
-      targetInclinationDeg: targetInclDeg,
+      targetInclinationDeg: effectiveInclDeg,
       maxSimTimeS: isTwoBurnTarget
         ? Math.max(baseMission.maxSimTimeS, 4_200)
         : baseMission.maxSimTimeS,
@@ -145,6 +157,33 @@ export function WhatIfPanel() {
 
       {/* Controls */}
       <div className="whatif-controls">
+        {/* Launch Site Picker (LC-39A, SLC-40, SLC-4E) */}
+        <div className="whatif-group">
+          <div className="whatif-label-row">
+            <span>Launch Site</span>
+            <strong>
+              {launchSiteId} ({LAUNCH_SITES[launchSiteId].elevationM} m AMSL)
+            </strong>
+          </div>
+          <select
+            className="whatif-input"
+            value={launchSiteId}
+            aria-label="Launch site"
+            data-testid="launch-site-select"
+            onChange={(e) => {
+              const nextId = e.target.value as LaunchSiteConfig['id'];
+              setLaunchSiteId(nextId);
+              if (nextId === 'SLC-4E' && targetInclDeg < 55) {
+                setTargetInclDeg(97.5);
+              }
+            }}
+          >
+            <option value="LC-39A">LC-39A — Kennedy Space Center (28.61°N)</option>
+            <option value="SLC-40">SLC-40 — Cape Canaveral SFS (28.56°N)</option>
+            <option value="SLC-4E">SLC-4E — Vandenberg SFB (34.63°N, Polar/SSO)</option>
+          </select>
+        </div>
+
         {/* Engine Out */}
         <div className="whatif-group">
           <label className="whatif-check">

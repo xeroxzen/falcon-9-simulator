@@ -1,0 +1,17 @@
+{
+  "id": "water-deluge-tower",
+  "name": "Water Deluge Sound Suppression System",
+  "summary": "High-flow gravity-fed water tower and trench manifold that floods the launch mount with water seconds before Merlin 1D ignition.",
+  "function": "Absorbs extreme acoustic energy and thermal flux from 9× Merlin 1D engines (7.6 MN) to protect the vehicle and payload from reflected sound waves.",
+  "materials": "Elevated steel water storage tank, high-capacity butterfly deluge valves, and reinforced steel spray nozzles ringing the launch mount and flame trench.",
+  "specs": [
+    { "label": "LC-39A Tank Capacity", "value": "1.14M", "unit": "L", "source": "NASA KSC LC-39A Sound Suppression Water System (~300,000 gal)", "status": "SOURCED" },
+    { "label": "LC-39A Tower Height", "value": "88", "unit": "m", "source": "NASA KSC LC-39A elevated water tower (~290 ft)", "status": "SOURCED" },
+    { "label": "Deluge Activation", "value": "T-5.0", "unit": "s", "source": "Representative pre-ignition deluge start (varies by site/mission)", "status": "ASSUMED" }
+  ],
+  "history": "Originally installed for Space Shuttle launches to prevent overpressure waves from damaging the orbiter, the deluge system flashes thousands of liters of water per second into billowing ground-hugging steam at Falcon 9 ignition.",
+  "sources": [
+    "NASA KSC Sound Suppression Water System Reference",
+    "SpaceX Falcon User's Guide"
+  ]
+}

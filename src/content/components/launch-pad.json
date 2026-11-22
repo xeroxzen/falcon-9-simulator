@@ -8,6 +8,7 @@
     { "label": "LC-39A Coordinates", "value": "28.6083°N, 80.6044°W", "unit": "WGS-84", "source": "KSC WGS-84 geodetic coordinates", "status": "SOURCED" },
     { "label": "LC-39A Elevation", "value": "15", "unit": "m AMSL", "source": "KSC geodetic elevation", "status": "SOURCED" },
     { "label": "SLC-40 Coordinates", "value": "28.5619°N, 80.5772°W", "unit": "WGS-84", "source": "CCSFS WGS-84 geodetic coordinates", "status": "SOURCED" },
+    { "label": "SLC-4E Coordinates", "value": "34.6321°N, 120.6106°W", "unit": "WGS-84", "source": "VSFB SLC-4E WGS-84 geodetic coordinates (114 m AMSL)", "status": "SOURCED" },
     { "label": "Strongback Height", "value": "64", "unit": "m", "source": "Public Falcon 9 T/E geometry", "status": "ASSUMED" }
   ],
   "history": "Historic LC-39A launched Apollo 11 and the Space Shuttle before SpaceX leased and modernized it in 2014 for Falcon 9, Falcon Heavy, and Crew Dragon human spaceflight.",

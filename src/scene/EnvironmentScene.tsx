@@ -561,12 +561,17 @@ export function LaunchPadMesh({
   const clampOpenFrac = Math.min(1, Math.max(0, timeS / 0.5));
   const clampAngleRad = 0.22 - 1.18 * clampOpenFrac;
 
+  const isLC39A = siteId === 'LC-39A';
+  const isSLC4E = siteId === 'SLC-4E';
+  // Site-specific terrain tint: California coastal bluff ochre-olive at Vandenberg SLC-4E vs Florida scrub
+  const groundColor = isSLC4E ? '#4a4a36' : '#2a332b';
+
   return (
     <group position={[0, 0, 0]}>
       {/* Ground plane around pad */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]} receiveShadow raycast={NO_RAYCAST}>
         <circleGeometry args={[1200, 36]} />
-        <meshStandardMaterial color="#2a332b" roughness={0.95} />
+        <meshStandardMaterial color={groundColor} roughness={0.95} />
       </mesh>
       {/* Concrete pad apron */}
       <mesh position={[0, 0.25, 0]} receiveShadow raycast={NO_RAYCAST}>
@@ -673,8 +678,152 @@ export function LaunchPadMesh({
       {/* Subtle site marker */}
       <mesh position={[0, 0.55, 18]} rotation={[-Math.PI / 2, 0, 0]} raycast={NO_RAYCAST}>
         <ringGeometry args={[1.2, 1.8, 20]} />
-        <meshBasicMaterial color={siteId === 'LC-39A' ? '#4ea1ff' : '#ffd166'} />
+        <meshBasicMaterial
+          color={isLC39A ? '#4ea1ff' : isSLC4E ? '#4fd1a5' : '#ffd166'}
+        />
       </mesh>
+
+      {/* =====================================================================
+          Clickable Low-Poly Pad Infrastructure (Part E, positioned cleanly
+          outside the Pad camera-to-vehicle ray cone for zero occlusion)
+          ===================================================================== */}
+
+      {/* 1. LC-39A Fixed Service Structure (FSS) & Crew Access Arm (LC-39A only) */}
+      {isLC39A && (
+        <group position={[-25, 0, -24]}>
+          {/* Main steel FSS tower */}
+          <mesh position={[0, 39, 0]} castShadow raycast={NO_RAYCAST}>
+            <boxGeometry args={[11, 78, 11]} />
+            <meshStandardMaterial color="#3c434d" roughness={0.7} metalness={0.45} />
+          </mesh>
+          {/* Clad upper weather panels */}
+          <mesh position={[0, 56, 0]} raycast={NO_RAYCAST}>
+            <boxGeometry args={[11.6, 26, 11.6]} />
+            <meshStandardMaterial color="#272c34" roughness={0.65} metalness={0.5} />
+          </mesh>
+          {/* Retracted Crew Access Arm + White Room at y = 54 m */}
+          <group position={[5.5, 54, 4.5]} rotation={[0, -0.55, 0]}>
+            <mesh position={[9.5, 0, 0]} raycast={NO_RAYCAST}>
+              <boxGeometry args={[19, 3.2, 2.8]} />
+              <meshStandardMaterial color="#dde4ee" roughness={0.45} metalness={0.3} />
+            </mesh>
+            <mesh position={[19.2, 0, 0]} raycast={NO_RAYCAST}>
+              <boxGeometry args={[3.2, 3.8, 3.4]} />
+              <meshStandardMaterial color="#f5f8fc" roughness={0.35} />
+            </mesh>
+          </group>
+          <InteractableHitbox
+            componentId="fss-tower"
+            label="LC-39A FSS & Crew Access Arm"
+            position={[0, 39, 0]}
+            shape="box"
+            args={[14, 78, 14]}
+            outlineArgs={[12, 78, 12]}
+            labelOffset={[-8, 18, 0]}
+          />
+        </group>
+      )}
+
+      {/* 2. Horizontal Integration Facility (HIF) Hangar (all 3 sites) */}
+      <group position={[-54, 0, -48]}>
+        <mesh position={[0, 7, 0]} receiveShadow raycast={NO_RAYCAST}>
+          <boxGeometry args={[36, 14, 18]} />
+          <meshStandardMaterial color="#cfd6df" roughness={0.75} metalness={0.25} />
+        </mesh>
+        {/* Dark roof fascia & hangar bay door */}
+        <mesh position={[0, 14.3, 0]} raycast={NO_RAYCAST}>
+          <boxGeometry args={[36.8, 0.8, 18.8]} />
+          <meshStandardMaterial color="#3c434d" roughness={0.7} />
+        </mesh>
+        <mesh position={[18.1, 5.5, 0]} raycast={NO_RAYCAST}>
+          <boxGeometry args={[0.3, 11, 10]} />
+          <meshStandardMaterial color="#2a3038" roughness={0.6} />
+        </mesh>
+        <InteractableHitbox
+          componentId="hif-hangar"
+          label="Horizontal Integration Facility (HIF)"
+          position={[0, 7, 0]}
+          shape="box"
+          args={[38, 16, 20]}
+          outlineArgs={[37, 15, 19]}
+          labelOffset={[0, 11, 0]}
+        />
+      </group>
+
+      {/* 3. Cryogenic LOX Sphere & Subcooled RP-1 Tank Farm (all 3 sites) */}
+      <group position={[46, 0, -28]}>
+        {/* Spherical white LOX storage tank on 4 support legs */}
+        <mesh position={[0, 8.5, 0]} castShadow raycast={NO_RAYCAST}>
+          <sphereGeometry args={[6.2, 20, 16]} />
+          <meshStandardMaterial color="#eef3f8" roughness={0.38} metalness={0.25} />
+        </mesh>
+        {[
+          [3.6, 3.6],
+          [-3.6, 3.6],
+          [3.6, -3.6],
+          [-3.6, -3.6],
+        ].map(([lx, lz], idx) => (
+          <mesh key={idx} position={[lx!, 3.0, lz!]} raycast={NO_RAYCAST}>
+            <cylinderGeometry args={[0.35, 0.45, 6.0, 8]} />
+            <meshStandardMaterial color="#7d8694" metalness={0.5} />
+          </mesh>
+        ))}
+        {/* Horizontal RP-1 / LN2 subcooler tanks */}
+        <mesh position={[12, 2.2, 8]} rotation={[0, 0, Math.PI / 2]} raycast={NO_RAYCAST}>
+          <cylinderGeometry args={[1.6, 1.6, 12, 14]} />
+          <meshStandardMaterial color="#d8e0e8" roughness={0.45} metalness={0.3} />
+        </mesh>
+        <mesh position={[12, 2.2, 12.5]} rotation={[0, 0, Math.PI / 2]} raycast={NO_RAYCAST}>
+          <cylinderGeometry args={[1.6, 1.6, 12, 14]} />
+          <meshStandardMaterial color="#d8e0e8" roughness={0.45} metalness={0.3} />
+        </mesh>
+        <InteractableHitbox
+          componentId="propellant-farm"
+          label="LOX Sphere & RP-1 Tank Farm"
+          position={[4, 7, 4]}
+          shape="box"
+          args={[22, 16, 22]}
+          outlineArgs={[20, 15, 20]}
+          labelOffset={[0, 11, 0]}
+        />
+      </group>
+
+      {/* 4. Water Deluge Sound Suppression Tower (elevated tank at LC-39A; lower tank at SLC-40/4E) */}
+      <group position={[40, 0, -52]}>
+        {isLC39A ? (
+          <>
+            <mesh position={[0, 44, 0]} castShadow raycast={NO_RAYCAST}>
+              <cylinderGeometry args={[4.4, 4.4, 9.5, 16]} />
+              <meshStandardMaterial color="#d9e2ec" roughness={0.45} metalness={0.3} />
+            </mesh>
+            {[
+              [2.8, 2.8],
+              [-2.8, 2.8],
+              [2.8, -2.8],
+              [-2.8, -2.8],
+            ].map(([wx, wz], idx) => (
+              <mesh key={idx} position={[wx!, 20, wz!]} raycast={NO_RAYCAST}>
+                <cylinderGeometry args={[0.35, 0.5, 40, 8]} />
+                <meshStandardMaterial color="#67707d" metalness={0.55} />
+              </mesh>
+            ))}
+          </>
+        ) : (
+          <mesh position={[0, 5.5, 0]} castShadow raycast={NO_RAYCAST}>
+            <cylinderGeometry args={[5.2, 5.2, 11, 16]} />
+            <meshStandardMaterial color="#cfd8e2" roughness={0.5} metalness={0.3} />
+          </mesh>
+        )}
+        <InteractableHitbox
+          componentId="water-deluge-tower"
+          label="Water Deluge System"
+          position={[0, isLC39A ? 25 : 6, 0]}
+          shape="box"
+          args={[12, isLC39A ? 52 : 13, 12]}
+          outlineArgs={[11, isLC39A ? 50 : 12, 11]}
+          labelOffset={[0, isLC39A ? 28 : 9, 0]}
+        />
+      </group>
     </group>
   );
 }
