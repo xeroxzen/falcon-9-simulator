@@ -1,7 +1,7 @@
 {
   "id": "droneship",
   "name": "ASDS Droneship / Landing Zone",
-  "summary": "Autonomous Spaceport Drone Ship (ASOG / OCISLY / JRTI; 2026 coast assignments UNVERIFIED) or concrete RTLS Landing Zone (active LZ-40 at CCSFS, active LZ-4 at VSFB; historical LZ-1/LZ-2 at LC-13).",
+  "summary": "Autonomous Spaceport Drone Ship (ASOG & OCISLY active, 2026 coast assignments UNVERIFIED; JRTI retired from F9 service April 21, 2026) or concrete RTLS Landing Zone (active LZ-40 at CCSFS, active LZ-4 at VSFB; historical LZ-1/LZ-2 at LC-13).",
   "function": "Provides a stabilized ocean landing deck hundreds of kilometers downrange (ASDS) or a coastal concrete pad (RTLS) for propulsive first-stage booster recovery.",
   "materials": "Modified ocean-going steel deck barge (Marmac 300-series) equipped with four GPS-guided azimuth thrusters, blast walls, and the Octagrabber recovery robot.",
   "specs": [
@@ -11,7 +11,7 @@
     { "label": "LZ-1 / LZ-2 (LC-13)", "value": "28.4858°N, 80.5429°W", "unit": "WGS-84", "source": "Crew-11 (Aug 1, 2025) planned final F9 LZ-1; NROL-77 (Dec 9, 2025) final F9 LZ-2; both reused for FH NROL-97 (Oct 1, 2026) — SpaceX / Spaceflight Now", "status": "SOURCED" },
     { "label": "Active West Coast RTLS (LZ-4)", "value": "34.6342°N, 120.6150°W", "unit": "WGS-84", "source": "VSFB former SLC-4W (active since SAOCOM 1A, Oct 8, 2018)", "status": "SOURCED" }
   ],
-  "history": "SpaceX achieved its first RTLS landing at LZ-1 on Orbcomm-2 (Dec 2015) and its first ASDS ocean landing on OCISLY during CRS-8 (April 2016). Crew-11 (Aug 1, 2025) was planned as LZ-1's final routine Falcon 9 landing and NROL-77 (Dec 9, 2025) was LZ-2's final scheduled Falcon 9 landing as East Coast RTLS shifted to LZ-40 adjacent to SLC-40; both LC-13 pads were reused on Oct 1, 2026 for Falcon Heavy NROL-97 side boosters. Current 2026 ASDS coast assignments (ASOG / OCISLY / JRTI) are marked UNVERIFIED pending primary SpaceX mission-page reconciliation.",
+  "history": "SpaceX achieved its first RTLS landing at LZ-1 on Orbcomm-2 (Dec 2015) and its first ASDS ocean landing on OCISLY during CRS-8 (April 2016). Crew-11 (Aug 1, 2025) was planned as LZ-1's final routine Falcon 9 landing and NROL-77 (Dec 9, 2025) was LZ-2's final scheduled Falcon 9 landing as East Coast RTLS shifted to LZ-40 adjacent to SLC-40; both LC-13 pads were reused on Oct 1, 2026 for Falcon Heavy NROL-97 side boosters. JRTI retired from Falcon 9 service after its final landing on April 21, 2026 and was repurposed for Starship transport. Current 2026 OCISLY/ASOG coast assignments are marked UNVERIFIED pending primary SpaceX mission-page reconciliation.",
   "sources": [
     "SpaceX Autonomous Spaceport Drone Ship Public Specs",
     "SpaceX / Spaceflight Now — Crew-11 (Aug 1, 2025), NROL-77 (Dec 9, 2025), NROL-97 (Oct 1, 2026)",

@@ -231,6 +231,7 @@ export interface AscentStepContext {
   readonly padLatRad: number;
   readonly padLonRad: number;
   pitchKickStartTimeS: number | null;
+  throttleBucketStartTimeS?: number | null;
   actualThrottle: number;
 }
 
@@ -274,12 +275,14 @@ export function stepAscent(
       ambientPressurePa: state.atmosphere.pressurePa,
       launchAzimuthDeg: ctx.launchAzimuthDeg,
       pitchKickStartTimeS: ctx.pitchKickStartTimeS,
+      throttleBucketStartTimeS: ctx.throttleBucketStartTimeS ?? null,
     },
     vehicle,
     mission
   );
 
   ctx.pitchKickStartTimeS = cmd.pitchKickStartTimeS;
+  ctx.throttleBucketStartTimeS = cmd.throttleBucketStartTimeS;
 
   // Rate-limited 3-DOF attitude slew toward commanded attitude
   const nextAttitude = slewUnitVector(
@@ -437,6 +440,7 @@ export function runAscentToMeco(
     padLatRad,
     padLonRad,
     pitchKickStartTimeS: null,
+    throttleBucketStartTimeS: null,
     actualThrottle: 1.0,
   };
 
