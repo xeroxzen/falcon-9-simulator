@@ -339,9 +339,8 @@ function SplitScissorPass({
             playbackSpeed: splitStore.playbackSpeed,
             mecoTimeS: splitStore.trajectory.mecoTimeS,
             stageSepTimeS: splitStore.trajectory.stageSepTimeS,
-            boosterSupersonicDescent: false,
-            boosterAltM: nowFrame.stage1.altitudeM,
-            distanceToListenerM: 82,
+            sonicBoomArrivalTimeS: null,
+            sonicBoomDistM: 0,
             airTransmission: 0,
           }
         );
@@ -685,15 +684,23 @@ function SceneContent({
       camera.lookAt(camTargetRef.current);
     } else if (cameraMode === 'droneship') {
       if (fs.nearLanding) {
-        camera.position.set(78, 16, 85);
+        // Keep the LZ pad / droneship deck cleanly in the lower frame throughout
+        // final descent, sonic boom arrival, landing burn, and touchdown.
+        camera.position.set(110, 22, 125);
+        const lookY = Math.min(58, Math.max(12, SCRATCH_LOOK_TARGET.y * 0.42));
+        camTargetRef.current.set(
+          SCRATCH_LOOK_TARGET.x * 0.25,
+          lookY,
+          SCRATCH_LOOK_TARGET.z * 0.25
+        );
       } else {
         camera.position.set(
           SCRATCH_LOOK_TARGET.x + 75,
           SCRATCH_LOOK_TARGET.y + 18,
           SCRATCH_LOOK_TARGET.z + 85
         );
+        camTargetRef.current.copy(SCRATCH_LOOK_TARGET);
       }
-      camTargetRef.current.copy(SCRATCH_LOOK_TARGET);
       camera.lookAt(camTargetRef.current);
     } else if (cameraMode === 'onboard-s1') {
       SCRATCH_CAM_OFF.set(2.8, 38.5, 0).applyQuaternion(fs.q1);
@@ -784,6 +791,20 @@ function SceneContent({
                 : Math.max(0, 1.0 - (tDeluge - 3.0) / 4.0)
             : 0;
 
+        // Compute physical sonic boom arrival time at the active listener from the
+        // last supersonic descent emission point using US76 path-averaged speed of sound.
+        let sonicBoomArrivalTimeS: number | null = null;
+        let sonicBoomDistM = distM;
+        const boomEmit = store.trajectory.sonicBoomEmit;
+        if (boomEmit && !isOnboard && fs.nearLanding) {
+          const bdx = SCRATCH_LST_ENU.x - boomEmit.posTargetEnuM.x;
+          const bdy = SCRATCH_LST_ENU.y - boomEmit.posTargetEnuM.y;
+          const bdz = SCRATCH_LST_ENU.z - boomEmit.posTargetEnuM.z;
+          sonicBoomDistM = Math.hypot(bdx, bdy, bdz);
+          const { speedOfSoundMs: boomC } = computePathAtmosphere(boomEmit.altitudeM, lstAltM);
+          sonicBoomArrivalTimeS = boomEmit.timeS + sonicBoomDistM / boomC;
+        }
+
         const out = soundEngine.update(
           {
             sourcePosEnuM: SCRATCH_SRC_ENU,
@@ -806,12 +827,8 @@ function SceneContent({
             playbackSpeed: store.playbackSpeed,
             mecoTimeS: store.trajectory.mecoTimeS,
             stageSepTimeS: store.trajectory.stageSepTimeS,
-            boosterSupersonicDescent:
-              nowFrame.separated &&
-              nowFrame.stage1.verticalSpeedMs < -20 &&
-              nowFrame.stage1.mach > 1.05,
-            boosterAltM: nowFrame.stage1.altitudeM,
-            distanceToListenerM: distM,
+            sonicBoomArrivalTimeS,
+            sonicBoomDistM,
             airTransmission: 1.0,
           }
         );

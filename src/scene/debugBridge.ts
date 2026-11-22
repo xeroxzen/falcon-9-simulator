@@ -194,6 +194,9 @@ export function installDebugHook(): void {
     getAudioState() {
       return soundEngine.getDebugState();
     },
+    clearAudioOneShotLog() {
+      soundEngine.clearOneShotLog();
+    },
     /**
      * Dev-only: start live MediaRecorder capturing WebGL canvas video + live Web Audio
      * masterGain bus (MediaStreamAudioDestinationNode). Returns true if started.
