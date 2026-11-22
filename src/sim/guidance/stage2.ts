@@ -26,10 +26,13 @@ import {
 /** Default ASSUMED parking/transfer perigee altitude for two-burn Hohmann insertions (185 km). */
 export const DEFAULT_TRANSFER_PERIGEE_ALT_M = 185_000;
 
-/** Target orbit altitude threshold above which two-burn transfer is selected automatically. */
+/** Target orbit altitude threshold used ONLY as the What-If default when ascentProfile is omitted. */
 export const AUTO_TWO_BURN_ALTITUDE_M = 250_000;
 
 export function isTwoBurnMission(mission: MissionConfig): boolean {
+  if (mission.ascentProfile !== undefined) {
+    return mission.ascentProfile === 'TWO_BURN';
+  }
   return mission.guidance.twoBurn ?? mission.targetOrbitAltitudeM > AUTO_TWO_BURN_ALTITUDE_M;
 }
 
@@ -126,9 +129,9 @@ export function computeStage2Guidance(
   const targetCircEnergy = -EARTH_MU / (2 * rTarget);
   const currentEnergy = 0.5 * dot(dynamic.velocityEci, dynamic.velocityEci) - EARTH_MU / r;
 
-  // MVac throttle with optional G-limit (e.g., 3.2 g for crewed DM-1, 4.5 g nominal)
+  // MVac throttle with Stage 2 axial G-limit (separate from Stage 1 maxAxialAccelG)
   const mvac = vehicle.stage2.engine;
-  const maxG = mission.guidance.stage2MaxAccelG ?? vehicle.maxAxialAccelG;
+  const maxG = mission.guidance.stage2MaxAccelG ?? vehicle.stage2MaxAccelG;
   const maxAllowedThrustN = maxG * G0 * totalMassKg;
   const throttle = clamp(
     maxAllowedThrustN / mvac.thrustVacuumN,
@@ -155,9 +158,19 @@ export function computeStage2Guidance(
   };
 
   // ============================================================================
-  // SINGLE-BURN PATH (bit-identical to v1.2 for <= 250 km LEO missions)
+  // SINGLE-BURN DIRECT INSERTION PATH (PEG variable-mass linear-tangent BVP)
+  // Supports both standard ~200 km LEO and lofted ~620 km direct circular SSO.
   // ============================================================================
   if (!twoBurn) {
+    const vCirc = Math.sqrt(EARTH_MU / rTarget);
+    // Use spherical radius error (rTarget - r) consistent with targetCircEnergy
+    // and computeOrbitalElements (avoids up to 21.4 km WGS84 geodetic oblateness
+    // mismatch at high inclinations like 51.6 deg ISS and 97.9 deg SSO).
+    const altErr = rTarget - r;
+
+    // Cutoff when propellant is exhausted OR specific orbital energy reaches
+    // circular target energy (the piecewise constant-thrust / G-limited PEG
+    // BVP drives altErr -> 0 and vRadial -> 0 right at energy cutoff).
     if (dynamic.propellantKg <= 0 || currentEnergy >= targetCircEnergy) {
       if (memory) {
         memory.phase = 'SECO';
@@ -175,19 +188,70 @@ export function computeStage2Guidance(
       };
     }
 
-    const vCirc = Math.sqrt(EARTH_MU / rTarget);
-    const dvRem = Math.max(20, vCirc - vHoriz);
-    const tGoEst =
-      mdot > 0
-        ? (totalMassKg / mdot) * (1 - Math.exp(-dvRem / vEx))
-        : dvRem / Math.max(0.1, aThrust);
-    const tGo = Math.max(25.0, tGoEst);
+    // Piecewise exact time-to-go tGo accounting for Stage 2 G-limiting:
+    //   - Phase A (full thrust): mass > mCap = T_vac / (maxG * g0)
+    //   - Phase B (constant accel aMax = maxG * g0): mass <= mCap
+    const highAltLoft = mission.targetOrbitAltitudeM > 250_000;
+    const vMag = norm(dynamic.velocityEci);
+    const vReqSq = vCirc * vCirc + 2 * (EARTH_MU / r - EARTH_MU / rTarget);
+    const dvEnergyRem = Math.max(0.5, Math.sqrt(Math.max(0, vReqSq)) - vMag);
+    const dvHorizRem = Math.max(0.5, vCirc - vHoriz);
+    // Use energy-equivalent dv (exact at circular cutoff) with horizontal floor
+    const dvEst = Math.max(dvEnergyRem, dvHorizRem * 0.98);
 
+    const aMax = maxG * G0;
+    const mCap = mvac.thrustVacuumN / aMax;
+    const mdotMax = mvac.thrustVacuumN / vEx;
+    const gLimited = totalMassKg <= mCap * 1.001;
+
+    let tGoRaw: number;
+    if (gLimited) {
+      // Exact constant-acceleration remaining burn time
+      tGoRaw = dvEst / Math.max(0.1, aThrust);
+    } else {
+      const dvToCap = vEx * Math.log(totalMassKg / mCap);
+      if (dvEst <= dvToCap) {
+        const tauMax = totalMassKg / mdotMax;
+        tGoRaw = tauMax * (1 - Math.exp(-dvEst / vEx));
+      } else {
+        const tToCap = (totalMassKg - mCap) / mdotMax;
+        const tAfterCap = (dvEst - dvToCap) / aMax;
+        tGoRaw = tToCap + tAfterCap;
+      }
+    }
+    const tau = mdot > 1e-6 ? totalMassKg / mdot : 1_000;
+    const tGo = clamp(tGoRaw, 3.0, tau * 0.96);
+
+    let aRadCmd: number;
     const gEff = EARTH_MU / (r * r) - (vHoriz * vHoriz) / r;
-    const altErr = mission.targetOrbitAltitudeM - altitudeM;
-    const aRadCmd = gEff + (6.0 * altErr) / (tGo * tGo) - (4.0 * vRadial) / tGo;
+    if (highAltLoft && !gLimited && tGo > 15.0) {
+      // Exact variable-mass PEG integrals over [0, tGo] during constant-thrust climb,
+      // with linear gravity decay gEff(t) = gEff * (1 - t / tGo) -> rhsV uses 1/2, rhsR uses 1/3.
+      const b0 = -vEx * Math.log(Math.max(1e-4, 1 - tGo / tau));
+      const b1 = b0 * tau - vEx * tGo;
+      const c0 = b0 * tGo - b1;
+      const c1 = c0 * tau - 0.5 * vEx * tGo * tGo;
+      const det = b0 * c1 - b1 * c0;
 
-    const sinTheta = clamp(aRadCmd / Math.max(0.1, aThrust), -0.45, 0.72);
+      const rhsV = -vRadial + 0.5 * gEff * tGo;
+      const rhsR = altErr - vRadial * tGo + (1 / 3) * gEff * tGo * tGo;
+
+      if (Math.abs(det) > 1e-6) {
+        const A = (c1 * rhsV - b1 * rhsR) / det;
+        aRadCmd = A * aThrust;
+      } else {
+        aRadCmd = gEff + (6.0 * altErr) / (tGo * tGo) - (4.0 * vRadial) / tGo;
+      }
+    } else {
+      // Exact constant-acceleration BVP for linear gravity decay gEff(t) = gEff*(1 - t/tGo)
+      aRadCmd = gEff + (6.0 * altErr) / (tGo * tGo) - (4.0 * vRadial) / tGo;
+    }
+
+    const sinTheta = clamp(
+      aRadCmd / Math.max(0.1, aThrust),
+      highAltLoft ? -0.80 : -0.55,
+      highAltLoft ? 0.90 : 0.72
+    );
     const cosTheta = Math.sqrt(Math.max(0, 1 - sinTheta * sinTheta));
 
     const horizSteered = computeYawSteeredHoriz(26.0, 0.35);

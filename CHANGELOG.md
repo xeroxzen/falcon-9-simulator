@@ -2,6 +2,19 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
+## [1.3.1] — 2026-11-22 (Sourced Stage 2 Burn Profiles, Tightened PEG Direct Insertion & Separate `stage2MaxAccelG`)
+
+### Added
+- **Sourced Stage 2 burn profile (`ascentProfile: 'DIRECT' | 'TWO_BURN'`):** Added explicit press-kit-sourced burn profiles to historical missions (`DM-1: DIRECT`, `Iridium NEXT 8: TWO_BURN`, `SAOCOM 1A: DIRECT` citing SpaceX's SAOCOM 1A Press Kit). The `> 250 km` automatic two-burn heuristic is retained only as the What-If default when `ascentProfile` is omitted.
+- **Separate Stage 2 axial acceleration limit (`stage2MaxAccelG = 3.52 ± 0.31 g`):** Decoupled Stage 2 MVac G-limiting from Stage 1's `maxAxialAccelG` (`3.69 g`), fitted on the 3 fit-set flights' S2 telemetry only with widened prior `3.50 ± 0.40 g` (MLE `3.52 g`, consistent with observed late-burn `dv/dt` lower bounds `3.55–3.73 g`). Removed the `ASSUMED` DM-1-specific `stage2MaxAccelG: 3.2` override.
+- **Documented `Iridium NEXT 8` SES-2 `+152.9 s` orbital-mechanics explanation** in `docs/ASSUMPTIONS.md` (real `SECO-1` cuts off climbing past perigee at $M \approx 12.8^\circ$ vs our BVP cutoff at perigee $M = 4.0^\circ$; no guidance hack).
+
+### Fixed
+- **Tightened PEG direct-insertion accuracy to `±0.7–2.0 km` across all missions:**
+  - Fixed the WGS84 geodetic-vs-spherical radius mismatch (`rTarget - r` instead of `targetOrbitAltitudeM - geodetic.altitudeM`, eliminating up to `21.4 km` of oblateness-induced eccentricity at high inclinations).
+  - Replaced constant-thrust-only `tGo` with piecewise full-thrust / G-limited `tGo` (floor `3.0 s`) and linear gravity decay $g_{\text{eff}}(t) = g_{\text{eff}}(1 - t/t_{\text{go}})$.
+  - Achieves `199.97 × 200.70 km` (`DEFAULT_LEO_ASDS`), `199.90 × 200.98 km` (`DEFAULT_LEO_RTLS`), `197.60 × 198.76 km` (`DM-1`), `618.77 × 621.88 km, 97.89°` (`SAOCOM 1A`, `±1.88 km`, zero per-flight tuning), and `573.86 × 577.04 km, 97.70°` (`SSO-A`, `±2.04 km`, zero per-flight tuning). Tightened `tests/mission.test.ts` to assert `<= 5 km` apogee/perigee accuracy on all missions.
+
 ## [1.3.0] — 2026-11-21 (Joint MAP System Identification, Mission-Design Solver, Two-Burn S2 & Mobile-First Layout)
 
 ### Added

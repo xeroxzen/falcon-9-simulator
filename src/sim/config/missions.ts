@@ -80,6 +80,8 @@ export const DM1_MISSION: MissionConfig = {
   id: 'dm-1',
   name: 'Crew Dragon Demo-1 (DM-1) — Falcon 9 Block 5 B1051.1',
   launchSite: LAUNCH_SITES['LC-39A'],
+  /** Source: NASA / SpaceX DM-1 Press Kit (single-burn direct insertion to ~198 km ISS phasing orbit) */
+  ascentProfile: 'DIRECT',
   payloadMassKg: 12_055,
   hasFairing: false,
   targetOrbitAltitudeM: 198_000,
@@ -102,7 +104,6 @@ export const DM1_MISSION: MissionConfig = {
     maxAxialAccelG: 3.0,
     /** Sourced: DM-1 events.json (MECO 158 s -> SES-1 169 s = 11 s) */
     ses1DelayFromMecoS: 11.0,
-    stage2MaxAccelG: 3.2,
   },
 };
 
@@ -124,6 +125,8 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
   id: 'iridium-next-8',
   name: 'Iridium NEXT 8 (Holdout ASDS) — Falcon 9 Block 5 B1049.2',
   launchSite: LAUNCH_SITES['SLC-4E'],
+  /** Source: SpaceX Iridium-8 Press Kit (two-burn Hohmann transfer: SECO-1 8:46, SES-2 51:48, SECO-2 51:51) */
+  ascentProfile: 'TWO_BURN',
   payloadMassKg: 9_600,
   hasFairing: true,
   targetOrbitAltitudeM: 625_000,
@@ -141,7 +144,6 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
 /**
  * HOLDOUT #2 (ZERO RETUNING): SAOCOM 1A — October 8, 2018 (Falcon 9 Block 5 B1048.2)
  * Uses exact BASELINE_RTLS_GUIDANCE with ZERO mission-specific tuning.
- * Automatically selects two-burn Hohmann transfer (targetOrbitAltitudeM > 250 km).
  * Also used for post-separation Stage 1 booster telemetry validation (has full
  * stage1 raw.json through boostback, apogee 134 km, entry burn, and LZ-4 landing).
  *
@@ -149,17 +151,16 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
  *  - Launch site: Vandenberg SLC-4E (southbound descending SSO launch; SpaceX SAOCOM 1A Press Kit)
  *  - Payload mass: 3,050 kg (CONAE SAOCOM 1A wet mass; ESA / Wikipedia)
  *  - Target orbit: 620 km (620–623 km) Sun-Synchronous Orbit, 97.89° inclination (ESA / SpaceX)
- *  - Published SpaceX timeline (SAOCOM 1A Press Kit / satobs.org):
- *      Real flight used single-burn direct insertion (SECO-1 = T+00:10:07 = 607 s,
- *      payload deploy T+00:12:37, no SES-2) thanks to its light 3,050 kg payload.
- *      Here we run our general >250 km two-burn Hohmann profile with zero retuning
- *      to validate circular 620 km SSO insertion.
+ *  - Burn profile: Single-burn direct insertion (`ascentProfile: 'DIRECT'`; SpaceX SAOCOM 1A Press Kit:
+ *      SECO-1 = T+00:10:07 = 607 s, payload deploy T+00:12:37, no SES-2).
  *  - Recovery: RTLS to Vandenberg LZ-4
  */
 export const SAOCOM_1A_MISSION: MissionConfig = {
   id: 'saocom-1a',
   name: 'SAOCOM 1A (Holdout RTLS + Booster Validation) — Falcon 9 Block 5 B1048.2',
   launchSite: LAUNCH_SITES['SLC-4E'],
+  /** Source: SpaceX SAOCOM 1A Press Kit (single-burn direct insertion, SECO-1 T+00:10:07, no SES-2) */
+  ascentProfile: 'DIRECT',
   payloadMassKg: 3_050,
   hasFairing: true,
   targetOrbitAltitudeM: 620_000,
@@ -169,7 +170,7 @@ export const SAOCOM_1A_MISSION: MissionConfig = {
   landingSiteId: 'LZ-4',
   enableJ2: true,
   dtS: 0.01,
-  maxSimTimeS: 4_200,
+  maxSimTimeS: 900,
   wind: { eastMs: 0, northMs: 0, upMs: 0 },
   engineOuts: [],
   guidance: BASELINE_RTLS_GUIDANCE,

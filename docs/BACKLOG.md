@@ -31,6 +31,13 @@ Known model gaps identified during Phase 2.5 validation and holdout testing, tra
    - In `src/sim/guidance/booster.ts`, the landing-burn ignition altitude ceiling (`6,000 m` RTLS vs `4,500 m` ASDS) and 3-to-1 engine handoff thresholds (`30 m / 15 m/s / 0.78×` RTLS vs `150 m / 45 m/s / 0.92×` ASDS) currently use a mode-specific branch.
    - Replace with a single unified physical thrust-margin / deceleration-envelope handoff law shared across ASDS and RTLS.
 
-8. **Stretch goals from original spec:**
+8. **Direct high-orbit insertion early SECO-1 (`~25 s` early) & altitude shape error (`14–20 km` time-aligned):**
+   - Both direct high-altitude SSO holdouts reach SECO-1 ~25–30 s early (`SAOCOM 1A`: `-27.6` to `-30 s`, `SSO-A`: `-24.3` to `-27 s`, plus fit-set `SpaceX CRS-16` at `-13.8` to `-16 s`), accompanied by a `14–20 km` time-aligned Stage 2 altitude shape error.
+   - Hypotheses to test in order:
+     1. **Payload masses:** verify and cite exact wet payload + dispenser/adapter stack masses (especially `SSO-A` rideshare total with SHERPA free-flyers/dispensers and `CRS-16` Dragon + trunk + cargo).
+     2. **PEG loft / terminal constraints vs real lofted profiles:** compare our single-phase linear-gravity PEG pitch steering against real SpaceX high-orbit direct-insertion lofting/coasting/throttling profiles.
+     3. **Stage 2 propellant load:** test sensitivity to Block 5 Stage 2 subcooled propellant load (`111.3 t` fitted vs published range).
+
+9. **Stretch goals from original spec:**
    - Convex-optimization (G-FOLD-style) powered descent guidance.
    - 6-DOF rigid-body rotational dynamics (inertia tensor, TVC gimbal torque, RCS cold-gas thrusters, aerodynamic center-of-pressure / center-of-mass pitching moments).

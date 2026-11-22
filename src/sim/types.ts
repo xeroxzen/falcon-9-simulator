@@ -66,6 +66,7 @@ export interface VehicleConfig {
   readonly stage1: StageSpec;
   readonly stage2: StageSpec;
   readonly maxAxialAccelG: number;
+  readonly stage2MaxAccelG: number;
   readonly maxAttitudeSlewRateRadS: number;
   /** ASSUMED booster RCS/cold-gas flip slew rate (rad/s) */
   readonly boosterFlipSlewRateRadS: number;
@@ -156,10 +157,14 @@ export interface AscentGuidanceConfig {
   readonly autoDesignAscent?: boolean;
 }
 
+export type AscentProfile = 'DIRECT' | 'TWO_BURN';
+
 export interface MissionConfig {
   readonly id: string;
   readonly name: string;
   readonly launchSite: LaunchSiteConfig;
+  /** Sourced mission ascent burn profile ('DIRECT' single-burn or 'TWO_BURN' Hohmann). Omitted only for What-If default (>250 km heuristic). */
+  readonly ascentProfile?: AscentProfile;
   readonly payloadMassKg: number;
   /** False for Dragon capsules (no separable fairing halves) */
   readonly hasFairing: boolean;
