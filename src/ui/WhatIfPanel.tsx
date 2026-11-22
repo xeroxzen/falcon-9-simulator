@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
-import { FALCON9_BLOCK5 } from '../sim/config/falcon9.js';
+import {
+  FALCON9_BLOCK5,
+  getAvailableRecoveryAssets,
+  LAUNCH_SITES,
+  validateLaunchSiteInclination,
+} from '../sim/config/falcon9.js';
 import { defaultWhatIfPitchKickDeg } from '../sim/guidance/mission-design.js';
-import type { LandingMode, MissionConfig } from '../sim/types.js';
+import type { LandingMode, LaunchSiteConfig, MissionConfig } from '../sim/types.js';
 import { AVAILABLE_MISSIONS, useSimStore } from '../store/simStore.js';
 import { BottomSheet } from './BottomSheet.js';
 import { fmtSignedDelta } from './format.js';
@@ -36,6 +41,9 @@ export function WhatIfPanel() {
   const [engineOutTimeS, setEngineOutTimeS] = useState(
     mission.engineOuts[0]?.timeS ?? 65
   );
+  const [launchSiteId, setLaunchSiteId] = useState<LaunchSiteConfig['id']>(
+    mission.launchSite.id
+  );
   const [payloadMassKg, setPayloadMassKg] = useState(mission.payloadMassKg);
   const [landingMode, setLandingMode] = useState<LandingMode>(
     mission.landingMode
@@ -53,6 +61,7 @@ export function WhatIfPanel() {
     setEngineOutEnabled(baseMission.engineOuts.length > 0);
     setEngineOutIndex(baseMission.engineOuts[0]?.engineIndex ?? 2);
     setEngineOutTimeS(baseMission.engineOuts[0]?.timeS ?? 65);
+    setLaunchSiteId(baseMission.launchSite.id);
     setPayloadMassKg(baseMission.payloadMassKg);
     setLandingMode(baseMission.landingMode);
     setWindEastMs(baseMission.wind.eastMs);
@@ -63,7 +72,11 @@ export function WhatIfPanel() {
 
   if (!show) return null;
 
+  const corridorCheck = validateLaunchSiteInclination(launchSiteId, targetInclDeg);
+  const recoveryAssets = getAvailableRecoveryAssets(launchSiteId, baseMission.missionDate);
+
   const handleRun = () => {
+    if (!corridorCheck.valid) return;
     const initialReserveFraction =
       landingMode === 'EXPENDABLE'
         ? 0.005
@@ -73,17 +86,26 @@ export function WhatIfPanel() {
             ? baseMission.guidance.mecoPropellantReserveFraction
             : 0.075;
 
+    const selectedSite = LAUNCH_SITES[launchSiteId];
+    const isVandenberg = launchSiteId === 'SLC-4E';
     const isTwoBurnTarget = targetAltKm > 250;
     const profilePitchKickDeg = defaultWhatIfPitchKickDeg(targetAltKm * 1000);
+    const resolvedLandingSiteId =
+      landingMode === 'RTLS' ? recoveryAssets.defaultLandingSiteId : undefined;
+    const modeLabel =
+      landingMode === 'RTLS' && resolvedLandingSiteId
+        ? `RTLS (${resolvedLandingSiteId})`
+        : landingMode;
+
     const customMission: MissionConfig = {
       ...baseMission,
+      name: `What-If: LEO ${targetAltKm} km (${targetInclDeg.toFixed(1)}° incl.) — ${modeLabel} from ${launchSiteId}`,
+      launchSite: selectedSite,
+      launchDirection: isVandenberg ? 'DESCENDING' : 'ASCENDING',
       ascentProfile: undefined, // What-If falls back to >250 km two-burn default
       payloadMassKg,
       landingMode,
-      landingSiteId:
-        landingMode === 'RTLS'
-          ? (baseMission.landingSiteId ?? 'LZ-1')
-          : baseMission.landingSiteId,
+      landingSiteId: resolvedLandingSiteId,
       targetOrbitAltitudeM: targetAltKm * 1000,
       targetInclinationDeg: targetInclDeg,
       maxSimTimeS: isTwoBurnTarget
@@ -145,6 +167,41 @@ export function WhatIfPanel() {
 
       {/* Controls */}
       <div className="whatif-controls">
+        {/* Launch Site Picker (LC-39A, SLC-40, SLC-4E) */}
+        <div className="whatif-group">
+          <div className="whatif-label-row">
+            <span>Launch Site</span>
+            <strong>
+              {launchSiteId} ({LAUNCH_SITES[launchSiteId].elevationM} m AMSL)
+            </strong>
+          </div>
+          <select
+            className="whatif-input"
+            value={launchSiteId}
+            aria-label="Launch site"
+            data-testid="launch-site-select"
+            onChange={(e) => {
+              const nextId = e.target.value as LaunchSiteConfig['id'];
+              setLaunchSiteId(nextId);
+              if (!validateLaunchSiteInclination(nextId, targetInclDeg).valid) {
+                setTargetInclDeg(LAUNCH_SITES[nextId].defaultInclinationDeg);
+              }
+            }}
+          >
+            <option value="LC-39A">LC-39A — Kennedy Space Center (28.61°N)</option>
+            <option value="SLC-40">SLC-40 — Cape Canaveral SFS (28.56°N)</option>
+            <option value="SLC-4E">SLC-4E — Vandenberg SFB (34.63°N, Polar/SSO)</option>
+          </select>
+          <div style={{ fontSize: '11px', opacity: 0.78, marginTop: '4px' }}>
+            Corridor: {LAUNCH_SITES[launchSiteId].azimuthCorridorDeg[0]}°–
+            {LAUNCH_SITES[launchSiteId].azimuthCorridorDeg[1]}° az (
+            {LAUNCH_SITES[launchSiteId].inclinationRangeDeg[0].toFixed(1)}°–
+            {LAUNCH_SITES[launchSiteId].inclinationRangeDeg[1].toFixed(1)}° incl.) · Recovery:{' '}
+            {recoveryAssets.landingZones.map((lz) => lz.id).join('/') || '—'} /{' '}
+            {recoveryAssets.droneships.map((ds) => ds.id).join('/') || '—'}
+          </div>
+        </div>
+
         {/* Engine Out */}
         <div className="whatif-group">
           <label className="whatif-check">
@@ -323,20 +380,39 @@ export function WhatIfPanel() {
               <span>Inclination (°)</span>
               <input
                 type="range"
-                min={28.6}
-                max={98.0}
-                step={0.5}
+                min={28.5}
+                max={104.0}
+                step={0.1}
                 value={targetInclDeg}
                 onChange={(e) => setTargetInclDeg(Number(e.target.value))}
+                data-testid="whatif-inclination-slider"
               />
             </label>
           </div>
+          {!corridorCheck.valid && (
+            <div
+              data-testid="whatif-corridor-error"
+              role="alert"
+              style={{
+                marginTop: '6px',
+                padding: '6px 8px',
+                borderRadius: '6px',
+                background: 'rgba(239, 68, 68, 0.16)',
+                border: '1px solid rgba(239, 68, 68, 0.55)',
+                color: '#fecaca',
+                fontSize: '11px',
+                lineHeight: 1.35,
+              }}
+            >
+              {corridorCheck.message}
+            </div>
+          )}
         </div>
 
         <div className="whatif-actions">
           <button
             className="pill-btn active whatif-run-btn"
-            disabled={loading}
+            disabled={loading || !corridorCheck.valid}
             onClick={handleRun}
             data-testid="whatif-run-btn"
           >

@@ -27,6 +27,7 @@ const QUALITY_TIERS: readonly { id: QualityTier; label: string }[] = [
 export function TopBar() {
   const { isPhone, isPhoneLandscape } = useViewport();
   const baseMission = useSimStore((s) => s.baseMission);
+  const mission = useSimStore((s) => s.mission);
   const trajectory = useSimStore((s) => s.trajectory);
   const loading = useSimStore((s) => s.loading);
   const cameraMode = useSimStore((s) => s.cameraMode);
@@ -169,13 +170,16 @@ export function TopBar() {
         <span className="brand-title">FALCON 9 SIM</span>
         <select
           className="mission-select"
-          value={baseMission.id}
+          value={isWhatIfActive ? '__whatif__' : baseMission.id}
           disabled={loading}
           onChange={(e) => {
             const next = AVAILABLE_MISSIONS.find((m) => m.id === e.target.value);
             if (next) runMission(next, false);
           }}
         >
+          {isWhatIfActive && (
+            <option value="__whatif__">{mission.name}</option>
+          )}
           {AVAILABLE_MISSIONS.map((m) => (
             <option key={m.id} value={m.id}>
               {m.name}

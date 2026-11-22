@@ -403,6 +403,7 @@ export function installDebugHook(): void {
       totalSamples: number;
       occludedSamples: number;
       occluders: string[];
+      intersectingParts: string[];
     } | null {
       if (!activeCamera || !activeScene) return null;
       activeCamera.updateMatrixWorld();
@@ -414,6 +415,24 @@ export function installDebugHook(): void {
           padMeshes.push(obj as THREE.Mesh);
         }
       });
+
+      // Vehicle envelope bounding box at current sim time (5.4 m fairing width, 70 m stack height)
+      const st = useSimStore.getState();
+      const fr = sampleFrameAt(st.trajectory, liveSimClock.timeS);
+      const padElev = st.trajectory?.launchSiteElevationM ?? 0;
+      const baseY = fr ? Math.max(0, fr.stage1.altitudeM - padElev) + 3.8 : 3.8;
+      const vehicleEnvelope = new THREE.Box3(
+        new THREE.Vector3(-2.7, baseY, -2.7),
+        new THREE.Vector3(2.7, baseY + 70.0, 2.7)
+      );
+      const intersectingSet = new Set<string>();
+      const partBox = new THREE.Box3();
+      for (const m of padMeshes) {
+        partBox.setFromObject(m);
+        if (partBox.intersectsBox(vehicleEnvelope)) {
+          intersectingSet.add(String(m.userData?.padPart ?? 'pad-structure'));
+        }
+      }
 
       const samplePts: Array<[number, number, number]> = [
         [0, 3, 0],
@@ -462,6 +481,7 @@ export function installDebugHook(): void {
         totalSamples: samplePts.length,
         occludedSamples,
         occluders: Array.from(occluderSet),
+        intersectingParts: Array.from(intersectingSet),
       };
     },
   };

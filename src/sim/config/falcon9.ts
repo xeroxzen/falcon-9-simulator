@@ -1,6 +1,8 @@
 import type {
+  DroneshipConfig,
   EngineSpec,
   LandingSiteConfig,
+  LandingSiteId,
   LaunchSiteConfig,
   VehicleConfig,
 } from '../types.js';
@@ -126,47 +128,233 @@ export const LAUNCH_SITES: Record<'LC-39A' | 'SLC-40' | 'SLC-4E', LaunchSiteConf
   'LC-39A': {
     id: 'LC-39A',
     name: 'Kennedy Space Center LC-39A',
+    coast: 'EAST',
     latDeg: 28.60833,
     lonDeg: -80.60444,
     elevationM: 15.0,
+    azimuthCorridorDeg: [35, 120],
+    inclinationRangeDeg: [28.5, 98.0],
+    defaultInclinationDeg: 51.6,
+    corridorSource:
+      'USSF Space Launch Delta 45 Eastern Range safety corridor (35°–120° primary eastward azimuth → 28.5°–57° direct, up to 98° via SSE polar corridor)',
     source: 'KSC / WGS-84 geodetic coordinates (28°36\'30"N, 80°36\'16"W, ~15 m AMSL)',
   },
   'SLC-40': {
     id: 'SLC-40',
     name: 'Cape Canaveral Space Force Station SLC-40',
+    coast: 'EAST',
     latDeg: 28.5619,
     lonDeg: -80.5772,
     elevationM: 4.0,
+    azimuthCorridorDeg: [35, 120],
+    inclinationRangeDeg: [28.5, 98.0],
+    defaultInclinationDeg: 28.6,
+    corridorSource:
+      'USSF Space Launch Delta 45 Eastern Range safety corridor (35°–120° primary eastward azimuth → 28.5°–57° direct, up to 98° via SSE polar corridor)',
     source: 'CCSFS / WGS-84 geodetic coordinates (28°33\'43"N, 80°34\'38"W, ~4 m AMSL)',
   },
   'SLC-4E': {
     id: 'SLC-4E',
     name: 'Vandenberg Space Force Base SLC-4E',
+    coast: 'WEST',
     latDeg: 34.6320,
     lonDeg: -120.6107,
     elevationM: 114.0,
+    azimuthCorridorDeg: [140, 201],
+    inclinationRangeDeg: [53.0, 104.0],
+    defaultInclinationDeg: 97.5,
+    corridorSource:
+      'USSF Space Launch Delta 30 Western Range safety corridor (140°–201° southward Pacific azimuth → 53°–104° polar/SSO; eastward/low-inclination launches overfly California mainland)',
     source: 'VSFB / WGS-84 geodetic coordinates (34°37\'55"N, 120°36\'38"W, ~114 m AMSL)',
   },
 };
 
-export const LANDING_SITES: Record<'LZ-1' | 'LZ-4', LandingSiteConfig> = {
+export interface LaunchCorridorCheck {
+  readonly valid: boolean;
+  readonly message?: string;
+}
+
+/**
+ * Validate whether an orbital inclination is permitted by the selected launch site's
+ * range-safety azimuth corridor (Eastern Range SLD 45 vs Western Range SLD 30).
+ */
+export function validateLaunchSiteInclination(
+  siteId: LaunchSiteConfig['id'],
+  inclinationDeg: number
+): LaunchCorridorCheck {
+  const site = LAUNCH_SITES[siteId];
+  const [minI, maxI] = site.inclinationRangeDeg;
+  const [azMin, azMax] = site.azimuthCorridorDeg;
+  if (inclinationDeg < minI || inclinationDeg > maxI) {
+    const reason =
+      siteId === 'SLC-4E'
+        ? 'lower inclinations overfly populated California mainland'
+        : inclinationDeg < minI
+          ? `inclination cannot be below pad latitude (${site.latDeg.toFixed(1)}°N) without a large plane-change dogleg`
+          : 'exceeds Eastern Range polar corridor limit';
+    return {
+      valid: false,
+      message: `${siteId} cannot launch to ${inclinationDeg.toFixed(1)}° (range-safety azimuth ${azMin}°–${azMax}° supports ${minI.toFixed(1)}°–${maxI.toFixed(1)}°; ${reason}).`,
+    };
+  }
+  return { valid: true };
+}
+
+export const LANDING_SITES: Record<LandingSiteId, LandingSiteConfig> = {
+  'LZ-40': {
+    id: 'LZ-40',
+    name: 'Cape Canaveral Landing Zone 40 (LZ-40)',
+    coast: 'EAST',
+    latDeg: 28.5631,
+    lonDeg: -80.5743,
+    elevationM: 4.0,
+    status: 'ACTIVE',
+    activeWindows: [{ from: '2025-08-01', note: 'Active East Coast RTLS pad adjacent to SLC-40' }],
+    statusNote: 'Active East Coast RTLS pad adjacent to SLC-40 for current Cape Falcon 9 landings.',
+    source: 'CCSFS SLC-40 / LZ-40 WGS-84 coordinates (28°33\'47"N, 80°34\'28"W, ~4 m AMSL)',
+  },
   'LZ-1': {
     id: 'LZ-1',
     name: 'Cape Canaveral Landing Zone 1 (LZ-1)',
+    coast: 'EAST',
     latDeg: 28.48575,
     lonDeg: -80.54294,
     elevationM: 3.0,
-    source: 'CCSFS former LC-13 / WGS-84 (28°29\'08.7"N, 80°32\'34.6"W, ~3 m AMSL)',
+    status: 'RETIRED',
+    activeWindows: [
+      {
+        from: '2015-12-21',
+        until: '2025-08-01',
+        note: 'Routine Falcon 9/Heavy RTLS through Crew-11 (planned final F9 landing, Aug 1, 2025)',
+      },
+      {
+        from: '2026-10-01',
+        until: '2026-10-01',
+        note: 'Reused for Falcon Heavy NROL-97 side booster B1104 (Oct 1, 2026; SpaceX / Spaceflight Now)',
+      },
+    ],
+    statusNote:
+      'Crew-11 (Aug 1, 2025) was planned as final routine F9 landing before LC-13 lease expiry, but LZ-1 was reused on Oct 1, 2026 for Falcon Heavy NROL-97 (B1104).',
+    source: 'SpaceX / Spaceflight Now (Crew-11 Aug 1, 2025; NROL-97 Oct 1, 2026); CCSFS LC-13 WGS-84',
+  },
+  'LZ-2': {
+    id: 'LZ-2',
+    name: 'Cape Canaveral Landing Zone 2 (LZ-2)',
+    coast: 'EAST',
+    latDeg: 28.48556,
+    lonDeg: -80.54444,
+    elevationM: 3.0,
+    status: 'RETIRED',
+    activeWindows: [
+      {
+        from: '2018-02-06',
+        until: '2025-12-09',
+        note: 'Final scheduled Falcon 9 landing on NROL-77 (Dec 9, 2025; SpaceX / Spaceflight Now)',
+      },
+      {
+        from: '2026-10-01',
+        until: '2026-10-01',
+        note: 'Reused for Falcon Heavy NROL-97 side booster B1072 (Oct 1, 2026; SpaceX / Spaceflight Now)',
+      },
+    ],
+    statusNote:
+      'Retired from routine Falcon 9 service after NROL-77 on Dec 9, 2025 (B1096); later reused on Oct 1, 2026 for Falcon Heavy NROL-97 (B1072).',
+    source: 'SpaceX / Spaceflight Now (NROL-77 Dec 9, 2025; NROL-97 Oct 1, 2026); CCSFS LC-13 WGS-84',
   },
   'LZ-4': {
     id: 'LZ-4',
     name: 'Vandenberg Landing Zone 4 (LZ-4)',
+    coast: 'WEST',
     latDeg: 34.6342,
     lonDeg: -120.6150,
     elevationM: 114.0,
-    source: 'VSFB former SLC-4W / WGS-84 (34°38\'03"N, 120°36\'54"W, ~114 m AMSL)',
+    status: 'ACTIVE',
+    activeWindows: [{ from: '2018-10-08', note: 'Active West Coast RTLS pad since SAOCOM 1A' }],
+    statusNote: 'Active West Coast RTLS pad at Vandenberg SFB (first used on SAOCOM 1A, Oct 8, 2018).',
+    source: 'SpaceX SAOCOM 1A Press Kit; VSFB former SLC-4W WGS-84 (34°38\'03"N, 120°36\'54"W, ~114 m AMSL)',
   },
 };
+
+export const DRONESHIPS: Record<'ASOG' | 'OCISLY' | 'JRTI', DroneshipConfig> = {
+  ASOG: {
+    id: 'ASOG',
+    name: 'A Shortfall of Gravitas (ASOG)',
+    status: 'ACTIVE',
+    currentCoast: 'EAST',
+    homePort: 'Port Canaveral, FL (2026 coast assignment UNVERIFIED)',
+    serviceHistory: [{ coast: 'EAST', from: '2021-08-29' }],
+    statusNote:
+      'Entered East Coast service Aug 2021 (Port Canaveral). 2026 coast assignment UNVERIFIED against primary SpaceX mission pages (conflicting April 2026 reports of West Coast operation).',
+    source: 'SpaceX fleet records (2021 commissioning); 2026 coast UNVERIFIED',
+  },
+  OCISLY: {
+    id: 'OCISLY',
+    name: 'Of Course I Still Love You (OCISLY)',
+    status: 'ACTIVE',
+    currentCoast: 'WEST',
+    homePort: 'Port of Long Beach, CA (2026 coast assignment UNVERIFIED)',
+    serviceHistory: [
+      { coast: 'EAST', from: '2015-06-28', until: '2021-06-14' },
+      { coast: 'WEST', from: '2021-06-15' },
+    ],
+    statusNote:
+      'Served East Coast 2015–2021 (incl. DM-1) and transited Panama Canal to West Coast in June 2021. 2026 coast assignment UNVERIFIED against primary SpaceX mission pages (conflicting April 2026 reports of Cape operation).',
+    source: 'SpaceX DM-1 Press Kit; Spaceflight Now (2021 Panama Canal transit); 2026 coast UNVERIFIED',
+  },
+  JRTI: {
+    id: 'JRTI',
+    name: 'Just Read the Instructions (JRTI)',
+    status: 'REPURPOSED',
+    currentCoast: null,
+    homePort: 'Port Canaveral, FL (2026 status UNVERIFIED)',
+    serviceHistory: [
+      { coast: 'WEST', from: '2016-01-17', until: '2019-08-01' },
+      { coast: 'EAST', from: '2020-05-30', until: '2026-02-01' },
+    ],
+    statusNote:
+      'Served West Coast 2016–2019 (incl. Iridium NEXT-8) and East Coast from 2020. Early-2026 retirement/repurposing for Starship transport is UNVERIFIED against primary SpaceX mission pages.',
+    source: 'SpaceX Iridium-8 Press Kit; 2026 status UNVERIFIED',
+  },
+};
+
+/**
+ * Return RTLS landing zones and ASDS droneships historically available on a given
+ * coast/launch site on `missionDateIso` (defaults to current 2026 status when omitted).
+ */
+export function getAvailableRecoveryAssets(
+  siteId: LaunchSiteConfig['id'],
+  missionDateIso = '2026-06-01'
+): {
+  readonly landingZones: readonly LandingSiteConfig[];
+  readonly droneships: readonly DroneshipConfig[];
+  readonly defaultLandingSiteId: LandingSiteId;
+} {
+  const coast = LAUNCH_SITES[siteId].coast;
+  const landingZones = Object.values(LANDING_SITES).filter((lz) => {
+    if (lz.coast !== coast) return false;
+    return lz.activeWindows.some(
+      (w) => missionDateIso >= w.from && (!w.until || missionDateIso <= w.until)
+    );
+  });
+  const droneships = Object.values(DRONESHIPS).filter((ds) =>
+    ds.serviceHistory.some(
+      (h) =>
+        h.coast === coast &&
+        missionDateIso >= h.from &&
+        (!h.until || missionDateIso <= h.until)
+    )
+  );
+  const preferred =
+    landingZones.find((lz) => lz.status === 'ACTIVE') ??
+    landingZones[0] ??
+    (coast === 'WEST' ? LANDING_SITES['LZ-4'] : LANDING_SITES['LZ-40']);
+
+  return {
+    landingZones,
+    droneships,
+    defaultLandingSiteId: preferred.id,
+  };
+}
 
 /**
  * ASSUMED Mach-dependent drag coefficient Cd(M) for Falcon 9 ascent stack

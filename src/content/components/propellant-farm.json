@@ -1,0 +1,17 @@
+{
+  "id": "propellant-farm",
+  "name": "Cryogenic LOX Sphere & RP-1 Tank Farm",
+  "summary": "Ground storage and subcooling farm supplying densified liquid oxygen (LOX) and rocket-grade kerosene (RP-1) to Falcon 9 prior to liftoff.",
+  "function": "Stores bulk LOX and RP-1, chills propellants through liquid-nitrogen heat exchangers, and pumps subcooled propellants into both stages starting ~T-35 min.",
+  "materials": "Vacuum-jacketed double-walled stainless-steel cryogenic LOX sphere, insulated horizontal RP-1 and LN2 pressure vessels, and vacuum-jacketed transfer lines.",
+  "specs": [
+    { "label": "LC-39A LOX Sphere Capacity", "value": "3.4M", "unit": "L", "source": "NASA KSC LC-39A LOX sphere (~900,000 gal)", "status": "SOURCED" },
+    { "label": "Subcooled LOX Temperature", "value": "-207", "unit": "°C", "source": "SpaceX Falcon 9 Full Thrust / Block 5 densified LOX (~66 K)", "status": "SOURCED" },
+    { "label": "Subcooled RP-1 Temperature", "value": "-7", "unit": "°C", "source": "SpaceX Falcon 9 Full Thrust / Block 5 chilled RP-1", "status": "SOURCED" }
+  ],
+  "history": "Densified subcooled propellants allow Falcon 9 Block 5 to load ~8–10% more propellant mass in the same tank volume, directly enabling booster recovery margins.",
+  "sources": [
+    "NASA KSC LC-39A Propellant Storage Reference",
+    "SpaceX Falcon User's Guide"
+  ]
+}

@@ -36,6 +36,7 @@ export const DEFAULT_LEO_ASDS_MISSION: MissionConfig = {
   id: 'leo-asds-lc39a',
   name: 'LEO 200 km (51.6° incl.) — ASDS Recovery from LC-39A',
   launchSite: LAUNCH_SITES['LC-39A'],
+  missionDate: '2026-06-01',
   payloadMassKg: 12_000,
   hasFairing: true,
   targetOrbitAltitudeM: 200_000,
@@ -53,13 +54,18 @@ export const DEFAULT_LEO_ASDS_MISSION: MissionConfig = {
 export const DEFAULT_LEO_RTLS_MISSION: MissionConfig = {
   ...DEFAULT_LEO_ASDS_MISSION,
   id: 'leo-rtls-slc40',
-  name: 'LEO 200 km (28.6° incl.) — RTLS Recovery from SLC-40',
+  name: 'LEO 200 km (28.6° incl.) — RTLS (LZ-40) from SLC-40',
   launchSite: LAUNCH_SITES['SLC-40'],
+  missionDate: '2026-06-01',
   payloadMassKg: 5_000,
   targetInclinationDeg: 28.6,
   landingMode: 'RTLS',
-  landingSiteId: 'LZ-1',
-  guidance: BASELINE_RTLS_GUIDANCE,
+  landingSiteId: 'LZ-40',
+  guidance: {
+    ...BASELINE_RTLS_GUIDANCE,
+    /** Mission-design pitchover kick solved by solveMissionAscentDesign for SLC-40 -> LZ-40 */
+    pitchKickAngleDeg: 1.35,
+  },
 };
 
 /**
@@ -81,6 +87,7 @@ export const DM1_MISSION: MissionConfig = {
   id: 'dm-1',
   name: 'Crew Dragon Demo-1 (DM-1) — Falcon 9 Block 5 B1051.1',
   launchSite: LAUNCH_SITES['LC-39A'],
+  missionDate: '2019-03-02',
   /** Source: NASA / SpaceX DM-1 Press Kit (single-burn direct insertion to ~198 km ISS phasing orbit) */
   ascentProfile: 'DIRECT',
   payloadMassKg: 12_055,
@@ -127,6 +134,7 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
   id: 'iridium-next-8',
   name: 'Iridium NEXT 8 (Holdout ASDS) — Falcon 9 Block 5 B1049.2',
   launchSite: LAUNCH_SITES['SLC-4E'],
+  missionDate: '2019-01-11',
   /** Source: SpaceX Iridium-8 Press Kit (two-burn Hohmann transfer: SECO-1 8:46, SES-2 51:48, SECO-2 51:51) */
   ascentProfile: 'TWO_BURN',
   payloadMassKg: 9_600,
@@ -162,6 +170,7 @@ export const SAOCOM_1A_MISSION: MissionConfig = {
   id: 'saocom-1a',
   name: 'SAOCOM 1A (Holdout RTLS + Booster Validation) — Falcon 9 Block 5 B1048.2',
   launchSite: LAUNCH_SITES['SLC-4E'],
+  missionDate: '2018-10-08',
   /** Source: SpaceX SAOCOM 1A Press Kit (single-burn direct insertion, SECO-1 T+00:10:07, no SES-2) */
   ascentProfile: 'DIRECT',
   payloadMassKg: 3_050,

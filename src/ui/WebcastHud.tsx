@@ -26,10 +26,17 @@ export function WebcastHud() {
 
   if (!frame || !trajectory) return null;
 
+  // Webcast altitude: AGL above launch pad during ascent (so SLC-4E 114 m AMSL reads 0.0 km on pad),
+  // AGL above landing target during S1 recovery, and MSL for S2 in orbit. (Engineer panel shows MSL.)
+  const s1AltRefM = !frame.separated
+    ? trajectory.launchSiteElevationM
+    : trajectory.landingTarget.altitudeM;
+  const s2AltRefM = !frame.separated ? trajectory.launchSiteElevationM : 0;
+
   const s1Kmh = Math.round(Math.max(0, frame.stage1.speedEarthRelMs * 3.6));
-  const s1Km = fmtFixed(Math.max(0, frame.stage1.altitudeM) / 1000, 1);
+  const s1Km = fmtFixed(Math.max(0, frame.stage1.altitudeM - s1AltRefM) / 1000, 1);
   const s2Kmh = Math.round(Math.max(0, frame.stage2.speedEarthRelMs * 3.6));
-  const s2Km = fmtFixed(Math.max(0, frame.stage2.altitudeM) / 1000, 1);
+  const s2Km = fmtFixed(Math.max(0, frame.stage2.altitudeM - s2AltRefM) / 1000, 1);
 
   if (isPhone) {
     const activeKmh = focusStage === 'stage2' && frame.separated ? s2Kmh : s1Kmh;
@@ -109,8 +116,11 @@ export function WebcastHud() {
       {/* Center Mission Clock */}
       <div className="hud-center">
         <div className="hud-clock">{formatMissionClock(timeS)}</div>
-        <div className="hud-mission-sub">
-          {trajectory.launchSiteId} • {trajectory.landingMode}
+        <div className="hud-mission-sub" data-testid="hud-mission-label">
+          {trajectory.launchSiteId} • {trajectory.targetInclinationDeg.toFixed(1)}° •{' '}
+          {trajectory.landingMode === 'RTLS' && trajectory.landingSiteId
+            ? `RTLS (${trajectory.landingSiteId})`
+            : trajectory.landingMode}
         </div>
         <div className="hud-outcomes" data-testid="hud-status-chips">
           {secoReached && (

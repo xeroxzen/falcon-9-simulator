@@ -1,0 +1,17 @@
+{
+  "id": "hif-hangar",
+  "name": "Horizontal Integration Facility (HIF)",
+  "summary": "Climate-controlled SpaceX integration hangar at the base of the pad ramp where Falcon 9 stages and payload fairings are mated horizontally.",
+  "function": "Houses horizontal mating of Stage 1, Stage 2, and encapsulated payload onto the Transporter/Erector (T/E) before rollout up the pad ramp.",
+  "materials": "Steel-framed insulated industrial hangar with overhead bridge cranes, ISO-class payload clean zone, and heavy rail rollout track.",
+  "specs": [
+    { "label": "Integration Orientation", "value": "Horizontal", "unit": "", "source": "SpaceX Falcon User's Guide", "status": "SOURCED" },
+    { "label": "Hangar Length (approx.)", "value": "70+", "unit": "m", "source": "Must accommodate full 70 m Falcon 9 stack", "status": "ASSUMED" },
+    { "label": "Sites", "value": "LC-39A, SLC-40, SLC-4E", "unit": "", "source": "SpaceX Falcon User's Guide", "status": "SOURCED" }
+  ],
+  "history": "Unlike NASA's vertical Vehicle Assembly Building workflow, SpaceX adopted horizontal integration at all three orbital pads to speed turnaround and simplify booster refurbishment.",
+  "sources": [
+    "SpaceX Falcon User's Guide",
+    "NASA KSC LC-39A Facility Overview"
+  ]
+}

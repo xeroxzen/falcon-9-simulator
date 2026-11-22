@@ -157,6 +157,30 @@ function buildHonestTelemetry(
           : 'No live deck telemetry until Stage 1 separates for recovery.',
       };
 
+    case 'fss-tower':
+      return {
+        rows: [],
+        note: 'No live FSS tower or crew-access-arm telemetry is modeled in the 3-DOF flight simulation.',
+      };
+
+    case 'hif-hangar':
+      return {
+        rows: [],
+        note: 'No live HIF hangar telemetry is modeled in the 3-DOF flight simulation.',
+      };
+
+    case 'propellant-farm':
+      return {
+        rows: [],
+        note: 'No live ground propellant-farm tank or boil-off telemetry is modeled in the 3-DOF flight simulation.',
+      };
+
+    case 'water-deluge-tower':
+      return {
+        rows: [],
+        note: 'No live water-deluge tank level or manifold flow telemetry is modeled in the 3-DOF flight simulation.',
+      };
+
     case 'interstage':
     case 'cold-gas-thrusters':
     case 'launch-pad':

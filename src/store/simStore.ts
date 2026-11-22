@@ -4,6 +4,7 @@ import {
   DEFAULT_LEO_ASDS_MISSION,
   DEFAULT_LEO_RTLS_MISSION,
   DM1_MISSION,
+  SAOCOM_1A_MISSION,
 } from '../sim/config/missions.js';
 import type { MissionConfig, Vec3 } from '../sim/types.js';
 import { normalize } from '../sim/math.js';
@@ -74,6 +75,7 @@ export const AVAILABLE_MISSIONS: readonly MissionConfig[] = [
   DEFAULT_LEO_ASDS_MISSION,
   DEFAULT_LEO_RTLS_MISSION,
   DM1_MISSION,
+  SAOCOM_1A_MISSION,
 ];
 
 function lerp(a: number, b: number, t: number): number {

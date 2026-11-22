@@ -11,6 +11,10 @@ import fairing from './components/fairing.json';
 import payload from './components/payload.json';
 import droneship from './components/droneship.json';
 import launchPad from './components/launch-pad.json';
+import fssTower from './components/fss-tower.json';
+import hifHangar from './components/hif-hangar.json';
+import propellantFarm from './components/propellant-farm.json';
+import waterDelugeTower from './components/water-deluge-tower.json';
 import { validateComponentContent, type ComponentContent } from './schema.js';
 
 const RAW_COMPONENTS: readonly [string, unknown][] = [
@@ -27,6 +31,10 @@ const RAW_COMPONENTS: readonly [string, unknown][] = [
   ['payload.json', payload],
   ['droneship.json', droneship],
   ['launch-pad.json', launchPad],
+  ['fss-tower.json', fssTower],
+  ['hif-hangar.json', hifHangar],
+  ['propellant-farm.json', propellantFarm],
+  ['water-deluge-tower.json', waterDelugeTower],
 ];
 
 export const ALL_COMPONENTS: readonly ComponentContent[] = RAW_COMPONENTS.map(

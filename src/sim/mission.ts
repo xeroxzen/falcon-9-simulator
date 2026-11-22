@@ -425,7 +425,7 @@ export function runFullMission(
   // For ASDS with station-keeping dispersion (±10 m), offset the actual droneship
   // position while guidance still navigates toward the updated/actual target or
   // experiences the offset.
-  const rtlsSite = LANDING_SITES[mission.landingSiteId ?? 'LZ-1'];
+  const rtlsSite = LANDING_SITES[mission.landingSiteId ?? 'LZ-40'];
   const nominalLandingTarget: GeodeticCoord =
     mission.landingMode === 'RTLS'
       ? {

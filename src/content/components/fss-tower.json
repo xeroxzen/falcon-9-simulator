@@ -1,0 +1,17 @@
+{
+  "id": "fss-tower",
+  "name": "LC-39A Fixed Service Structure & Crew Access Arm",
+  "summary": "Historic Apollo/Shuttle launch tower refurbished by SpaceX for Crew Dragon astronaut boarding and Falcon 9/Heavy pad services at KSC LC-39A.",
+  "function": "Provides crew boarding access via the 54 m Crew Access Arm and White Room, emergency egress baskets/slidewire, and pad telemetry/power distribution.",
+  "materials": "Structural steel open-truss tower clad in dark weather panels, aluminum/steel Crew Access Arm bridge, and pressurized clean-room White Room interface.",
+  "specs": [
+    { "label": "Tower Height", "value": "81", "unit": "m", "source": "NASA KSC LC-39A Fixed Service Structure spec (~265 ft)", "status": "SOURCED" },
+    { "label": "Crew Access Arm Level", "value": "54", "unit": "m", "source": "SpaceX / NASA Commercial Crew LC-39A arm height (~177 ft)", "status": "SOURCED" },
+    { "label": "Site Availability", "value": "LC-39A only", "unit": "", "source": "NASA KSC / SpaceX launch complex inventory", "status": "SOURCED" }
+  ],
+  "history": "Originally constructed for Apollo Saturn V and modified for Space Shuttle launches, SpaceX leased LC-39A in 2014 and added the sleek black-and-white Crew Access Arm in 2018 for Crew Dragon.",
+  "sources": [
+    "NASA Kennedy Space Center LC-39A Reference",
+    "NASA Commercial Crew Program — LC-39A Crew Access Arm"
+  ]
+}

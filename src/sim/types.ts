@@ -13,21 +13,57 @@ export interface GeodeticCoord {
   readonly altitudeM: number;
 }
 
+export type LandingSiteId = 'LZ-1' | 'LZ-2' | 'LZ-40' | 'LZ-4';
+
+export type LaunchCoast = 'EAST' | 'WEST';
+
 export interface LaunchSiteConfig {
   readonly id: 'LC-39A' | 'SLC-40' | 'SLC-4E';
   readonly name: string;
+  readonly coast: LaunchCoast;
   readonly latDeg: number;
   readonly lonDeg: number;
   readonly elevationM: number;
+  /** Sourced range-safety launch azimuth corridor [minDeg, maxDeg] clockwise from North. */
+  readonly azimuthCorridorDeg: readonly [number, number];
+  /** Sourced valid orbital inclination range [minDeg, maxDeg] reachable from this range. */
+  readonly inclinationRangeDeg: readonly [number, number];
+  /** Default inclination when switching to this launch site in What-If. */
+  readonly defaultInclinationDeg: number;
+  readonly corridorSource: string;
   readonly source: string;
 }
 
 export interface LandingSiteConfig {
-  readonly id: string;
+  readonly id: LandingSiteId;
   readonly name: string;
+  readonly coast: LaunchCoast;
   readonly latDeg: number;
   readonly lonDeg: number;
   readonly elevationM: number;
+  readonly status: 'ACTIVE' | 'RETIRED';
+  /** ISO date windows (YYYY-MM-DD) when pad was available for recovery. */
+  readonly activeWindows: readonly {
+    readonly from: string;
+    readonly until?: string;
+    readonly note?: string;
+  }[];
+  readonly statusNote: string;
+  readonly source: string;
+}
+
+export interface DroneshipConfig {
+  readonly id: 'ASOG' | 'OCISLY' | 'JRTI';
+  readonly name: string;
+  readonly status: 'ACTIVE' | 'REPURPOSED';
+  readonly currentCoast: LaunchCoast | null;
+  readonly homePort: string;
+  readonly serviceHistory: readonly {
+    readonly coast: LaunchCoast;
+    readonly from: string;
+    readonly until?: string;
+  }[];
+  readonly statusNote: string;
   readonly source: string;
 }
 
@@ -172,8 +208,10 @@ export interface MissionConfig {
   readonly targetInclinationDeg: number;
   /** 'ASCENDING' (northeast from Cape) or 'DESCENDING' (south from Vandenberg) */
   readonly launchDirection?: 'ASCENDING' | 'DESCENDING';
+  /** Optional ISO mission date (YYYY-MM-DD) for historical landing zone / droneship availability. */
+  readonly missionDate?: string;
   readonly landingMode: LandingMode;
-  readonly landingSiteId?: 'LZ-1' | 'LZ-4';
+  readonly landingSiteId?: LandingSiteId;
   readonly enableJ2: boolean;
   readonly dtS: number;
   /** Optional pre-launch terminal countdown duration in seconds (e.g. 10 -> T-10 s to T-0 clamp release). */
