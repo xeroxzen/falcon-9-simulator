@@ -96,6 +96,8 @@ export interface MissionDesignOptions {
   readonly fineStepDeg?: number;
   /** Candidate RTLS MECO propellant reserve fractions (searched in ascending order). */
   readonly rtlsReserveCandidates?: readonly number[];
+  /** Candidate close-in ASDS partial-boostback MECO reserve fractions (searched in ascending order). */
+  readonly asdsBoostbackReserveCandidates?: readonly number[];
   /** Required nominal booster landing propellant margin (kg) for 3-sigma dispersion buffer. Default: 4,000 ASDS / 7,500 RTLS */
   readonly minBoosterFuelMarginKg?: number;
   /** Maximum allowable aero-descent grid-fin saturation fraction. Default: 0.15 */
@@ -274,7 +276,11 @@ export function solveMissionAscentDesign(
   const maxSat = options.maxGridFinSatFraction ?? 0.15;
   const minBoosterFuel =
     options.minBoosterFuelMarginKg ??
-    (mission.landingMode === 'RTLS' ? 7_500 : 4_000);
+    (mission.landingMode === 'RTLS'
+      ? 7_500
+      : mission.droneshipDownrangeKm !== undefined
+        ? 5_000
+        : 4_000);
 
   const isFeasible = (r: MissionDesignResult): boolean =>
     r.orbitAchieved &&
@@ -283,7 +289,7 @@ export function solveMissionAscentDesign(
     r.boosterFuelMarginKg >= minBoosterFuel &&
     r.gridFinSatFraction <= maxSat;
 
-  if (mission.landingMode === 'ASDS') {
+  if (mission.landingMode === 'ASDS' && mission.droneshipDownrangeKm === undefined) {
     const reserve = mission.guidance.mecoPropellantReserveFraction;
     return solveKickForReserve(
       vehicle,
@@ -299,12 +305,18 @@ export function solveMissionAscentDesign(
     );
   }
 
-  // RTLS: find the minimum feasible MECO reserve fraction + optimal kick
-  const rtlsCandidates = options.rtlsReserveCandidates ?? [
-    0.135, 0.145, 0.15, 0.155, 0.16, 0.165, 0.17,
-  ];
+  // RTLS or close-in ASDS with droneshipDownrangeKm: find the minimum feasible
+  // MECO reserve fraction (sizing boostback + entry + landing needs) + optimal kick
+  const reserveCandidates =
+    mission.landingMode === 'RTLS'
+      ? (options.rtlsReserveCandidates ?? [
+          0.135, 0.145, 0.15, 0.155, 0.16, 0.165, 0.17,
+        ])
+      : (options.asdsBoostbackReserveCandidates ?? [
+          0.075, 0.085, 0.095, 0.105, 0.115, 0.125, 0.135, 0.145, 0.155,
+        ]);
   let bestFallback: MissionDesignResult | null = null;
-  for (const reserve of rtlsCandidates) {
+  for (const reserve of reserveCandidates) {
     const solved = solveKickForReserve(
       vehicle,
       mission,

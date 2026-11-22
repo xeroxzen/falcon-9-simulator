@@ -140,13 +140,20 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
   targetInclinationDeg: 86.6,
   launchDirection: 'DESCENDING',
   landingMode: 'ASDS',
+  /** Close-in ASDS JRTI stationing ~244 km downrange (NOTMAR / recovery zone; ASSUMED). */
+  droneshipDownrangeKm: 244,
   enableJ2: true,
   dtS: 0.01,
   countdownS: 60,
   maxSimTimeS: 4_200,
   wind: { eastMs: 0, northMs: 0, upMs: 0 },
   engineOuts: [],
-  guidance: BASELINE_ASDS_GUIDANCE,
+  /** Solver-derived kick (1.70 deg) and partial-boostback MECO reserve (10.5%) at 244 km downrange. */
+  guidance: {
+    ...BASELINE_ASDS_GUIDANCE,
+    pitchKickAngleDeg: 1.7,
+    mecoPropellantReserveFraction: 0.105,
+  },
 };
 
 /**

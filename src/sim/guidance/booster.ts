@@ -27,6 +27,8 @@ export interface BoosterGuidanceMemory {
   phase: BoosterPhase;
   entryBurnStartTimeS: number | null;
   landingLegsDeployed: boolean;
+  /** True for RTLS and close-in ASDS missions requiring a partial boostback burn. */
+  needsBoostback?: boolean;
   failureReason?: string;
 }
 
@@ -184,20 +186,31 @@ export function computeBoosterGuidance(
   const s1PropTotal = vehicle.stage1.propellantMassKg;
   const retroDir = speedRel > 1 ? scale(vRel, -1 / speedRel) : basis.up;
 
+  const hasBoostback = mem.needsBoostback ?? mission.landingMode === 'RTLS';
+
   // 2. Flip maneuver (cold-gas RCS rotation toward boostback or retrograde)
   if (mem.phase === 'MECO_COAST' || mem.phase === 'FLIP') {
     mem.phase = 'FLIP';
     let flipTarget = retroDir;
-    if (mission.landingMode === 'RTLS' && distHoriz > 100) {
-      // Point nearly horizontal (slightly depressed -4 deg) back toward LZ
-      // so RTLS apogee stays realistic (~125-140 km, not >200 km).
-      const dirToLz = normalize(toTargetHoriz);
-      flipTarget = normalize(add(scale(dirToLz, 0.997), scale(basis.up, -0.07)));
+    if (hasBoostback && distHoriz > 100) {
+      // Point nearly horizontal (slightly depressed -4 deg) opposite the predicted
+      // drag-shortened ballistic miss — works identically for RTLS (pad behind)
+      // and close-in ASDS partial boostback (droneship ahead, ballistic impact past it).
+      const gLocal = 9.55;
+      const disc = Math.max(
+        0,
+        vUp * vUp + 2 * gLocal * Math.max(0, heightAboveTarget)
+      );
+      const tFlight = ((vUp + Math.sqrt(disc)) / gLocal) * 0.92;
+      const predMiss = sub(scale(vHorizVec, tFlight), toTargetHoriz);
+      const missDist = norm(predMiss);
+      const burnHorizDir =
+        missDist > 1 ? scale(predMiss, -1 / missDist) : normalize(toTargetHoriz);
+      flipTarget = normalize(add(scale(burnHorizDir, 0.997), scale(basis.up, -0.07)));
     }
     const angErr = angleBetweenRad(dynamic.attitudeEci, flipTarget);
     if (angErr < 0.14) {
-      mem.phase =
-        mission.landingMode === 'RTLS' ? 'BOOSTBACK_BURN' : 'BALLISTIC_COAST';
+      mem.phase = hasBoostback ? 'BOOSTBACK_BURN' : 'BALLISTIC_COAST';
     } else {
       return {
         phase: 'FLIP',
@@ -211,21 +224,24 @@ export function computeBoosterGuidance(
     }
   }
 
-  // 3. Boostback burn (RTLS only, 3 engines: center + 2 outer)
+  // 3. Boostback burn (RTLS or close-in ASDS partial boostback; 3 engines: center + 2 outer)
   if (mem.phase === 'BOOSTBACK_BURN') {
     const reserveAfterBoostback = s1PropTotal * 0.042;
-    // Predict ballistic time of flight to target altitude (scaled by 0.92 for
-    // atmospheric drag shortening during descent)
+    // Predict ballistic time of flight to target altitude (scaled for
+    // atmospheric drag shortening during descent; steeper RTLS loses ~8%,
+    // higher-velocity partial-boostback ASDS loses ~3.5% before entry burn).
     const gLocal = 9.55;
     const disc = Math.max(
       0,
       vUp * vUp + 2 * gLocal * Math.max(0, heightAboveTarget)
     );
-    const tFlight = ((vUp + Math.sqrt(disc)) / gLocal) * 0.92;
+    const dragFactor = mission.landingMode === 'RTLS' ? 0.92 : 0.965;
+    const tFlight = ((vUp + Math.sqrt(disc)) / gLocal) * dragFactor;
     const predMiss = sub(scale(vHorizVec, tFlight), toTargetHoriz);
     const missDist = norm(predMiss);
+    const cutoffMissM = mission.landingMode === 'RTLS' ? 1_500 : 500;
 
-    if (missDist < 1_500 || dynamic.propellantKg <= reserveAfterBoostback) {
+    if (missDist < cutoffMissM || dynamic.propellantKg <= reserveAfterBoostback) {
       mem.phase = 'BALLISTIC_COAST';
     } else {
       // Fire nearly horizontal (slightly depressed -4 deg) opposite predicted miss
@@ -248,8 +264,8 @@ export function computeBoosterGuidance(
 
   // 4. Ballistic coast to atmospheric entry interface
   if (mem.phase === 'BALLISTIC_COAST') {
-    const entryAltTrigger = mission.landingMode === 'RTLS' ? 60_000 : 70_000;
-    const entrySpeedTrigger = mission.landingMode === 'RTLS' ? 1_050 : 1_300;
+    const entryAltTrigger = hasBoostback ? 60_000 : 70_000;
+    const entrySpeedTrigger = hasBoostback ? 1_050 : 1_300;
     if (
       vUp < 0 &&
       geodetic.altitudeM <= entryAltTrigger &&

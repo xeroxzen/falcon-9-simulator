@@ -12,9 +12,8 @@ Known model gaps identified during Phase 2.5 validation and holdout testing, tra
    - High-altitude polar/SSO/GTO flights (`Iridium NEXT 8` 625 km, `SAOCOM 1A` 620 km) perform a 2-burn Hohmann transfer (SES-1 to parking/transfer orbit, coast to apogee, SES-2 circularization).
    - The worker protocol and timeline/event model are designed to support arbitrary burn/coast sequences per stage so this can be added without UI changes.
 
-2. **ASDS partial boostback burn:**
-   - Current ASDS mode assumes pure downrange ballistic entry with no boostback burn.
-   - Real ASDS missions with close-in droneship positioning (e.g., `Iridium NEXT 8`, which executed a 33 s boostback `T+166..199 s` to target JRTI with a 105 km apogee) perform a partial boostback.
+2. **[COMPLETED (`feat/asds-partial-boostback`)] ASDS partial boostback burn:**
+   - Added `droneshipDownrangeKm` to `MissionConfig`; when closer than the ballistic impact point (`> 15 km`), the recovery planner executes a 3-engine partial boostback burn and `solveMissionAscentDesign` sizes the MECO reserve from boostback + entry + landing needs (`Iridium NEXT 8` `244 km` → `10.5%`, `MECO Δ = -0.2 s`; `SSO-A` `44 km` → `12.5%`, `MECO Δ = +3.3 s`; far-ASDS GTO flights remain ballistic).
 
 3. **Consistent `-4.5%` to `-6.6%` early-MECO bias:**
    - Across `DM-1` (`-4.82%`), `Iridium NEXT 8` (`-4.46%`), and `SAOCOM 1A` (`-6.59%`), simulated MECO occurs ~6–9 s earlier than real webcast telemetry.
@@ -53,10 +52,13 @@ Known model gaps identified during Phase 2.5 validation and holdout testing, tra
    - **MECO-reserve proxy hypothesis falsified (`feat/meco-reserve-unification`):** Removing the per-class caps (`4.0 g` physical bound) and fitting per-flight MECO propellant reserve fails all three tests — uncapped `T_vac/m_MECO` reaches `4.15–5.44 g` so all 10 flights saturate at `4.00 g`, fitted reserves do not separate by recovery mode (`CRS-16` RTLS `10.3%` < `SSO-A` ASDS `10.6%`; `DM-1` drains to `3.5%`), `Iridium 7/8` invert (`9.0%` vs `6.7%`), and S1 Vel RMS regresses on both holdout classes (`C0: 47.1 → 76.1 m/s`, `C1: 64.4 → 79.5 m/s`).
    - Remaining physical causes to test: (1) real Falcon 9 late-S1 throttle-down / Merlin 1D thrust profile below 100% rated thrust, (2) flight-path angle `sin(γ)` gravity-loss discrepancy during gravity turn (sim flying shallower than real LEO flights), or (3) S1/S2 dry & propellant mass budget.
 
-11. **Payload-aware ASDS/RTLS recovery propellant reserve sizing:**
-   - On light ASDS payloads (e.g., `SSO-A` at 4.0 t), the generic `7.5%` ASDS MECO reserve over-burns by `+7.1 s` even under v1 (`3.69 g`) and `+15.2 s` under the `2.90 g` LEO schedule.
-   - Extend `solveMissionAscentDesign` to solve the recovery propellant reserve per mission (as a function of payload mass, orbit energy, and landing target distance) rather than applying a fixed `7.5%` ASDS constant.
+11. **[SUBSUMED BY #2] Payload-aware ASDS/RTLS recovery propellant reserve sizing:**
+   - Minimum-reserve ballistic ASDS evaluation (`feat/payload-aware-reserve` diagnostic) showed that pure ballistic entry needs *less* reserve on light LEO payloads (`5.5%`, pushing `SSO-A` MECO to `+20.4 s`), proving that close-in ASDS early MECO (`SSO-A`, `Iridium NEXT 8`) is driven by partial boostback to a close-in droneship (#2), not ballistic entry margin.
 
-12. **Stretch goals from original spec:**
+12. **Two-parameter ascent pitch program (pitchover kick + late-S1 pitch-rate term):**
+   - Diagnostic across all 10 pure Block 5 flights over `T+100 s .. MECO` showed the simulator flies `~5.0°` flatter than telemetry on Class 0 LEO (`-21.8 m/s` less gravity loss, accounting for ~15–20% of the `EMPIRICAL`-cap gap vs reconstructed axial acceleration; Class 1 GTO is within `-0.5°`).
+   - Add a second pitch-shaping parameter (late-S1 pitch-rate / loft term alongside initial pitchover kick) to match $\gamma(t)$ on LEO, then revisit the `EMPIRICAL` `2.90 g` / `3.60 g` late-S1 acceleration caps.
+
+13. **Stretch goals from original spec:**
    - Convex-optimization (G-FOLD-style) powered descent guidance.
    - 6-DOF rigid-body rotational dynamics (inertia tensor, TVC gimbal torque, RCS cold-gas thrusters, aerodynamic center-of-pressure / center-of-mass pitching moments).

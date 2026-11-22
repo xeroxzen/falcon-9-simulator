@@ -76,6 +76,9 @@ describe('Full Falcon 9 mission (Stage 2 to orbit + Booster recovery)', () => {
     expect(Math.abs(ir.orbit.perigeeAltitudeM - 625_000)).toBeLessThanOrEqual(5_000);
     expect(Math.abs(ir.orbit.apogeeAltitudeM - 625_000)).toBeLessThanOrEqual(5_000);
     expect(Math.abs(ir.orbit.inclinationDeg - 86.6)).toBeLessThan(0.05);
+    expect(ir.boosterSamples.some((s) => s.phase === 'BOOSTBACK_BURN')).toBe(true);
+    expect(ir.boosterOutcome).toBe('LANDED');
+    expect(ir.boosterFinal.distanceToTargetM).toBeLessThan(10);
 
     const sa = runFullMission(FALCON9_BLOCK5, SAOCOM_1A_MISSION, 5.0);
     expect(sa.orbitAchieved).toBe(true);
