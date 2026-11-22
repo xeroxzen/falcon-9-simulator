@@ -408,7 +408,9 @@ export function computeIgnitionSpoolThrottle(timeS: number): number {
   if (timeS < IGNITION_START_S) return 0;
   if (timeS >= IGNITION_START_S + SPOOL_UP_DURATION_S) return 1.0;
   const u = (timeS - IGNITION_START_S) / SPOOL_UP_DURATION_S;
-  return u * u * (3 - 2 * u);
+  const smooth = u * u * (3 - 2 * u);
+  // 10% initial TEA-TEB ignition flash at T-3.0 s, ramping smoothly to 100% by T-0.8 s
+  return 0.1 + 0.9 * smooth;
 }
 
 /**

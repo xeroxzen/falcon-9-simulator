@@ -82,12 +82,13 @@ function makeDelta(real: number, sim: number): EventDelta {
 }
 
 /**
- * Webcast-clock offset (s), 1-DOF MAP refitted on the 3-flight fit set
- * (DM-1, CRS-16, Iridium NEXT 8) with hold-down clamp release at T = 0
- * (+2.00 ± 0.57 s; v1.3.1 vehicle frozen). Applied consistently in all
- * validation comparisons against SpaceX webcast telemetry.
+ * Webcast-clock offset (s). Set to 0.0 s in v1.4 Part B now that hold-down
+ * clamp release at T = 0 is modeled directly (webcast T+0 = clamp release;
+ * T+0..30 s fits best at 0 s with ~39 m / 2.9 m/s RMS). The former v1.3
+ * +1.92/+2.00 s offset was a compensating error hiding excess late-S1
+ * acceleration (tracked for System-ID v2 in docs/BACKLOG.md).
  */
-export const WEBCAST_LIFTOFF_OFFSET_S = 2.00;
+export const WEBCAST_LIFTOFF_OFFSET_S = 0;
 
 /**
  * Compare a simulated full mission against real SpaceX webcast telemetry.

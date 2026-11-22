@@ -213,8 +213,10 @@ function buildSnapshotFromAscent(
     axialAccelG: s.axialAccelG,
     totalMassKg: s.totalMassKg,
     propellantKg: s.dynamic.stage1PropellantKg,
-    propellantFraction:
-      s.dynamic.stage1PropellantKg / vehicle.stage1.propellantMassKg,
+    propellantFraction: Math.min(
+      1,
+      s.dynamic.stage1PropellantKg / vehicle.stage1.propellantMassKg
+    ),
     phase: s.phase,
     activeEngineCount: s.engines.filter((e) => e.active).length,
     engines: s.engines,
