@@ -2,6 +2,16 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
+## [1.4.1] — 2026-11-22 (JRTI Retirement, Parameterized Throttle Bucket & System-ID v2 Holdout Study)
+
+### Added
+- **Parameterized trapezoidal max-Q throttle bucket** (`maxQThrottleStartMach`, `maxQThrottleDurationS`, `maxQMinThrottle`) in `src/sim/guidance/ascent.ts` and `src/sim/simulation.ts` (backward-compatible; no default physics changes).
+- **System-ID v2 holdout study (`WEBCAST_LIFTOFF_OFFSET_S = 0` fixed):** Documented the 17-parameter joint MAP fit and 7-flight holdout falsification of the unified-cause hypothesis in `docs/ASSUMPTIONS.md` and `docs/BACKLOG.md` (retaining holdout-winning v1 `FALCON9_BLOCK5` parameters).
+- **Fresh-seed Monte Carlo verification (`174013`, `185014`, `196015`, `N = 1,000 × 3` each):** Logged in `docs/MONTE_CARLO_LOG.md` — ASDS `2,993/3,000 (99.77%)`, RTLS `LZ-40` `3,000/3,000 (100.00%)`.
+
+### Fixed
+- **JRTI retirement date & source:** Marked `JRTI` as `RETIRED` from Falcon 9 service after its final F9 landing on April 21, 2026 (repurposed for Starship transport; primary SpaceX mission records), keeping only 2026 `OCISLY`/`ASOG` coast assignments marked `UNVERIFIED`.
+
 ## [1.4.0] — 2026-11-22 (Terminal Countdown, LOX Venting, Physically-Based Audio & Multi-Site Pad Infrastructure)
 
 ### Added
