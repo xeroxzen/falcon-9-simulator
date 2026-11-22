@@ -32,6 +32,7 @@ export function TopBar() {
   const cameraMode = useSimStore((s) => s.cameraMode);
   const focusStage = useSimStore((s) => s.focusStage);
   const qualityTier = useSimStore((s) => s.qualityTier);
+  const soundMuted = useSimStore((s) => s.soundMuted);
   const mobileControlsHidden = useSimStore((s) => s.mobileControlsHidden);
   const showEngineerPanel = useSimStore((s) => s.showEngineerPanel);
   const showWhatIfPanel = useSimStore((s) => s.showWhatIfPanel);
@@ -42,6 +43,7 @@ export function TopBar() {
   const setCameraMode = useSimStore((s) => s.setCameraMode);
   const setFocusStage = useSimStore((s) => s.setFocusStage);
   const setQualityTier = useSimStore((s) => s.setQualityTier);
+  const toggleSoundMute = useSimStore((s) => s.toggleSoundMute);
   const toggleEngineerPanel = useSimStore((s) => s.toggleEngineerPanel);
   const toggleWhatIfPanel = useSimStore((s) => s.toggleWhatIfPanel);
   const toggleHotspots = useSimStore((s) => s.toggleHotspots);
@@ -97,6 +99,15 @@ export function TopBar() {
             Lab
           </button>
           <button
+            className={`mobile-tap-btn ${!soundMuted ? 'active' : ''}`}
+            onClick={toggleSoundMute}
+            data-testid="sound-toggle-btn"
+            aria-label={soundMuted ? 'Unmute sound' : 'Mute sound'}
+            title={soundMuted ? 'Unmute sound' : 'Mute sound'}
+          >
+            {soundMuted ? '🔇' : '🔊'}
+          </button>
+          <button
             className="mobile-tap-btn"
             onClick={cycleQuality}
             data-testid="quality-cycle-btn"
@@ -131,6 +142,14 @@ export function TopBar() {
           data-testid="whatif-toggle-btn"
         >
           What-If
+        </button>
+        <button
+          className={`mobile-tap-btn ${!soundMuted ? 'active' : ''}`}
+          onClick={toggleSoundMute}
+          data-testid="sound-toggle-btn"
+          aria-label={soundMuted ? 'Unmute sound' : 'Mute sound'}
+        >
+          {soundMuted ? '🔇' : '🔊'}
         </button>
         <button
           className="mobile-tap-btn"
@@ -238,6 +257,15 @@ export function TopBar() {
           onClick={toggleEngineerPanel}
         >
           Engineer HUD
+        </button>
+        <button
+          className={`pill-btn ${!soundMuted ? 'active' : ''}`}
+          onClick={toggleSoundMute}
+          data-testid="sound-toggle-btn"
+          aria-label={soundMuted ? 'Unmute sound' : 'Mute sound'}
+          title={soundMuted ? 'Unmute physically-based audio (muted by default)' : 'Mute audio'}
+        >
+          {soundMuted ? '🔇 Muted' : '🔊 Sound'}
         </button>
         <select
           className="mission-select quality-select"

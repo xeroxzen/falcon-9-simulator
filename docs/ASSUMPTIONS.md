@@ -123,6 +123,12 @@ Giving the pre-Part-D baseline vehicle the **same** 1-DOF per-flight pitch-kick 
 
 ## 5. Ascent & Stage 2 Guidance
 
+- **Physically-based procedural Web Audio API sound (`v1.4 Part D`, `ASSUMED` synthesis parameters):**
+  - Muted by default (`soundMuted: true`, persisted across mission switches); zero `AudioContext` is instantiated until the user explicitly taps/clicks Unmute.
+  - **Listener:** Active camera position & velocity (primary left pane in Split View).
+  - **Propagation & atmosphere:** Uses harmonic-mean path-averaged **US76 speed of sound** ($c_{\text{avg}}$ from `sampleAtmosphere`, not a fixed `343 m/s`) for retarded acoustic delay $\tau = d / c_{\text{avg}}$, Doppler shift, inverse-distance spreading, distance-dependent atmospheric absorption LPF, and air-density vacuum cutoff (completely silent in vacuum for external cameras; muffled `~220 Hz` structure-borne engine vibration for `onboard-s1`/`onboard-s2` cameras).
+  - **Playback & scrub hygiene:** Continuous engine/aero audio renders only at `<= 2×` speed (muted above `2×` to prevent chipmunk distortion). One-shot events (ignition thump, clamp release, MECO/stage-sep thumps, and RTLS/ASDS double N-wave sonic boom) fire only during real-time forward playback crossing the event timestamp — never on scrub or seek.
+  - **Performance & iOS/Safari:** Entire audio graph (22 persistent nodes) is built once on first unmute with zero per-frame node creation; `suspended`/`interrupted` states resume on visibility return / next gesture. *Note:* On iOS/iPadOS, the hardware silent switch mutes Web Audio API output regardless of in-app unmute state.
 - **Pre-launch LOX venting & liftoff steam (`v1.4 Part C`, `ASSUMED` visual-only):**
   - Pre-launch timeline extends to `T-60 s` (`countdownS: 60`, default playback starts at `T-10 s` while `T-60 s` is scrubbable on the timeline).
   - Reuses the shared GPU-billboarded `SoftParticles` system (`Low / Med / High` budgets: LOX venting `28 / 56 / 96`, deluge spray `32 / 64 / 96`, liftoff steam `56 / 112 / 180`; zero per-frame allocations) for Stage 1 LOX boil-off (`y ≈ 31.5 m`), Stage 2 LOX boil-off (`y ≈ 51.0 m`), and strongback umbilical purge vents (`T-60..0 s`, tapering as flight pressurization closes boil-off valves prior to ignition, cold dense vapor drifting downwind).

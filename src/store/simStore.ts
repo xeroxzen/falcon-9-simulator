@@ -7,6 +7,7 @@ import {
 } from '../sim/config/missions.js';
 import type { MissionConfig, Vec3 } from '../sim/types.js';
 import { normalize } from '../sim/math.js';
+import { soundEngine } from '../audio/soundEngine.js';
 import type {
   MissionTrajectoryData,
   PlaybackFrame,
@@ -307,6 +308,7 @@ interface SimStoreState {
   cameraMode: CameraMode;
   focusStage: FocusStage;
   qualityTier: QualityTier;
+  soundMuted: boolean;
   showEngineerPanel: boolean;
   showWhatIfPanel: boolean;
   showHotspots: boolean;
@@ -327,6 +329,8 @@ interface SimStoreState {
   setCameraMode: (mode: CameraMode) => void;
   setFocusStage: (stage: FocusStage) => void;
   setQualityTier: (tier: QualityTier) => void;
+  toggleSoundMute: () => void;
+  setSoundMuted: (muted: boolean) => void;
   setBottomSheetHeightPx: (px: number) => void;
   setRightDrawerWidthPx: (px: number) => void;
   setMobileControlsHidden: (hidden: boolean) => void;
@@ -366,6 +370,7 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   cameraMode: 'chase',
   focusStage: 'stage1',
   qualityTier: detectDefaultQualityTier(),
+  soundMuted: true,
   showEngineerPanel: detectInitialShowEngineerPanel(),
   showWhatIfPanel: false,
   showHotspots: false,
@@ -516,6 +521,15 @@ export const useSimStore = create<SimStoreState>((set, get) => ({
   setCameraMode: (cameraMode) => set({ cameraMode }),
   setFocusStage: (focusStage) => set({ focusStage }),
   setQualityTier: (qualityTier) => set({ qualityTier }),
+  toggleSoundMute: () => {
+    const next = !get().soundMuted;
+    soundEngine.setMuted(next);
+    set({ soundMuted: next });
+  },
+  setSoundMuted: (muted) => {
+    soundEngine.setMuted(muted);
+    set({ soundMuted: muted });
+  },
   setBottomSheetHeightPx: (bottomSheetHeightPx) => set({ bottomSheetHeightPx }),
   setRightDrawerWidthPx: (rightDrawerWidthPx) => set({ rightDrawerWidthPx }),
   setMobileControlsHidden: (mobileControlsHidden) => set({ mobileControlsHidden }),

@@ -929,14 +929,14 @@ body,
   width: fit-content;
   display: inline-flex;
   grid-template-columns: none;
-  gap: 5px;
-  padding: 4px 6px;
+  gap: 3px;
+  padding: 4px;
 }
 
 .mobile-top-bar.mobile-landscape-bar .mobile-tap-btn {
-  min-width: 48px;
+  min-width: 44px;
   height: 44px;
-  padding: 0 8px;
+  padding: 0 5px;
   font-size: 11px;
 }
 
@@ -974,8 +974,8 @@ body,
   top: max(8px, env(safe-area-inset-top));
   padding: 6px 8px;
   display: grid;
-  grid-template-columns: 1.35fr 0.85fr 1fr 0.9fr;
-  gap: 6px;
+  grid-template-columns: 1.3fr 0.78fr 0.95fr 44px 0.85fr;
+  gap: 5px;
 }
 
 .mobile-tap-btn {
