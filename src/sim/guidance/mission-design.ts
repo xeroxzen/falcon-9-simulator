@@ -12,15 +12,16 @@ export interface MissionClassSchedule {
 }
 
 /**
- * Simplified per-class Stage 1 late-burn axial acceleration limits fitted via MAP
- * on the 4-flight fit set (WEBCAST_LIFTOFF_OFFSET_S = 0 fixed; shared v1 vehicle
+ * EMPIRICAL effective late-S1 axial acceleration limits per mission class, fitted via
+ * MAP on the 4-flight fit set (WEBCAST_LIFTOFF_OFFSET_S = 0 fixed; shared v1 vehicle
  * and shared v1 max-Q throttle bucket):
- *  - LEO (Class 0, fit on DM-1, CRS-16, Iridium NEXT 8): maxAxialAccelG = 2.90 g
- *  - GTO (Class 1, fit on Bangabandhu-1):                maxAxialAccelG = 3.60 g
+ *  - LEO (Class 0, fit on DM-1, CRS-16, Iridium NEXT 8): maxAxialAccelG = 2.90 g (EMPIRICAL)
+ *  - GTO (Class 1, fit on Bangabandhu-1):                maxAxialAccelG = 3.60 g (EMPIRICAL)
  *
- * Bucket duration did not separate clusters (C1 spans 12-46 s) and a 30.2 s LEO
- * bucket regressed Class 0 holdout altitude (0.44 -> 2.98 km). Keeping the shared
- * v1 bucket and varying only S1 late-burn accel improves or holds BOTH classes.
+ * Reconstructed true telemetry axial acceleration (a_axial = dv/dt + g*sin(gamma))
+ * peaks at 3.29-3.67 g (Class 0) and 3.82-3.86 g (Class 1), so these caps are
+ * EMPIRICAL effective late-S1 limits compensating for an unmodeled discrepancy
+ * (tracked in docs/BACKLOG.md), not physical structural G-limits.
  */
 export const MISSION_CLASS_SCHEDULES: Readonly<
   Record<MissionGuidanceClass, MissionClassSchedule>
