@@ -2,6 +2,24 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
+## [1.4.0] — 2026-11-22 (Terminal Countdown, LOX Venting, Physically-Based Audio & Multi-Site Pad Infrastructure)
+
+### Added
+- **Terminal countdown, hold-down clamp ignition & water deluge (`Part B`):**
+  - Modeled `T-60 s` to `T-0` countdown with `T-5.0 s` water-deluge activation, `T-3.0 s` Merlin 1D ignition spool-up under hold-down clamps, and `T=0` clamp release (`WEBCAST_LIFTOFF_OFFSET_S = 0`; documented in `docs/ASSUMPTIONS.md` that v1.3's `+1.92 s` offset was compensating for late-S1 acceleration).
+  - Rendered deflected Merlin ignition exhaust along the open flame trench, shared GPU-billboarded `SoftParticles` emitter (zero per-frame allocations), and unoccluded Pad camera with raycast occlusion & vehicle-envelope collision checks (`checkPadOcclusion`).
+- **Pre-launch LOX venting, ground-hugging liftoff steam & `Pad (Fixed)` camera (`Part C`):**
+  - Added cryogenic LOX boil-off venting (`T-60..0 s`) from the strongback, interstage, and Stage 2 vent ports, plus ground-hugging lateral liftoff steam clouds and the fixed-framing `Pad (Fixed)` camera.
+  - Regenerated `docs/demo.gif` and `docs/demo.mp4` from the `T-10 → T+10 s` countdown/liftoff sequence.
+- **Physically-based procedural Web Audio API sound (`Part D`):**
+  - Added zero-allocation Web Audio engine (`src/audio/soundEngine.ts`, `src/audio/acoustics.ts`) muted by default (AudioContext created strictly on first unmute tap, iOS/Safari lifecycle-safe), using US76 path-averaged speed of sound, retarded-time emission, Doppler shift, atmospheric LPF absorption, vacuum cutoff for external cameras, structure-borne vibration for onboard cameras, water-deluge spray hiss (`T-5..+5 s`), and continuous-audio mute above `2×` speed.
+  - Modeled RTLS/ASDS double N-wave sonic boom arrival (`t_emit + slantDist / c_path_avg` from the last supersonic descent sample — documented as a single-point approximation in `docs/ASSUMPTIONS.md`), firing strictly on real-time playback crossings and never on scrub/seek. Added live `MediaRecorder` capture (`docs/v1.4-sound-demo.mp4`) and E2E verification (`e2e/v14-sound.spec.ts`).
+- **Launch site picker (`LC-39A`, `SLC-40`, `SLC-4E`) & clickable pad infrastructure (`Part E`):**
+  - Added `SAOCOM 1A` (`SLC-4E`) to the mission selector and a `Launch Site` picker in What-If with sourced range-safety azimuth/inclination corridors (`Eastern Range SLD 45` vs `Western Range SLD 30`, blocking invalid combinations such as `SLC-4E` at `28.6°`) and dynamic mission labels in `TopBar` and `WebcastHud`.
+  - Added site-distinct low-poly pad infrastructure (`fss-tower` with retracted Crew Access Arm at `LC-39A` only, `hif-hangar`, `propellant-farm`, `water-deluge-tower`) with 4 schema-validated component JSONs, clickable hitboxes, and honest Inspector telemetry (zero fabricated live rows for non-simulated ground structures).
+  - Updated Webcast HUD altitude to AGL above launch pad during ascent (`SLC-4E` `114 m AMSL` reads `0.0 km` on pad) while displaying labeled `Altitude (MSL)` in the Engineer panel.
+  - Modeled date-dependent recovery asset availability (`LZ-40` active at SLC-40, `LZ-4` active at VSFB, `LZ-1` Crew-11 Aug 1, 2025 + NROL-97 Oct 1, 2026 reuse, `LZ-2` retired after NROL-77 Dec 9, 2025 + NROL-97 Oct 1, 2026 reuse; 2026 ASDS coast assignments explicitly marked `UNVERIFIED` pending primary mission-page reconciliation).
+
 ## [1.3.1] — 2026-11-22 (Sourced Stage 2 Burn Profiles, Tightened PEG Direct Insertion & Separate `stage2MaxAccelG`)
 
 ### Added
