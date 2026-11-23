@@ -65,8 +65,10 @@ export const DEFAULT_LEO_RTLS_MISSION: MissionConfig = {
   landingSiteId: 'LZ-40',
   guidance: {
     ...BASELINE_RTLS_GUIDANCE,
-    /** Mission-design pitchover kick solved by solveMissionAscentDesign for SLC-40 -> LZ-40 (2.90 g LEO + unified landing-burn law) */
-    pitchKickAngleDeg: 1.4,
+    /** Mission-design pitchover kick, reserve & boostback pitch solved jointly by solveMissionAscentDesign for SLC-40 -> LZ-40 */
+    pitchKickAngleDeg: 1.2,
+    mecoPropellantReserveFraction: 0.135,
+    boostbackPitchDeg: -22,
   },
 };
 
@@ -148,11 +150,12 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
   maxSimTimeS: 4_200,
   wind: { eastMs: 0, northMs: 0, upMs: 0 },
   engineOuts: [],
-  /** Solver-derived kick (1.70 deg) and partial-boostback MECO reserve (10.5%) at 244 km downrange. */
+  /** Solver-derived kick (2.10 deg), partial-boostback MECO reserve (10.5%), and boostback pitch (-22 deg) at 244 km downrange. */
   guidance: {
     ...BASELINE_ASDS_GUIDANCE,
-    pitchKickAngleDeg: 1.7,
+    pitchKickAngleDeg: 2.1,
     mecoPropellantReserveFraction: 0.105,
+    boostbackPitchDeg: -22,
   },
 };
 
@@ -190,5 +193,11 @@ export const SAOCOM_1A_MISSION: MissionConfig = {
   maxSimTimeS: 900,
   wind: { eastMs: 0, northMs: 0, upMs: 0 },
   engineOuts: [],
-  guidance: BASELINE_RTLS_GUIDANCE,
+  /** Solver-derived kick (1.10 deg), RTLS MECO reserve (14.5%), and boostback pitch (-16 deg) for SLC-4E -> LZ-4. */
+  guidance: {
+    ...BASELINE_RTLS_GUIDANCE,
+    pitchKickAngleDeg: 1.1,
+    mecoPropellantReserveFraction: 0.145,
+    boostbackPitchDeg: -16,
+  },
 };

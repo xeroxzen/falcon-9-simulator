@@ -1,4 +1,5 @@
 import { runFullMission } from '../mission.js';
+import { sampleAtmosphere } from '../models/atmosphere.js';
 import type { MissionConfig, VehicleConfig } from '../types.js';
 
 export type AscentTrajectoryProfile = 'LEO_DIRECT' | 'LEO_TWO_BURN' | 'GTO';
@@ -98,10 +99,14 @@ export interface MissionDesignOptions {
   readonly rtlsReserveCandidates?: readonly number[];
   /** Candidate close-in ASDS partial-boostback MECO reserve fractions (searched in ascending order). */
   readonly asdsBoostbackReserveCandidates?: readonly number[];
-  /** Required nominal booster landing propellant margin (kg) for 3-sigma dispersion buffer. Default: 4,000 ASDS / 7,500 RTLS */
+  /** Candidate boostback thrust pitch angles relative to local horizontal (deg, negative = depressed). Default: [-4, -10, -16, -22, -28] */
+  readonly boostbackPitchCandidates?: readonly number[];
+  /** Required nominal booster landing propellant margin (kg) for 3-sigma dispersion buffer. Default: 4,000 ASDS / 5,000 ASDS-BB / 7,500 RTLS */
   readonly minBoosterFuelMarginKg?: number;
   /** Maximum allowable aero-descent grid-fin saturation fraction. Default: 0.15 */
   readonly maxGridFinSatFraction?: number;
+  /** Maximum allowable Sutton-Graves peak convective entry heating proxy (MW/m^2, R_n = 1.85 m, ASSUMED). Default: 0.085 */
+  readonly maxEntryHeatingMWm2?: number;
   /** Integration timestep for solver evaluations (s). Default: 0.05 */
   readonly solverDtS?: number;
 }
@@ -109,6 +114,8 @@ export interface MissionDesignOptions {
 export interface MissionDesignResult {
   readonly pitchKickAngleDeg: number;
   readonly mecoPropellantReserveFraction: number;
+  /** Solved boostback thrust pitch angle (deg) for RTLS / close-in ASDS, undefined for ballistic ASDS / EXPENDABLE. */
+  readonly boostbackPitchDeg?: number;
   readonly initialGuessKickDeg: number;
   readonly feasible: boolean;
   readonly orbitAchieved: boolean;
@@ -116,7 +123,14 @@ export interface MissionDesignResult {
   readonly boosterFuelMarginKg: number;
   readonly stage2FuelMarginKg: number;
   readonly gridFinSatFraction: number;
+  /** Peak convective stagnation entry heating proxy (Sutton-Graves, MW/m^2, R_n = 1.85 m). */
+  readonly peakEntryHeatingMWm2: number;
 }
+
+/** Sutton-Graves Earth convective stagnation heating constant (W / (m^(3/2) * (m/s)^3)). */
+const SUTTON_GRAVES_K_EARTH = 1.7415e-4;
+/** Falcon 9 core base radius (m) used as effective blunt-body nose radius for entry heating proxy. */
+const BOOSTER_BASE_RADIUS_M = 1.85;
 
 function evaluateCandidate(
   vehicle: VehicleConfig,
@@ -124,7 +138,8 @@ function evaluateCandidate(
   pitchKickAngleDeg: number,
   mecoPropellantReserveFraction: number,
   initialGuessKickDeg: number,
-  solverDtS: number
+  solverDtS: number,
+  boostbackPitchDeg?: number
 ): MissionDesignResult {
   const candidate: MissionConfig = {
     ...mission,
@@ -134,6 +149,7 @@ function evaluateCandidate(
       ...mission.guidance,
       pitchKickAngleDeg,
       mecoPropellantReserveFraction,
+      ...(boostbackPitchDeg !== undefined ? { boostbackPitchDeg } : {}),
     },
   };
   const res = runFullMission(vehicle, candidate, 1.0);
@@ -141,9 +157,22 @@ function evaluateCandidate(
   const pinned = aero.filter((s) => Math.abs(s.gridFinDeflectionDeg) >= 19.9);
   const gridFinSatFraction = aero.length > 0 ? pinned.length / aero.length : 0;
 
+  let peakEntryHeatingMWm2 = 0;
+  for (const s of res.boosterSamples) {
+    if (s.verticalSpeedMs < 0 && s.geodetic.altitudeM < 90_000) {
+      const rho = sampleAtmosphere(s.geodetic.altitudeM).densityKgM3;
+      const v = s.speedAirRelMs;
+      const qDotMWm2 =
+        (SUTTON_GRAVES_K_EARTH * Math.sqrt(rho / BOOSTER_BASE_RADIUS_M) * v * v * v) /
+        1e6;
+      if (qDotMWm2 > peakEntryHeatingMWm2) peakEntryHeatingMWm2 = qDotMWm2;
+    }
+  }
+
   return {
     pitchKickAngleDeg,
     mecoPropellantReserveFraction,
+    boostbackPitchDeg,
     initialGuessKickDeg,
     feasible: false,
     orbitAchieved: res.orbitAchieved,
@@ -151,6 +180,7 @@ function evaluateCandidate(
     boosterFuelMarginKg: res.boosterFinal.dynamic.propellantKg,
     stage2FuelMarginKg: res.stage2Final.dynamic.propellantKg,
     gridFinSatFraction,
+    peakEntryHeatingMWm2,
   };
 }
 
@@ -164,7 +194,8 @@ function solveKickForReserve(
   coarseStep: number,
   fineStep: number,
   solverDtS: number,
-  isFeasible: (r: MissionDesignResult) => boolean
+  isFeasible: (r: MissionDesignResult) => boolean,
+  boostbackPitchDeg?: number
 ): MissionDesignResult {
   // Build coarse grid anchored at initialGuessKickDeg and expanding across [minKick, maxKick]
   const gridSet = new Set<number>();
@@ -184,7 +215,8 @@ function solveKickForReserve(
       kick,
       reserveFraction,
       initialGuessKickDeg,
-      solverDtS
+      solverDtS,
+      boostbackPitchDeg
     );
     coarseResults.push({ ...ev, feasible: isFeasible(ev) });
   }
@@ -221,7 +253,8 @@ function solveKickForReserve(
       kick,
       reserveFraction,
       initialGuessKickDeg,
-      solverDtS
+      solverDtS,
+      boostbackPitchDeg
     );
     if (isFeasible(ev) && ev.stage2FuelMarginKg > best.stage2FuelMarginKg) {
       best = { ...ev, feasible: true };
@@ -274,20 +307,20 @@ export function solveMissionAscentDesign(
   const coarseStep = options.coarseStepDeg ?? 0.15;
   const fineStep = options.fineStepDeg ?? 0.05;
   const maxSat = options.maxGridFinSatFraction ?? 0.15;
+  const maxHeat = options.maxEntryHeatingMWm2 ?? 0.085;
   const minBoosterFuel =
     options.minBoosterFuelMarginKg ??
-    (mission.landingMode === 'RTLS'
+    (mission.landingMode === 'RTLS' || mission.droneshipDownrangeKm !== undefined
       ? 7_500
-      : mission.droneshipDownrangeKm !== undefined
-        ? 5_000
-        : 4_000);
+      : 4_000);
 
   const isFeasible = (r: MissionDesignResult): boolean =>
     r.orbitAchieved &&
     r.stage2FuelMarginKg > 0 &&
     r.boosterOutcome === 'LANDED' &&
     r.boosterFuelMarginKg >= minBoosterFuel &&
-    r.gridFinSatFraction <= maxSat;
+    r.gridFinSatFraction <= maxSat &&
+    r.peakEntryHeatingMWm2 <= maxHeat;
 
   if (mission.landingMode === 'ASDS' && mission.droneshipDownrangeKm === undefined) {
     const reserve = mission.guidance.mecoPropellantReserveFraction;
@@ -305,8 +338,10 @@ export function solveMissionAscentDesign(
     );
   }
 
-  // RTLS or close-in ASDS with droneshipDownrangeKm: find the minimum feasible
-  // MECO reserve fraction (sizing boostback + entry + landing needs) + optimal kick
+  // RTLS or close-in ASDS with droneshipDownrangeKm: jointly solve for the minimum
+  // feasible MECO reserve fraction, optimal ascent pitch kick, and optimal boostback
+  // thrust pitch angle (maximizing landing fuel margin subject to fin-sat and entry
+  // heating proxy constraints; no hardcoded -4 deg).
   const reserveCandidates =
     mission.landingMode === 'RTLS'
       ? (options.rtlsReserveCandidates ?? [
@@ -315,9 +350,16 @@ export function solveMissionAscentDesign(
       : (options.asdsBoostbackReserveCandidates ?? [
           0.075, 0.085, 0.095, 0.105, 0.115, 0.125, 0.135, 0.145, 0.155,
         ]);
+  const bbPitchCandidates = options.boostbackPitchCandidates ?? [
+    -4, -10, -16, -22, -28,
+  ];
+  const refBbPitch = bbPitchCandidates.includes(-16)
+    ? -16
+    : bbPitchCandidates[Math.floor(bbPitchCandidates.length / 2)]!;
+
   let bestFallback: MissionDesignResult | null = null;
   for (const reserve of reserveCandidates) {
-    const solved = solveKickForReserve(
+    const solvedAtRef = solveKickForReserve(
       vehicle,
       mission,
       reserve,
@@ -327,17 +369,42 @@ export function solveMissionAscentDesign(
       coarseStep,
       fineStep,
       solverDtS,
-      isFeasible
+      isFeasible,
+      refBbPitch
     );
-    if (solved.feasible) {
-      return solved;
+    // Sweep boostbackPitchDeg at the solved ascent kick (boostback happens after MECO,
+    // so Stage 2 orbit & fuel margin are invariant) and pick the angle maximizing
+    // booster landing fuel margin among feasible (LANDED, finSat <= maxSat, heat <= maxHeat) candidates.
+    let bestForReserve: MissionDesignResult = solvedAtRef;
+    for (const bbPitch of bbPitchCandidates) {
+      if (bbPitch === refBbPitch) continue;
+      const ev = evaluateCandidate(
+        vehicle,
+        mission,
+        solvedAtRef.pitchKickAngleDeg,
+        reserve,
+        initialGuessKickDeg,
+        solverDtS,
+        bbPitch
+      );
+      const cand: MissionDesignResult = { ...ev, feasible: isFeasible(ev) };
+      if (
+        cand.feasible &&
+        (!bestForReserve.feasible ||
+          cand.boosterFuelMarginKg > bestForReserve.boosterFuelMarginKg)
+      ) {
+        bestForReserve = cand;
+      }
+    }
+    if (bestForReserve.feasible) {
+      return bestForReserve;
     }
     if (
       bestFallback === null ||
-      (solved.orbitAchieved ? 1e6 : 0) + solved.boosterFuelMarginKg >
+      (bestForReserve.orbitAchieved ? 1e6 : 0) + bestForReserve.boosterFuelMarginKg >
         (bestFallback.orbitAchieved ? 1e6 : 0) + bestFallback.boosterFuelMarginKg
     ) {
-      bestFallback = solved;
+      bestFallback = bestForReserve;
     }
   }
   return bestFallback!;
