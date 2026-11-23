@@ -10,8 +10,8 @@ import { LAUNCH_SITES } from './falcon9.js';
 const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
   /** ASSUMED: Clear tower (~150 m) before pitchover */
   pitchKickAltitudeM: 150,
-  /** Mission-design pitchover kick solved by solveMissionPitchKickDeg with Class 0 LEO 2.90 g cap */
-  pitchKickAngleDeg: 1.80,
+  /** Mission-design pitchover kick solved by solveMissionAscentDesign (Class 0 LEO 2.90 g cap + unified landing-burn law) */
+  pitchKickAngleDeg: 1.75,
   /** ASSUMED: Smooth pitchover duration */
   pitchKickDurationS: 8.0,
   /** Shared v1 max-Q throttle bucket (22 kPa, Mach 1.02..1.38, 72% min throttle) */
@@ -65,8 +65,8 @@ export const DEFAULT_LEO_RTLS_MISSION: MissionConfig = {
   landingSiteId: 'LZ-40',
   guidance: {
     ...BASELINE_RTLS_GUIDANCE,
-    /** Mission-design pitchover kick solved by solveMissionAscentDesign for SLC-40 -> LZ-40 with Class 0 LEO 2.90 g cap */
-    pitchKickAngleDeg: 1.35,
+    /** Mission-design pitchover kick solved by solveMissionAscentDesign for SLC-40 -> LZ-40 (2.90 g LEO + unified landing-burn law) */
+    pitchKickAngleDeg: 1.4,
   },
 };
 
@@ -140,13 +140,20 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
   targetInclinationDeg: 86.6,
   launchDirection: 'DESCENDING',
   landingMode: 'ASDS',
+  /** ASSUMED: 244 km downrange (not published in SpaceX press kit; estimated from Pacific NOTMAR hazard zone & 33 s boostback burn). */
+  droneshipDownrangeKm: 244,
   enableJ2: true,
   dtS: 0.01,
   countdownS: 60,
   maxSimTimeS: 4_200,
   wind: { eastMs: 0, northMs: 0, upMs: 0 },
   engineOuts: [],
-  guidance: BASELINE_ASDS_GUIDANCE,
+  /** Solver-derived kick (1.70 deg) and partial-boostback MECO reserve (10.5%) at 244 km downrange. */
+  guidance: {
+    ...BASELINE_ASDS_GUIDANCE,
+    pitchKickAngleDeg: 1.7,
+    mecoPropellantReserveFraction: 0.105,
+  },
 };
 
 /**

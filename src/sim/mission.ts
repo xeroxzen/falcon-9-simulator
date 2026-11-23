@@ -10,7 +10,12 @@ import type {
   Vec3,
   VehicleConfig,
 } from './types.js';
-import { DEG_TO_RAD, G0, RAD_TO_DEG } from './config/constants.js';
+import {
+  DEG_TO_RAD,
+  EARTH_RADIUS_MEAN_M,
+  G0,
+  RAD_TO_DEG,
+} from './config/constants.js';
 import { LANDING_SITES } from './config/falcon9.js';
 import { rk4Step, type Rk4Space } from './integrator.js';
 import {
@@ -421,19 +426,55 @@ export function runFullMission(
     attitudeEci: mecoState.dynamic.attitudeEci,
   };
 
-  // Determine landing target (LZ-1/LZ-4 for RTLS, predicted downrange deck for ASDS).
-  // For ASDS with station-keeping dispersion (±10 m), offset the actual droneship
-  // position while guidance still navigates toward the updated/actual target or
-  // experiences the offset.
+  // Determine landing target (LZ-1/LZ-4/LZ-40 for RTLS, ballistic or close-in
+  // partial-boostback downrange deck for ASDS).
   const rtlsSite = LANDING_SITES[mission.landingSiteId ?? 'LZ-40'];
-  const nominalLandingTarget: GeodeticCoord =
-    mission.landingMode === 'RTLS'
-      ? {
-          latRad: rtlsSite.latDeg * DEG_TO_RAD,
-          lonRad: rtlsSite.lonDeg * DEG_TO_RAD,
-          altitudeM: rtlsSite.elevationM,
-        }
-      : predictAsdsTargetCoord(mecoTimeS, bDyn, vehicle, mission);
+  let needsBoostback = mission.landingMode === 'RTLS';
+  let nominalLandingTarget: GeodeticCoord;
+  if (mission.landingMode === 'RTLS') {
+    nominalLandingTarget = {
+      latRad: rtlsSite.latDeg * DEG_TO_RAD,
+      lonRad: rtlsSite.lonDeg * DEG_TO_RAD,
+      altitudeM: rtlsSite.elevationM,
+    };
+  } else {
+    const ballisticTarget = predictAsdsTargetCoord(mecoTimeS, bDyn, vehicle, mission);
+    const ballisticRangeM = greatCircleDistanceM(
+      padLatRad,
+      padLonRad,
+      ballisticTarget.latRad,
+      ballisticTarget.lonRad
+    );
+    if (
+      mission.landingMode === 'ASDS' &&
+      mission.droneshipDownrangeKm !== undefined &&
+      mission.droneshipDownrangeKm * 1000 < ballisticRangeM - 15_000
+    ) {
+      // Place droneship at droneshipDownrangeKm along the great-circle bearing
+      // from the launch site to the ballistic impact point, triggering partial boostback.
+      const dLon = ballisticTarget.lonRad - padLonRad;
+      const bearing = Math.atan2(
+        Math.sin(dLon) * Math.cos(ballisticTarget.latRad),
+        Math.cos(padLatRad) * Math.sin(ballisticTarget.latRad) -
+          Math.sin(padLatRad) * Math.cos(ballisticTarget.latRad) * Math.cos(dLon)
+      );
+      const ang = (mission.droneshipDownrangeKm * 1000) / EARTH_RADIUS_MEAN_M;
+      const lat2 = Math.asin(
+        Math.sin(padLatRad) * Math.cos(ang) +
+          Math.cos(padLatRad) * Math.sin(ang) * Math.cos(bearing)
+      );
+      const lon2 =
+        padLonRad +
+        Math.atan2(
+          Math.sin(bearing) * Math.sin(ang) * Math.cos(padLatRad),
+          Math.cos(ang) - Math.sin(padLatRad) * Math.sin(lat2)
+        );
+      nominalLandingTarget = { latRad: lat2, lonRad: lon2, altitudeM: 0 };
+      needsBoostback = true;
+    } else {
+      nominalLandingTarget = ballisticTarget;
+    }
+  }
 
   let landingTarget: GeodeticCoord = nominalLandingTarget;
   if (
@@ -457,6 +498,7 @@ export function runFullMission(
     phase: 'MECO_COAST',
     entryBurnStartTimeS: null,
     landingLegsDeployed: false,
+    needsBoostback,
   };
 
   let s2State = buildStage2State(

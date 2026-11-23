@@ -48,51 +48,53 @@ pnpm e2e              # Playwright E2E suite in headed Chromium (HEADLESS=1 for 
 
 ---
 
-## Real Webcast Telemetry Validation (v1.5.0 — Per-Class Schedules, Physical Max-Q, `tOff = 0`)
+## Real Webcast Telemetry Validation (v1.6.0 — Per-Class Schedules, Close-In ASDS Partial Boostback & Physical Max-Q, `tOff = 0`)
 
-Validated at `dt = 0.01 s` with **`WEBCAST_LIFTOFF_OFFSET_S = 0.0 s` fixed** (hold-down clamp release at `T = 0` modeled directly; `T+0..30 s` fits best at `0 s` with `~39 m / 2.9 m/s` RMS) against 10 pure Falcon 9 Block 5 flights from [shahar603/Telemetry-Data](https://github.com/shahar603/Telemetry-Data) (30 fps OCR resampled to 1 Hz, Earth-relative ECEF speed frame). Primary Max-Q comparisons use the **physical telemetry `q` peak (`0.5 · ρ_US76(alt) · v²`)** rather than the webcast announcer callout (retained in parentheses). The two classes (`Class 0 LEO-like`, `Class 1 GTO-like`) were defined via unsupervised `k = 2` clustering on `(bucketDurS, v140Ms, peakLateS1AccelG)`, keeping the shared v1 `FALCON9_BLOCK5` vehicle & throttle bucket (`22 kPa / Mach 1.02–1.38 / 72%`) and fitting **only** an **`EMPIRICAL` effective late-S1 axial acceleration limit** (`2.90 g` LEO / `3.60 g` GTO) on the 4-flight fit set (`DM-1`, `CRS-16`, `Iridium NEXT 8`, `Bangabandhu-1`). Per-flight pitchover kick (`Kick°`) is treated as a 1-DOF mission trajectory-shaping nuisance parameter; Stage 2 RMS is reported only where the simulator flies the same ascent profile through SECO-1.
+Validated at `dt = 0.01 s` with **`WEBCAST_LIFTOFF_OFFSET_S = 0.0 s` fixed** (hold-down clamp release at `T = 0` modeled directly; `T+0..30 s` fits best at `0 s` with `~39 m / 2.9 m/s` RMS) against 10 pure Falcon 9 Block 5 flights from [shahar603/Telemetry-Data](https://github.com/shahar603/Telemetry-Data) (30 fps OCR resampled to 1 Hz, Earth-relative ECEF speed frame). Primary Max-Q comparisons use the **physical telemetry `q` peak (`0.5 · ρ_US76(alt) · v²`)** rather than the webcast announcer callout (retained in parentheses). The two classes (`Class 0 LEO-like`, `Class 1 GTO-like`) keep the shared v1 `FALCON9_BLOCK5` vehicle & throttle bucket (`22 kPa / Mach 1.02–1.38 / 72%`) with **`EMPIRICAL` effective late-S1 axial acceleration limits** (`2.90 g` LEO / `3.60 g` GTO). Close-in ASDS missions (`droneshipDownrangeKm`: `SSO-A` `50 km` `SOURCED` Spaceflight Now; `Iridium NEXT 8` `244 km` `ASSUMED`) automatically execute a 3-engine partial boostback burn with solver-sized MECO propellant reserves (zero reserve fitting), while far-ASDS GTO flights remain pure ballistic.
 
-#### Per-Class Holdout Summary (`Fair Baseline → v1 (3.69 g) → v1.5.0 Simplified`)
+#### Per-Class Holdout Summary (`Fair Baseline → v1.5.0 → v1.6.0`)
 
 | Holdout Class (`dt = 0.01 s`, per-flight kick) | `|Phys Max-Q Δ|` (callout) | `|MECO Δ|` | S1 Alt RMS | S1 Vel RMS | S2 Vel RMS |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| **Class 0 — LEO-like** (`SAOCOM 1A`, `SSO-A`; S1-only) | `3.05 → 0.59 → 0.59 s` (`0.09 s`) | `4.86 → 5.90 → 7.60 s`\* | `2.47 → 0.82 → 0.40 km` | `137.9 → 69.8 → 47.1 m/s` | S1-only |
-| **Class 1 — GTO-like** (`TelStar v19`, `Iridium 7`, `Eshail 2`, `GPS III`) | `8.78 → 6.18 → 6.18 s` (`7.18 s`) | `8.75 → 3.04 → 2.69 s` | `2.10 → 1.10 → 1.07 km` | `135.2 → 66.4 → 64.4 m/s` | `190.8 → 247.5 → 257.1 m/s` |
+| **Class 0 — LEO-like** (`SAOCOM 1A`, `SSO-A`; S1-only) | `3.05 → 0.59 → 0.59 s` (`0.09 s`) | `4.86 → 7.60 → 1.65 s` | `2.47 → 0.40 → 0.41 km` | `137.9 → 47.1 → 48.9 m/s` | S1-only |
+| **Class 1 — GTO-like** (`TelStar v19`, `Iridium 7`, `Eshail 2`, `GPS III`) | `8.78 → 6.18 → 6.18 s` (`7.18 s`) | `8.75 → 2.69 → 2.69 s` | `2.10 → 1.07 → 1.07 km` | `135.2 → 64.4 → 65.8 m/s` | `190.8 → 257.1 → 258.8 m/s` |
 
-*\*On Class 0 holdouts, `SAOCOM 1A` MECO improves `-4.7 → 0.0 s` (exact), while light 4.0 t ASDS `SSO-A` over-burns `+7.1 → +15.2 s` due to the generic `7.5%` ASDS reserve (payload-aware reserve sizing is tracked in [docs/BACKLOG.md](docs/BACKLOG.md)). Reconstructed true telemetry axial acceleration (`dv/dt + g·sin(γ)`) peaks at `3.29–3.67 g` (Class 0) and `3.82–3.86 g` (Class 1), so `2.90 g` / `3.60 g` are explicitly labeled `EMPIRICAL` effective late-S1 limits in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md).*
+*Reconstructed true telemetry axial acceleration (`dv/dt + g·sin(γ)`) peaks at `3.29–3.67 g` (Class 0) and `3.82–3.86 g` (Class 1), so `2.90 g` / `3.60 g` are explicitly labeled `EMPIRICAL` effective late-S1 limits in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md).*
 
-#### Per-Flight Validation Breakdown (`Fair Baseline → v1 → v1.5.0`)
+#### Per-Flight Validation Breakdown (`Fair Baseline → v1.5.0 → v1.6.0`)
 
-| Flight | Class | Role | Fitted Kick | Phys Max-Q Δt (B → v1 → v1.5) | MECO Δt (B → v1 → v1.5) | S1 Alt RMS (B → v1 → v1.5) | S1 Vel RMS (B → v1 → v1.5) | Reconstructed Peak `a_axial` |
+| Flight | Class | Role | Fitted Kick | Phys Max-Q Δt (B → v1.5 → v1.6) | MECO Δt (B → v1.5 → v1.6) | S1 Alt RMS (B → v1.5 → v1.6) | S1 Vel RMS (B → v1.5 → v1.6) | Reconstructed Peak `a_axial` |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| **Crew Dragon DM-1** | C0 LEO | Fit | `1.41°` | `-1.2 → +1.5 → +1.5 s` | `-9.7 → -5.0 → -3.6 s` | `3.19 → 1.77 → 1.65 km` | `180 → 113 → 105 m/s` | `3.29 g` |
-| **SpaceX CRS-16** | C0 LEO | Fit | `1.61°` | `+2.9 → +5.5 → +5.5 s` | `-12.6 → -7.8 → -3.3 s` | `3.56 → 2.27 → 1.91 km` | `188 → 127 → 108 m/s` | `3.46 g` |
-| **Iridium NEXT 8** | C0 LEO | Fit | `1.63°` | `-5.3 → -2.7 → -2.6 s` | `-7.0 → -0.4 → +6.9 s` | `3.05 → 1.59 → 0.84 km` | `173 → 98 → 65 m/s` | `3.67 g` |
-| **Bangabandhu-1** | C1 GTO | Fit | `2.62°` | `-12.9 → -10.4 → -10.4 s` | `-9.0 → -2.1 → -1.6 s` | `2.23 → 0.67 → 0.61 km` | `128 → 50 → 49 m/s` | `3.86 g` |
-| **SAOCOM 1A** | C0 LEO | Holdout | `1.10°` | `-3.6 → -1.1 → -1.0 s` | `-9.6 → -4.7 → 0.0 s` | `2.10 → 0.69 → 0.39 km` | `122 → 63 → 44 m/s` | `3.56 g` |
-| **SSO-A** | C0 LEO | Holdout | `1.10°` | `-2.5 → +0.1 → +0.1 s` | `+0.2 → +7.1 → +15.2 s` | `2.85 → 0.94 → 0.41 km` | `153 → 76 → 50 m/s` | `3.52 g` |
-| **TelStar v19** | C1 GTO | Holdout | `2.48°` | `-13.3 → -10.7 → -10.7 s` | `-10.0 → -3.4 → -2.9 s` | `2.08 → 0.57 → 0.57 km` | `126 → 50 → 48 m/s` | `3.83 g` |
-| **Iridium NEXT 7** | C1 GTO | Holdout | `1.71°` | `-10.3 → -7.6 → -7.6 s` | `-3.0 → +3.5 → +4.0 s` | `2.62 → 0.87 → 0.81 km` | `136 → 60 → 59 m/s` | `3.82 g` |
-| **Eshail 2** | C1 GTO | Holdout | `2.52°` | `-2.7 → -0.1 → -0.1 s` | `-9.0 → -2.2 → -1.7 s` | `1.35 → 1.88 → 1.89 km` | `67 → 55 → 55 m/s` | `3.83 g` |
-| **GPS III SV01** | C1 GTO | Holdout | `2.30°` | `-8.9 → -6.3 → -6.3 s` | `-13.0 → -3.0 → -2.2 s` | `2.37 → 1.09 → 1.02 km` | `211 → 101 → 95 m/s` | `3.86 g` |
+| **Crew Dragon DM-1** | C0 LEO | Fit | `1.41°` | `-1.2 → +1.5 → +1.5 s` | `-9.7 → -3.6 → -3.6 s` | `3.19 → 1.65 → 1.68 km` | `180 → 105 → 108 m/s` | `3.29 g` |
+| **SpaceX CRS-16** | C0 LEO | Fit | `1.61°` | `+2.9 → +5.5 → +5.5 s` | `-12.6 → -3.3 → -3.3 s` | `3.56 → 1.91 → 1.72 km` | `188 → 108 → 111 m/s` | `3.46 g` |
+| **Iridium NEXT 8** (`244 km` BB) | C0 LEO | Fit | `1.63°` | `-5.3 → -2.6 → -2.6 s` | `-7.0 → +6.9 → -0.2 s` | `3.05 → 0.84 → 0.78 km` | `173 → 65 → 68 m/s` | `3.67 g` |
+| **Bangabandhu-1** (`610 km` bal.) | C1 GTO | Fit | `2.62°` | `-12.9 → -10.4 → -10.4 s` | `-9.0 → -1.6 → -1.6 s` | `2.23 → 0.61 → 0.66 km` | `128 → 49 → 49 m/s` | `3.86 g` |
+| **SAOCOM 1A** | C0 LEO | Holdout | `1.10°` | `-3.6 → -1.0 → -1.0 s` | `-9.6 → 0.0 → 0.0 s` | `2.10 → 0.39 → 0.41 km` | `122 → 44 → 46 m/s` | `3.56 g` |
+| **SSO-A** (`50 km` BB) | C0 LEO | Holdout | `1.10°` | `-2.5 → +0.1 → +0.1 s` | `+0.2 → +15.2 → +3.3 s` | `2.85 → 0.41 → 0.42 km` | `153 → 50 → 52 m/s` | `3.52 g` |
+| **TelStar v19** (`630 km` bal.) | C1 GTO | Holdout | `2.48°` | `-13.3 → -10.7 → -10.7 s` | `-10.0 → -2.9 → -2.9 s` | `2.08 → 0.57 → 0.60 km` | `126 → 48 → 49 m/s` | `3.83 g` |
+| **Iridium NEXT 7** | C1 GTO | Holdout | `1.71°` | `-10.3 → -7.6 → -7.6 s` | `-3.0 → +4.0 → +4.0 s` | `2.62 → 0.81 → 0.77 km` | `136 → 59 → 60 m/s` | `3.82 g` |
+| **Eshail 2** (`620 km` bal.) | C1 GTO | Holdout | `2.52°` | `-2.7 → -0.1 → -0.1 s` | `-9.0 → -1.7 → -1.7 s` | `1.35 → 1.89 → 1.98 km` | `67 → 55 → 57 m/s` | `3.83 g` |
+| **GPS III SV01** | C1 GTO | Holdout | `2.30°` | `-8.9 → -6.3 → -6.3 s` | `-13.0 → -2.2 → -2.2 s` | `2.37 → 1.02 → 0.91 km` | `211 → 95 → 97 m/s` | `3.86 g` |
 
 ### Monte Carlo Dispersion Robustness (`N = 1,000` per Unseen Holdout Seed)
 
 All robustness numbers below are measured on **unseen holdout seeds** (zero tuning on these seeds); complete append-only history (including superseded configs) is in [docs/MONTE_CARLO_LOG.md](docs/MONTE_CARLO_LOG.md).
 
-#### 1. v1.5.0 Full Realistic Dispersion Set (`2.90 g` LEO Schedule, Gauss-Markov Nav + Terminal Radar Altimeter Aiding, Seeds `229018`, `230019`, `241020`)
+#### v1.6.0 Full Realistic Dispersion Set (Unified Mode-Free Landing-Burn Law, Gauss-Markov Nav + Terminal Radar Altimeter Aiding, Seeds `285024`, `296025`)
 Dispersions: Thrust `±1%`, Isp `±0.5%`, `Cd ±5%`, propellant load `±0.5%`, dry mass `±1%`, base wind `±12 m/s` + gusts `±10 m/s`, ASDS droneship offset `±10 m`, ASDS deck heave `0–1.5 m` & roll `0–2.5°`, throttle/actuator lag `40–120 ms`, **first-order Gauss-Markov (`τ = 45 s`, `ASSUMED`) time-correlated navigation biases** (horizontal `σ = 0.5–2.0 m`, altitude `3σ = ±5 m`, velocity `3σ = ±0.3 m/s`), plus **terminal-phase radar altimeter aiding** below `3,000 m` AGL (`0.2%` AGL scale + `0.15 m` residual floor, inverse-variance fusion, `τ_min = 2.0 s`, `ASSUMED`; horizontal & velocity channels unaided). Touchdown criteria and miss distances are **always evaluated on the TRUE vehicle position**.
 
 | Profile | Seed (`N=1000`) | Landing Success | Orbit Achieved | True Miss (p50 / p95) | S1 Fuel (p5) | Peak `q·α` (p95) |
 | --- | --- | --- | --- | --- | --- | --- |
-| **ASDS** (`1.80° / 7.5%`) | `229018` | **998/1000 (99.8%)** | 100.0% | `1.56 m` / `3.78 m` | `3,225 kg` (`0.76%`) | `100.5 kPa·deg` (`0` exceed) |
-| **ASDS** (`1.80° / 7.5%`) | `230019` | **1000/1000 (100.0%)** | 100.0% | `1.63 m` / `3.87 m` | `3,192 kg` (`0.76%`) | `98.1 kPa·deg` (`0` exceed) |
-| **ASDS** (`1.80° / 7.5%`) | `241020` | **999/1000 (99.9%)** | 100.0% | `1.63 m` / `3.73 m` | `3,273 kg` (`0.77%`) | `98.3 kPa·deg` (`0` exceed) |
-| **RTLS LZ-40** (`1.35° / 14.5%`) | `229018` | **1000/1000 (100.0%)** | 100.0% | `1.40 m` / `3.59 m` | `6,329 kg` (`1.50%`) | `99.3 kPa·deg` (`0` exceed) |
-| **RTLS LZ-40** (`1.35° / 14.5%`) | `230019` | **1000/1000 (100.0%)** | 100.0% | `1.34 m` / `3.45 m` | `6,206 kg` (`1.47%`) | `101.1 kPa·deg` (`0` exceed) |
-| **RTLS LZ-40** (`1.35° / 14.5%`) | `241020` | **1000/1000 (100.0%)** | 100.0% | `1.44 m` / `3.66 m` | `6,305 kg` (`1.49%`) | `102.0 kPa·deg` (`0` exceed) |
+| **ASDS Ballistic** (`1.80° / 7.5%`) | `285024` | **999/1000 (99.9%)** | 100.0% | `1.63 m` / `4.08 m` | `3,055 kg` (`0.72%`) | `98.2 kPa·deg` (`0` exceed) |
+| **ASDS Ballistic** (`1.80° / 7.5%`) | `296025` | **1000/1000 (100.0%)** | 100.0% | `1.71 m` / `3.73 m` | `3,071 kg` (`0.73%`) | `99.6 kPa·deg` (`0` exceed) |
+| **ASDS Ballistic** (`1.75° / 7.5%`, re-solved) | `307026` | **1000/1000 (100.0%)** | 100.0% | `1.53 m` / `3.82 m` | `3,308 kg` (`0.78%`) | `97.6 kPa·deg` (`0` exceed) |
+| **RTLS LZ-40** (`1.35° / 14.5%`) | `285024` | **1000/1000 (100.0%)** | 100.0% | `1.37 m` / `3.67 m` | `6,640 kg` (`1.57%`) | `101.3 kPa·deg` (`0` exceed) |
+| **RTLS LZ-40** (`1.35° / 14.5%`) | `296025` | **1000/1000 (100.0%)** | 100.0% | `1.35 m` / `3.55 m` | `6,681 kg` (`1.58%`) | `101.1 kPa·deg` (`0` exceed) |
+| **RTLS LZ-40** (`1.40° / 14.5%`, re-solved) | `307026` | **1000/1000 (100.0%)** | 100.0% | `1.37 m` / `3.55 m` | `6,323 kg` (`1.50%`) | `99.0 kPa·deg` (`0` exceed) |
+| **ASDS Partial Boostback** (`Iridium 8`, `244 km`, `1.70° / 10.5%`) | `285024` | **999/1000 (99.9%)** | 100.0% | `1.39 m` / `3.50 m` | `5,030 kg` (`1.19%`) | `96.9 kPa·deg` (`0` exceed) |
+| **ASDS Partial Boostback** (`Iridium 8`, `244 km`, `1.70° / 10.5%`) | `296025` | **999/1000 (99.9%)** | 100.0% | `1.42 m` / `3.55 m` | `4,999 kg` (`1.18%`) | `98.2 kPa·deg` (`0` exceed) |
 
-*Combined across 3 unseen seeds: **ASDS `2,997/3,000 (99.90%)`** (`v_z: 3`) and **RTLS `LZ-40` `3,000/3,000 (100.00%)`** with `0/6,000` `q·α` exceedances.*
+*Combined across unseen seeds (`8,000` trials total): **ASDS Ballistic `2,999/3,000 (99.97%)`**, **RTLS `LZ-40` `3,000/3,000 (100.00%)`**, and **ASDS Partial Boostback `1,998/2,000 (99.90%)`** with `0/8,000` `q·α` exceedances.*
 
 ---
 
