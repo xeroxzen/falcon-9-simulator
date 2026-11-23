@@ -314,24 +314,26 @@ export function computeBoosterGuidance(
     }
   }
 
-  // Compute analytic suicide-burn (hoverslam) ignition altitude.
-  // Account for 1-3-1 multi-engine braking on heavier RTLS boosters (effective
-  // 1.55-engine nominal deceleration) vs 1-engine ASDS hoverslam (85% throttle),
-  // so atmospheric drag sheds energy down to ~2.2-3.5 km before ignition.
+  // Compute analytic suicide-burn (hoverslam) ignition altitude using a single
+  // unified physics-based deceleration envelope across all landing modes
+  // (no RTLS/ASDS mode branch):
+  //  - Nominal 1-engine stopping altitude hIgnition (88% throttle)
+  //  - 3-engine emergency stopping floor hStop3 (at 80% x 3 engines): wait until
+  //    4,500 m so atmospheric drag brakes for free UNLESS current (vDown, mass)
+  //    physically requires higher altitude for safe 3-engine stopping (e.g., fast/heavy
+  //    steep entries).
   const merlin = vehicle.stage1.engine;
-  const nomThrottle = mission.landingMode === 'RTLS' ? 0.85 : 0.88;
-  const nomEngEquiv = mission.landingMode === 'RTLS' ? 1.15 : 1.0;
-  const nomThrust = Math.max(
-    1,
-    nomEngEquiv *
-      (nomThrottle * merlin.thrustVacuumN - ambientPressurePa * merlin.exitAreaM2)
-  );
+  const maxThrust1 =
+    merlin.thrustVacuumN - ambientPressurePa * merlin.exitAreaM2;
+  const nomThrust = Math.max(1, 0.88 * maxThrust1);
   const aNetNom = Math.max(2.0, nomThrust / totalMassKg - G0);
+  const aNet3 = Math.max(4.0, (2.4 * maxThrust1) / totalMassKg - G0);
   const vDown = Math.max(0, -vUp);
   const hIgnition = (vDown * vDown) / (2 * aNetNom) + 35.0;
+  const hStop3 = (vDown * vDown) / (2 * aNet3) + 35.0;
 
   // 6. Aerodynamic descent with titanium grid fins
-  const maxIgnitionAltM = mission.landingMode === 'RTLS' ? 6_000 : 4_500;
+  const maxIgnitionAltM = Math.min(6_000, Math.max(4_500, 1.15 * hStop3));
   if (mem.phase === 'AERO_DESCENT') {
     if (
       heightAboveTarget <= maxIgnitionAltM &&
@@ -402,13 +404,12 @@ export function computeBoosterGuidance(
     };
   }
 
-  // Terminal vertical profile with heave & altimeter-noise margin:
-  // Brake toward a gentle v_td = 0.65 m/s at h_flare (1.4 m above nominal deck),
-  // then hold a regulated ~0.65 m/s descent through the final 1.4 m window so
-  // ±1.5 m ASDS deck heave and ±5 m altimeter noise do not cause > 2 m/s impacts
-  // without inducing hover bounce on light T/W > 1 ASDS boosters.
-  const vTd = mission.landingMode === 'RTLS' ? 0.65 : 0.45;
-  const hFlare = mission.landingMode === 'RTLS' ? 2.6 : 1.05;
+  // Terminal vertical profile with heave & altimeter-noise margin (unified across all modes):
+  // Brake toward a gentle v_td = 0.55 m/s at h_flare = 1.85 m (above max ±1.5 m ASDS heave),
+  // then hold a regulated ~0.55 m/s descent through the final flare window so ocean heave
+  // and residual altimeter noise do not cause >= 2 m/s impacts without hover bounce.
+  const vTd = 0.55;
+  const hFlare = 1.85;
   let aUpCmd: number;
   if (heightAboveTarget > hFlare + 0.25) {
     const vDownExcessSq = Math.max(0, vDown * vDown - vTd * vTd);
@@ -469,16 +470,13 @@ export function computeBoosterGuidance(
   const aCmdMag = norm(aCmdEci);
   const targetAttitudeEci = scale(aCmdEci, 1 / aCmdMag);
 
-  // Use 3 engines whenever 1 engine at 92% cannot meet required braking deceleration
-  // while above 200 m and faster than 60 m/s; transition cleanly to 1 center engine once
-  // 1 engine has ample margin to complete the hoverslam.
+  // Unified physics-based 3-to-1 engine handoff across all landing modes (no mode branch):
+  // Engage 3 engines whenever required braking thrust exceeds 90% of a single Merlin
+  // while above 30 m AGL and descending faster than 15 m/s; transition smoothly to
+  // the single center engine once 1 engine has ample thrust margin for terminal hoverslam.
   const reqThrustN = aCmdMag * totalMassKg;
-  const maxThrust1 =
-    merlin.thrustVacuumN - ambientPressurePa * merlin.exitAreaM2;
   const useThreeEngines =
-    mission.landingMode === 'RTLS'
-      ? vDown > 15 && heightAboveTarget > 30 && reqThrustN > 0.78 * maxThrust1
-      : vDown > 45 && heightAboveTarget > 150 && reqThrustN > 0.92 * maxThrust1;
+    vDown > 15 && heightAboveTarget > 30 && reqThrustN > 0.9 * maxThrust1;
   const activeEngines = useThreeEngines ? [0, 1, 5] : [0];
   const nEng = activeEngines.length;
 

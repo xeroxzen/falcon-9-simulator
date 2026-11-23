@@ -2,6 +2,18 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
+## [1.6.0] — 2026-11-23 (Close-In ASDS Partial Boostback & Unified Mode-Free Landing-Burn Handoff)
+
+### Added
+- **Close-in ASDS partial boostback (`droneshipDownrangeKm`, BACKLOG #2):**
+  - Added optional `droneshipDownrangeKm` to `MissionConfig` (`SSO-A`: `50 km` `SOURCED` Spaceflight Now; `Iridium NEXT 8`: `244 km` `ASSUMED` from Pacific NOTMAR hazard zone). When closer than the natural ballistic impact point (`> 15 km`), `runFullMission` places the droneship at `droneshipDownrangeKm` along the downrange bearing and executes a 3-engine partial boostback burn. Far-ASDS GTO flights remain pure ballistic with zero regression.
+  - Extended `solveMissionAscentDesign` to size `mecoPropellantReserveFraction` jointly with pitchover kick from boostback + entry + landing propellant needs (zero reserve fitting): `Iridium NEXT 8` (`244 km`) solves to `10.5%` (`MECO Δ: +6.9 → -0.2 s`, `LANDED 0.0 m`) and `SSO-A` (`50 km`) solves to `12.5%` (`MECO Δ: +15.2 → +3.3 s`, `LANDED 0.01 m`), cutting Class 0 holdout `|MECO Δ|` from `7.60 → 1.65 s`.
+- **Unified mode-free landing-burn kinematics & 3-to-1 engine handoff (BACKLOG #7):**
+  - Removed all `landingMode === 'RTLS'` branches from the landing burn in `src/sim/guidance/booster.ts`: unified 3-engine stopping-kinematics ignition ceiling `maxIgnitionAltM = min(6_000, max(4_500, 1.15 * hStop3))`, unified 3-to-1 handoff (`vDown > 15 && heightAboveTarget > 30 && reqThrustN > 0.90 * maxThrust1`), and unified terminal flare (`vTd = 0.55 m/s`, `hFlare = 1.85 m` above `±1.5 m` max ocean heave).
+  - Raised close-in partial-boostback ASDS (`Iridium NEXT 8`) landing success from `96.6–97.1%` to **`99.90%` (`1,998/2,000`)** on fresh seeds `285024`/`296025`, with zero regression on ballistic ASDS (**`1,999/2,000 = 99.95%`**) and RTLS `LZ-40` (**`2,000/2,000 = 100.00%`**).
+- **Diagnostics & documentation:**
+  - Documented `Iridium NEXT 8` phase-by-phase booster telemetry RMS (boostback `3.41 km / 30.2 m/s`, coast/entry/landing time-shift driven by `-4°` vs steeper real boostback depression), the `~5.0°` flatter LEO late-S1 $\gamma(t)$ diagnostic (~15–20% of the `EMPIRICAL`-cap gap), and added BACKLOG #12 (two-parameter pitch program).
+
 ## [1.5.0] — 2026-11-22 (Mission-Class Ascent Schedules & Physical Max-Q Validation)
 
 ### Added

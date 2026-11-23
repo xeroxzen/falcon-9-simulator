@@ -31,9 +31,8 @@ Known model gaps identified during Phase 2.5 validation and holdout testing, tra
    - For comparable recoverable LEO missions, our mission-design solver requires `~1.90°` (ASDS) / `~1.40°` (RTLS) pitch kicks to preserve 3-sigma landing fuel margins, whereas real recoverable LEO flights (`DM-1: 1.28°`, `CRS-16: 1.37°`, `SAOCOM 1A: 1.22°`) fly steeper/more efficient profiles.
    - Investigate our entry-burn (3-engine fixed `850 m/s / 21 s` cutoff) and landing-burn propellant consumption vs real telemetry to close the recovery propellant-efficiency gap.
 
-7. **Unify 3-to-1 landing-burn engine handoff logic (remove mode-specific branch):**
-   - In `src/sim/guidance/booster.ts`, the landing-burn ignition altitude ceiling (`6,000 m` RTLS vs `4,500 m` ASDS) and 3-to-1 engine handoff thresholds (`30 m / 15 m/s / 0.78×` RTLS vs `150 m / 45 m/s / 0.92×` ASDS) currently use a mode-specific branch.
-   - Replace with a single unified physical thrust-margin / deceleration-envelope handoff law shared across ASDS and RTLS.
+7. **[COMPLETED (`feat/asds-partial-boostback`)] Unify 3-to-1 landing-burn engine handoff logic (remove mode-specific branch):**
+   - Replaced all `landingMode === 'RTLS'` branches in `src/sim/guidance/booster.ts` landing burn with a single mode-free kinematics envelope: `maxIgnitionAltM = min(6_000, max(4_500, 1.15 * hStop3))`, 3-to-1 handoff `vDown > 15 && heightAboveTarget > 30 && reqThrustN > 0.90 * maxThrust1`, and unified terminal flare `vTd = 0.55 m/s`, `hFlare = 1.85 m`. Raised close-in `ASDS-BB` (`Iridium 8`) landing success from `96.6–97.1%` to `99.9%` with zero regression on ballistic ASDS or RTLS.
 
 8. **Direct high-orbit insertion early SECO-1 (`~25 s` early) & altitude shape error (`14–20 km` time-aligned):**
    - Both direct high-altitude SSO holdouts reach SECO-1 ~25–30 s early (`SAOCOM 1A`: `-27.6` to `-30 s`, `SSO-A`: `-24.3` to `-27 s`, plus fit-set `SpaceX CRS-16` at `-13.8` to `-16 s`), accompanied by a `14–20 km` time-aligned Stage 2 altitude shape error.
