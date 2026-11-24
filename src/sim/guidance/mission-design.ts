@@ -302,8 +302,19 @@ export function solveMissionAscentDesign(
     };
   }
 
-  const minKick = options.minKickDeg ?? 1.1;
-  const maxKick = options.maxKickDeg ?? 2.6;
+  // Historical missions with telemetry-fitted kick provenance keep their fitted kick;
+  // the solver chooses only the recovery variables (reserve, boostbackPitchDeg).
+  // Free kick solving applies to default and What-If missions only.
+  const isHistoricalFixedKick =
+    mission.fittedKickProvenance !== undefined &&
+    options.minKickDeg === undefined &&
+    options.maxKickDeg === undefined;
+  const minKick = isHistoricalFixedKick
+    ? mission.guidance.pitchKickAngleDeg
+    : (options.minKickDeg ?? 1.1);
+  const maxKick = isHistoricalFixedKick
+    ? mission.guidance.pitchKickAngleDeg
+    : (options.maxKickDeg ?? 2.6);
   const coarseStep = options.coarseStepDeg ?? 0.15;
   const fineStep = options.fineStepDeg ?? 0.05;
   const maxSat = options.maxGridFinSatFraction ?? 0.15;

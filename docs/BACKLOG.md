@@ -27,9 +27,8 @@ Known model gaps identified during Phase 2.5 validation and holdout testing, tra
    - Across Part D holdouts, heavy GTO/polar flights (`Bangabandhu-1: -13.5 s`, `TelStar v19: -10.8 s`, `Iridium NEXT 7: -9.7 s`) peak at Max-Q ~10–13.5 s earlier in the sim than in webcast events, while LEO flights (`DM-1: +1.7 s`, `Iridium NEXT 8: +0.3 s`, `SAOCOM 1A: +1.9 s`, `Eshail 2: +1.8 s`) align within ~2 s.
    - **Throttle-bucket hypothesis:** Our ascent guidance uses a single fixed transonic throttle bucket (`22 kPa`, `Mach 1.02–1.38`, `72%` min throttle). Real GTO and high-dynamic-pressure launches tailor throttle-bucket entry/depth/duration (and sometimes fly flatter/slower transonic profiles or different weather/upper-level wind profiles), shifting real Max-Q to `T+70–75 s`. Modeling mission-class throttle buckets (or upper-level wind shear) should close this gap.
 
-6. **Recovery efficiency gap (solver `~1.9–2.05°` vs real fitted `~1.3°` LEO pitch kick):**
-   - For comparable recoverable LEO missions, our mission-design solver requires `~1.90°` (ASDS) / `~1.40°` (RTLS) pitch kicks to preserve 3-sigma landing fuel margins, whereas real recoverable LEO flights (`DM-1: 1.28°`, `CRS-16: 1.37°`, `SAOCOM 1A: 1.22°`) fly steeper/more efficient profiles.
-   - Investigate our entry-burn (3-engine fixed `850 m/s / 21 s` cutoff) and landing-burn propellant consumption vs real telemetry to close the recovery propellant-efficiency gap.
+6. **[COMPLETED (`feat/descent-timing`)] Recovery efficiency gap (solver `~1.9–2.05°` vs real fitted `~1.3°` LEO pitch kick):**
+   - Calibrating tail-first booster descent `Cd(M)` from `Iridium NEXT 8` & `SAOCOM 1A` telemetry (`1.55–1.75` supersonic instead of `1.00–1.35`) lowered landing-burn ignition speeds from `573–704 m/s` down to `410–429 m/s`, reducing landing-burn propellant consumption so `DEFAULT_LEO_ASDS_MISSION` now solves to **`1.10° / 7.5%`** (and `DEFAULT_LEO_RTLS_MISSION` to **`1.25° / 13.5% / -19°`**), closing the recovery efficiency gap (`99.9–100.0%` MC landing success on unseen seeds).
 
 7. **[COMPLETED (`feat/asds-partial-boostback`)] Unify 3-to-1 landing-burn engine handoff logic (remove mode-specific branch):**
    - Replaced all `landingMode === 'RTLS'` branches in `src/sim/guidance/booster.ts` landing burn with a single mode-free kinematics envelope: `maxIgnitionAltM = min(6_000, max(4_500, 1.15 * hStop3))`, 3-to-1 handoff `vDown > 15 && heightAboveTarget > 30 && reqThrustN > 0.90 * maxThrust1`, and unified terminal flare `vTd = 0.55 m/s`, `hFlare = 1.85 m`. Raised close-in `ASDS-BB` (`Iridium 8`) landing success from `96.6–97.1%` to `99.9%` with zero regression on ballistic ASDS or RTLS.
@@ -58,10 +57,14 @@ Known model gaps identified during Phase 2.5 validation and holdout testing, tra
    - Diagnostic across all 10 pure Block 5 flights over `T+100 s .. MECO` showed the simulator flies `~5.0°` flatter than telemetry on Class 0 LEO (`-21.8 m/s` less gravity loss, accounting for ~15–20% of the `EMPIRICAL`-cap gap vs reconstructed axial acceleration; Class 1 GTO is within `-0.5°`).
    - Add a second pitch-shaping parameter (late-S1 pitch-rate / loft term alongside initial pitchover kick) to match $\gamma(t)$ on LEO, then revisit the `EMPIRICAL` `2.90 g` / `3.60 g` late-S1 acceleration caps.
 
-13. **Entry-burn trigger timing & event-aligned entry phase altitude error (`~16 km` Alt RMS):**
-   - On `Iridium NEXT 8` with solved boostback pitch (`1.63° / 10.5% / -37°`), apogee matches telemetry (`102.8` vs `105.0 km`) and event-aligned landing burn Alt RMS is `0.51 km`, but the entry burn starts early (`T+295.8 s` vs real `T+337 s`; `~23–41 s` early depending on depression) with `~16.0 km` event-aligned entry altitude RMS.
-   - Investigate the entry-burn altitude/speed trigger (`60 km / 1,050 m/s` for boostback entries vs real ignition altitude/Mach/dynamic-pressure trigger) and boostback depression vs coast timing.
+13. **[COMPLETED (`feat/descent-timing`)] Entry-burn trigger timing & tail-first booster descent `Cd(M)` (`~16 km` Alt RMS):**
+   - Reconstructing tail-first descent drag directly from `Iridium NEXT 8` & `SAOCOM 1A` `stage1 raw.json` (`Cd_est = 1.47–1.83` over `M = 1.0–2.9`) showed `BOOSTER_DESCENT_CD_MACH_TABLE` (`1.00–1.35`) was ~50% too low and the `60 km / 1,050 m/s` boostback entry trigger ignited too high/early compared to real ignition (`45.6–55.7 km / 1,254–1,268 m/s`).
+   - Updated `BOOSTER_DESCENT_CD_MACH_TABLE` (`1.55–1.75` supersonic) and boostback entry trigger (`52 km / 1,200 m/s`, fallback `44 km`) universally with zero per-flight tuning. On `Iridium NEXT 8`, entry timing closed from `-41.2 s` to `-6.7 s`, event-aligned entry Alt RMS dropped `16.02 → 7.26 km`, time-aligned coast/entry/aero/landing Alt RMS dropped to `1.66–2.28 km`, and touchdown moved from `T+397.0 s` to `T+434.4 s` (real `~426 s`). On `SAOCOM 1A`, event-aligned entry Alt RMS is `2.98 km`, landing Alt RMS is `0.50 km`, and touchdown moved from `T+448.9 s` to `T+460.6 s` (real `467 s`).
 
-14. **Stretch goals from original spec:**
+14. **Landing-burn ignition speed (`~410–429 m/s` vs real `~280–310 m/s`) & aero-descent velocity RMS (`~270–280 m/s`):**
+    - After calibrating supersonic tail-first descent `Cd(M)` (`1.55–1.75`) and the boostback entry trigger (`52 km / 1,200 m/s`), post-apogee timing and altitude profiles align closely (`1.66–4.09 km` TA Alt RMS), but landing-burn ignition speed remains `~100–130 m/s` high (`410 m/s` on `Iridium NEXT 8` vs real `279 m/s`; `429 m/s` on `SAOCOM 1A` vs real `314 m/s`), driving `~270–280 m/s` event-aligned aero-descent velocity RMS.
+    - Investigate the entry-burn `Δv` / cutoff velocity (`850 m/s` vs real `586 m/s` on `SAOCOM 1A` and `846 m/s` on `Iridium NEXT 8`) and subsonic/transonic tail-first descent `Cd(M)` (`M < 1.2`).
+
+15. **Stretch goals from original spec:**
    - Convex-optimization (G-FOLD-style) powered descent guidance.
    - 6-DOF rigid-body rotational dynamics (inertia tensor, TVC gimbal torque, RCS cold-gas thrusters, aerodynamic center-of-pressure / center-of-mass pitching moments).

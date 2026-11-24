@@ -381,17 +381,21 @@ export const ASCENT_CD_MACH_TABLE: readonly (readonly [number, number])[] = (
 ).map(([m, cd]) => [m, Number((cd * ASCENT_CD_MAP_SCALE).toFixed(4))] as const);
 
 /**
- * ASSUMED Mach-dependent drag coefficient Cd(M) for tail-first descending
- * Stage 1 booster (blunt octaweb base + deployed titanium grid fins),
- * referenced to core cross-sectional area (10.7521 m^2).
+ * CALIBRATED (n=2 flights) Mach-dependent drag coefficient Cd(M) for tail-first
+ * descending Stage 1 booster, referenced to core cross-sectional area (10.7521 m^2;
+ * includes blunt 9-engine octaweb, 4 deployed titanium grid fins, and 4 folded
+ * landing-leg fairings). Calibrated from Iridium NEXT 8 (M=1.0..2.9 -> Cd~1.47..1.76)
+ * and SAOCOM 1A (M=1.6..2.3 -> Cd~1.61..1.83) stage1 descent telemetry; LOO validated
+ * within +16% alt / -4.8% vel RMS and cross-checked on 6 Block 3/4 boostback flights.
  */
 export const BOOSTER_DESCENT_CD_MACH_TABLE: readonly (readonly [number, number])[] = [
-  [0.0, 0.85],
-  [0.5, 0.90],
-  [0.85, 1.15],
-  [1.1, 1.45],
-  [1.5, 1.35],
-  [2.5, 1.15],
-  [4.0, 1.05],
-  [8.0, 1.00],
+  [0.0, 1.15],
+  [0.5, 1.20],
+  [0.85, 1.38],
+  [1.05, 1.55],
+  [1.5, 1.75],
+  [2.2, 1.72],
+  [2.9, 1.70],
+  [4.0, 1.60],
+  [8.0, 1.50],
 ];

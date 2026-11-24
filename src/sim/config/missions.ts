@@ -10,8 +10,8 @@ import { LAUNCH_SITES } from './falcon9.js';
 const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
   /** ASSUMED: Clear tower (~150 m) before pitchover */
   pitchKickAltitudeM: 150,
-  /** Mission-design pitchover kick solved by solveMissionAscentDesign (Class 0 LEO 2.90 g cap + unified landing-burn law) */
-  pitchKickAngleDeg: 1.75,
+  /** Mission-design pitchover kick solved by solveMissionAscentDesign (2.90 g LEO + telemetry-calibrated descent Cd(M)) */
+  pitchKickAngleDeg: 1.1,
   /** ASSUMED: Smooth pitchover duration */
   pitchKickDurationS: 8.0,
   /** Shared v1 max-Q throttle bucket (22 kPa, Mach 1.02..1.38, 72% min throttle) */
@@ -66,9 +66,9 @@ export const DEFAULT_LEO_RTLS_MISSION: MissionConfig = {
   guidance: {
     ...BASELINE_RTLS_GUIDANCE,
     /** Mission-design pitchover kick, reserve & boostback pitch solved jointly by solveMissionAscentDesign for SLC-40 -> LZ-40 */
-    pitchKickAngleDeg: 1.2,
+    pitchKickAngleDeg: 1.25,
     mecoPropellantReserveFraction: 0.135,
-    boostbackPitchDeg: -22,
+    boostbackPitchDeg: -19,
   },
 };
 
@@ -99,6 +99,11 @@ export const DM1_MISSION: MissionConfig = {
   targetOrbitAltitudeM: 198_000,
   targetInclinationDeg: 51.66,
   landingMode: 'ASDS',
+  fittedKickProvenance: {
+    modelVersion: 'v1.7.0',
+    commit: '7e71b8c',
+    sourceTelemetry: 'Telemetry-Data/DM-1',
+  },
   enableJ2: true,
   dtS: 0.01,
   countdownS: 60,
@@ -107,8 +112,8 @@ export const DM1_MISSION: MissionConfig = {
   engineOuts: [],
   guidance: {
     ...BASELINE_ASDS_GUIDANCE,
-    /** Simplified Class 0 LEO per-flight pitch-kick estimate for DM-1 */
-    pitchKickAngleDeg: 1.41,
+    /** Telemetry-fitted ascent pitch kick for DM-1 under v1.7.0 (2.90 g LEO, tOff = 0) */
+    pitchKickAngleDeg: 1.56,
     mecoPropellantReserveFraction: 0.085,
     /** Sourced: DM-1 events.json (MECO 158 s -> SES-1 169 s = 11 s) */
     ses1DelayFromMecoS: 11.0,
@@ -144,6 +149,11 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
   landingMode: 'ASDS',
   /** ASSUMED: 244 km downrange (not published in SpaceX press kit; estimated from Pacific NOTMAR hazard zone & 33 s boostback burn). */
   droneshipDownrangeKm: 244,
+  fittedKickProvenance: {
+    modelVersion: 'v1.7.0',
+    commit: '7e71b8c',
+    sourceTelemetry: 'Telemetry-Data/Iridium NEXT 8',
+  },
   enableJ2: true,
   dtS: 0.01,
   countdownS: 60,
@@ -152,14 +162,14 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
   engineOuts: [],
   /**
    * Historical mission rule: telemetry-fitted ascent pitch kick (1.63 deg),
-   * with recovery variables (10.5% MECO reserve, -37 deg boostback pitch)
+   * with recovery variables (10.5% MECO reserve, -25 deg boostback pitch)
    * solved by solveMissionAscentDesign at droneshipDownrangeKm = 244 km.
    */
   guidance: {
     ...BASELINE_ASDS_GUIDANCE,
     pitchKickAngleDeg: 1.63,
     mecoPropellantReserveFraction: 0.105,
-    boostbackPitchDeg: -37,
+    boostbackPitchDeg: -25,
   },
 };
 
@@ -191,6 +201,11 @@ export const SAOCOM_1A_MISSION: MissionConfig = {
   launchDirection: 'DESCENDING',
   landingMode: 'RTLS',
   landingSiteId: 'LZ-4',
+  fittedKickProvenance: {
+    modelVersion: 'v1.7.0',
+    commit: '7e71b8c',
+    sourceTelemetry: 'Telemetry-Data/SAOCOM 1A',
+  },
   enableJ2: true,
   dtS: 0.01,
   countdownS: 60,
