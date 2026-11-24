@@ -7,6 +7,8 @@ import type {
   VehicleConfig,
 } from '../types.js';
 import { DEG_TO_RAD, G0, RAD_TO_DEG } from '../config/constants.js';
+import { sampleAtmosphere } from '../models/atmosphere.js';
+import { boosterDescentDragCoefficient } from '../models/aerodynamics.js';
 import {
   add,
   angleBetweenRad,
@@ -23,6 +25,12 @@ import {
   sub,
 } from '../math.js';
 
+export interface EntryBallisticPrediction {
+  readonly peakQDotMWm2: number;
+  readonly peakQPa: number;
+  readonly timeToPeakS: number;
+}
+
 export interface BoosterGuidanceMemory {
   phase: BoosterPhase;
   entryBurnStartTimeS: number | null;
@@ -30,6 +38,72 @@ export interface BoosterGuidanceMemory {
   /** True for RTLS and close-in ASDS missions requiring a partial boostback burn. */
   needsBoostback?: boolean;
   failureReason?: string;
+  /** Cached ballistic entry heating lookahead (refreshed every 0.5 s). */
+  lastEntryPredTimeS?: number;
+  lastEntryPred?: EntryBallisticPrediction;
+  /** Timestamp when booster first entered terminal flare (< 2.5 m AGL). */
+  flareStartTimeS?: number;
+}
+
+/**
+ * Vehicle-level predictive entry-burn thermal envelope parameters
+ * (CALIBRATED on Block 5 Iridium NEXT 8 & SAOCOM 1A; single shared rule across
+ * all recovery modes, zero per-flight or mode-specific altitude/speed thresholds).
+ */
+export const ENTRY_BURN_HEATING_LIMIT_MW_M2 = 0.022;
+export const ENTRY_BURN_AERO_LEAD_S = 14.0;
+/**
+ * Target 3-engine axial deceleration (g) during the throttled / 1-3-1 entry burn
+ * (reconstructed 3.4-4.2 g across all 11 telemetry flights; mass-invariant).
+ */
+export const ENTRY_BURN_TARGET_ACCEL_G = 3.6;
+export const ENTRY_BURN_MAX_DURATION_S = 26.0;
+const SUTTON_GRAVES_K = 1.7415e-4;
+const BOOSTER_BASE_RADIUS_M = 1.85;
+
+/**
+ * Fast 2D ballistic lookahead from the current descending state to predict
+ * unburned peak Sutton-Graves convective stagnation heating (MW/m^2), peak
+ * dynamic pressure (Pa), and time remaining until peak heating (s).
+ */
+export function predictBallisticEntryPeak(
+  altitudeM: number,
+  speedHorizMs: number,
+  vUpMs: number,
+  massKg: number,
+  referenceAreaM2: number
+): EntryBallisticPrediction {
+  let h = altitudeM;
+  let vh = speedHorizMs;
+  let vz = vUpMs;
+  let peakQDot = 0;
+  let peakQ = 0;
+  let timeToPeakS = 0;
+  const dt = 0.5;
+  const invMass = 1 / Math.max(1, massKg);
+
+  for (let t = 0; t < 120 && h > 4_000; t += dt) {
+    const atm = sampleAtmosphere(h);
+    const v = Math.hypot(vh, vz);
+    const q = 0.5 * atm.densityKgM3 * v * v;
+    const qDot =
+      (SUTTON_GRAVES_K * Math.sqrt(atm.densityKgM3 / BOOSTER_BASE_RADIUS_M) * v * v * v) /
+      1e6;
+    if (qDot > peakQDot) {
+      peakQDot = qDot;
+      timeToPeakS = t;
+    }
+    if (q > peakQ) peakQ = q;
+    const mach = atm.speedOfSoundMs > 0 ? v / atm.speedOfSoundMs : 0;
+    const aDrag = q * boosterDescentDragCoefficient(mach) * referenceAreaM2 * invMass;
+    const g = G0 * (6_371_000 / (6_371_000 + h)) ** 2;
+    const invV = v > 1 ? 1 / v : 0;
+    vh -= aDrag * vh * invV * dt;
+    vz += (-g - aDrag * vz * invV) * dt;
+    h += vz * dt;
+  }
+
+  return { peakQDotMWm2: peakQDot, peakQPa: peakQ, timeToPeakS };
 }
 
 export interface BoosterGuidanceCommand {
@@ -183,7 +257,21 @@ export function computeBoosterGuidance(
     };
   }
 
-  const s1PropTotal = vehicle.stage1.propellantMassKg;
+  // Compute physics-based propellant reserves from actual instantaneous dry mass
+  // (actual totalMassKg - measured dynamic.propellantKg) and actual Isp, rather than
+  // fractions of nominal stage propellant load.
+  const actualDryMassKg = Math.max(10_000, totalMassKg - dynamic.propellantKg);
+  const ispScaleActual = disp?.ispScale ?? 1.0;
+  const merlinCfg = vehicle.stage1.engine;
+  const landingPropReserveKg =
+    (actualDryMassKg + 1_000) *
+      (Math.exp(650 / (merlinCfg.ispSeaLevelS * ispScaleActual * G0)) - 1) +
+    1_000;
+  const entryIgnitionMinPropKg = landingPropReserveKg + 1_500;
+  const boostbackCutoffReserveKg =
+    (actualDryMassKg + landingPropReserveKg) *
+      (Math.exp(650 / (merlinCfg.ispVacuumS * ispScaleActual * G0)) - 1) +
+    landingPropReserveKg;
   const retroDir = speedRel > 1 ? scale(vRel, -1 / speedRel) : basis.up;
 
   const hasBoostback = mem.needsBoostback ?? mission.landingMode === 'RTLS';
@@ -230,7 +318,6 @@ export function computeBoosterGuidance(
 
   // 3. Boostback burn (RTLS or close-in ASDS partial boostback; 3 engines: center + 2 outer)
   if (mem.phase === 'BOOSTBACK_BURN') {
-    const reserveAfterBoostback = s1PropTotal * 0.042;
     // Predict ballistic time of flight to target altitude (scaled for
     // atmospheric drag shortening during descent; steeper RTLS loses ~8%,
     // higher-velocity partial-boostback ASDS loses ~3.5% before entry burn).
@@ -245,7 +332,7 @@ export function computeBoosterGuidance(
     const missDist = norm(predMiss);
     const cutoffMissM = mission.landingMode === 'RTLS' ? 1_500 : 500;
 
-    if (missDist < cutoffMissM || dynamic.propellantKg <= reserveAfterBoostback) {
+    if (missDist < cutoffMissM || dynamic.propellantKg <= boostbackCutoffReserveKg) {
       mem.phase = 'BALLISTIC_COAST';
     } else {
       const burnHorizDir = scale(predMiss, -1 / missDist);
@@ -264,24 +351,56 @@ export function computeBoosterGuidance(
     }
   }
 
-  // 4. Ballistic coast to atmospheric entry interface
-  // CALIBRATED (n=2 flights): Iridium 8 (45.6 km, 1,268 m/s, M=3.88),
-  // SAOCOM 1A (55.7 km, 1,254 m/s, M=3.89) -> 52 km / 1,200 m/s for boostback entries.
-  if (mem.phase === 'BALLISTIC_COAST') {
-    const entryAltTrigger = hasBoostback ? 52_000 : 70_000;
-    const entrySpeedTrigger = hasBoostback ? 1_200 : 1_300;
-    const aeroFallbackAlt = hasBoostback ? 44_000 : 52_000;
+  // 4. Ballistic coast to atmospheric entry interface (physics-based predictive heating rule)
+  // Single vehicle-level rule across all recovery modes (no fixed altitude/speed thresholds):
+  // ignite 3-engine throttled entry burn when unburned peak Sutton-Graves stagnation heating
+  // exceeds ENTRY_BURN_HEATING_LIMIT_MW_M2 and time-to-peak-heating <= tBurnEst + aeroLead.
+  const getEntryPrediction = (): EntryBallisticPrediction => {
     if (
-      vUp < 0 &&
-      geodetic.altitudeM <= entryAltTrigger &&
-      speedRel >= entrySpeedTrigger &&
-      dynamic.propellantKg > s1PropTotal * 0.026
+      mem.lastEntryPred !== undefined &&
+      mem.lastEntryPredTimeS !== undefined &&
+      Math.abs(timeS - mem.lastEntryPredTimeS) < 0.49
     ) {
-      mem.phase = 'ENTRY_BURN';
-      mem.entryBurnStartTimeS = timeS;
-    } else if (vUp < 0 && geodetic.altitudeM <= aeroFallbackAlt) {
+      return mem.lastEntryPred;
+    }
+    const pred = predictBallisticEntryPeak(
+      geodetic.altitudeM,
+      norm(vHorizVec),
+      vUp,
+      totalMassKg,
+      vehicle.referenceAreaM2
+    );
+    mem.lastEntryPredTimeS = timeS;
+    mem.lastEntryPred = pred;
+    return pred;
+  };
+
+  if (mem.phase === 'BALLISTIC_COAST') {
+    if (
+      vUp < -50 &&
+      geodetic.altitudeM <= 95_000 &&
+      dynamic.propellantKg > entryIgnitionMinPropKg
+    ) {
+      const pred = getEntryPrediction();
+      if (pred.peakQDotMWm2 > ENTRY_BURN_HEATING_LIMIT_MW_M2) {
+        const vRatio = Math.cbrt(ENTRY_BURN_HEATING_LIMIT_MW_M2 / pred.peakQDotMWm2);
+        const dvReq = Math.max(0, speedRel * (1 - vRatio));
+        const a3 = Math.min(
+          (3 * vehicle.stage1.engine.thrustVacuumN) / Math.max(1, totalMassKg),
+          ENTRY_BURN_TARGET_ACCEL_G * G0
+        );
+        const tBurnEst = Math.min(ENTRY_BURN_MAX_DURATION_S, dvReq / Math.max(1, a3));
+        if (pred.timeToPeakS <= tBurnEst + ENTRY_BURN_AERO_LEAD_S) {
+          mem.phase = 'ENTRY_BURN';
+          mem.entryBurnStartTimeS = timeS;
+          mem.lastEntryPredTimeS = undefined;
+        }
+      }
+    }
+    if (mem.phase === 'BALLISTIC_COAST' && vUp < 0 && geodetic.altitudeM <= 35_000) {
       mem.phase = 'AERO_DESCENT';
-    } else {
+    }
+    if (mem.phase === 'BALLISTIC_COAST') {
       return {
         phase: 'BALLISTIC_COAST',
         targetAttitudeEci: retroDir,
@@ -294,24 +413,31 @@ export function computeBoosterGuidance(
     }
   }
 
-  // 5. Entry burn (3 engines retrograde to shed supersonic speed before peak q)
+  // 5. Entry burn (3-engine throttled / 1-3-1 average retrograde burn until predicted
+  // post-burn peak stagnation heating drops under ENTRY_BURN_HEATING_LIMIT_MW_M2)
   if (mem.phase === 'ENTRY_BURN') {
     const burnDur =
       mem.entryBurnStartTimeS !== null ? timeS - mem.entryBurnStartTimeS : 0;
-    const landingReserve = s1PropTotal * (mission.landingMode === 'RTLS' ? 0.028 : 0.032);
+    const pred = getEntryPrediction();
     if (
-      speedRel <= 850 ||
-      burnDur >= 21.0 ||
-      geodetic.altitudeM <= 30_000 ||
-      dynamic.propellantKg <= landingReserve
+      pred.peakQDotMWm2 <= ENTRY_BURN_HEATING_LIMIT_MW_M2 ||
+      burnDur >= ENTRY_BURN_MAX_DURATION_S ||
+      geodetic.altitudeM <= 28_000 ||
+      dynamic.propellantKg <= landingPropReserveKg
     ) {
       mem.phase = 'AERO_DESCENT';
     } else {
+      const entryThrottle = clamp(
+        (ENTRY_BURN_TARGET_ACCEL_G * G0 * totalMassKg) /
+          Math.max(1, 3 * vehicle.stage1.engine.thrustVacuumN),
+        0.4,
+        1.0
+      );
       return {
         phase: 'ENTRY_BURN',
         targetAttitudeEci: retroDir,
         activeEngineIndices: [0, 1, 5],
-        throttle: 1.0,
+        throttle: entryThrottle,
         aeroSteerDirEci: zeroVec,
         gridFinDeflectionDeg: 0,
         landingLegsDeployed: false,
@@ -409,11 +535,17 @@ export function computeBoosterGuidance(
     };
   }
 
-  // Terminal vertical profile with heave & altimeter-noise margin (unified across all modes):
-  // Brake toward a gentle v_td = 0.55 m/s at h_flare = 1.85 m (above max ±1.5 m ASDS heave),
-  // then hold a regulated ~0.55 m/s descent through the final flare window so ocean heave
-  // and residual altimeter noise do not cause >= 2 m/s impacts without hover bounce.
-  const vTd = 0.55;
+  // Terminal vertical profile with heave & velocity-bias anti-hover guard (unified across all modes):
+  // Brake toward v_td = 0.55 m/s at h_flare = 1.85 m (keeping v_td + max 1.35 m/s ASDS deck heave
+  // below 2.0 m/s). If the booster remains in the final 2.5 m flare longer than 3.5 s (indicating
+  // an unaided negative INS vertical velocity bias holding true v_down <= 0), gently ramp v_td
+  // (+0.15 m/s per second) so true descent resumes smoothly without hover-hang propellant depletion.
+  if (heightAboveTarget < 2.5 && mem.flareStartTimeS === undefined) {
+    mem.flareStartTimeS = timeS;
+  }
+  const flareExcessS =
+    mem.flareStartTimeS !== undefined ? Math.max(0, timeS - mem.flareStartTimeS - 3.5) : 0;
+  const vTd = 0.55 + Math.min(0.65, 0.15 * flareExcessS);
   const hFlare = 1.85;
   let aUpCmd: number;
   if (heightAboveTarget > hFlare + 0.25) {
@@ -422,7 +554,7 @@ export function computeBoosterGuidance(
   } else {
     aUpCmd = G0 + 2.4 * (vDown - vTd);
   }
-  // Prevent T/W > 1 hover-bounce on light ASDS boosters: if vertical speed
+  // Prevent T/W > 1 hover-bounce on light boosters: if vertical speed
   // reverses upward near the deck, command engine cutoff so it settles cleanly.
   if (heightAboveTarget < 2.5 && vUp >= 0.0) {
     return {

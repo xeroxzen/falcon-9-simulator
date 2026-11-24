@@ -8,6 +8,7 @@ export interface MonteCarloTrialResult {
   readonly orbitAchieved: boolean;
   readonly missM: number;
   readonly propRemainingKg: number;
+  readonly stage2FuelRemainingKg: number;
   readonly peakQAlphaKpaDeg: number;
   readonly vzMs: number;
   readonly vhMs: number;
@@ -27,6 +28,9 @@ export interface MonteCarloSummary {
   readonly missP95M: number;
   readonly fuelMarginP5Kg: number;
   readonly fuelMarginP5Pct: number;
+  readonly stage2FuelMarginP5Kg: number;
+  readonly stage2FuelMarginP50Kg: number;
+  readonly stage2FuelMarginP95Kg: number;
   readonly peakQAlphaP95KpaDeg: number;
   readonly qAlphaExceedCount: number;
   readonly failureBreakdown: Readonly<Record<string, number>>;
@@ -126,6 +130,7 @@ export function runMonteCarlo(
       orbitAchieved: res.orbitAchieved,
       missM: res.boosterFinal.distanceToTargetM,
       propRemainingKg: res.boosterFinal.dynamic.propellantKg,
+      stage2FuelRemainingKg: res.stage2Final.dynamic.propellantKg,
       peakQAlphaKpaDeg: res.ascent.peakQAlphaPaDeg / 1000,
       vzMs: res.boosterFinal.verticalSpeedMs,
       vhMs: res.boosterFinal.horizontalSpeedMs,
@@ -138,6 +143,7 @@ export function runMonteCarlo(
   const orbitCount = results.filter((r) => r.orbitAchieved).length;
   const misses = results.map((r) => r.missM).sort((a, b) => a - b);
   const props = results.map((r) => r.propRemainingKg).sort((a, b) => a - b);
+  const s2Props = results.map((r) => r.stage2FuelRemainingKg).sort((a, b) => a - b);
   const qAlphas = results.map((r) => r.peakQAlphaKpaDeg).sort((a, b) => a - b);
   const fuelMarginP5Kg = percentile(props, 5);
   const limitKpaDeg = ASSUMED_MAX_Q_ALPHA_PA_DEG / 1000;
@@ -157,6 +163,9 @@ export function runMonteCarlo(
     missP95M: percentile(misses, 95),
     fuelMarginP5Kg,
     fuelMarginP5Pct: (fuelMarginP5Kg / vehicle.stage1.propellantMassKg) * 100,
+    stage2FuelMarginP5Kg: percentile(s2Props, 5),
+    stage2FuelMarginP50Kg: percentile(s2Props, 50),
+    stage2FuelMarginP95Kg: percentile(s2Props, 95),
     peakQAlphaP95KpaDeg: percentile(qAlphas, 95),
     qAlphaExceedCount,
     failureBreakdown,

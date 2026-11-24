@@ -2,6 +2,25 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
+## [1.9.0] — 2026-11-24 (Physics-Based Predictive Entry Controller, Closed-Loop MECO & Variance-Derived Lean Margins)
+
+### Added
+- **Physics-based predictive Sutton-Graves entry-burn controller (`src/sim/guidance/booster.ts`, `mission.ts`):**
+  - Replaced all fixed entry triggers (`52 km / 1,200 m/s` boostback, `70 km / 1,300 m/s` ballistic) and fixed `850 m/s` cutoff with `predictBallisticEntryPeak()` (`ENTRY_BURN_HEATING_LIMIT_MW_M2 = 0.022 MW/m²`, `ENTRY_BURN_AERO_LEAD_S = 14.0 s`, mass-invariant `ENTRY_BURN_TARGET_ACCEL_G = 3.6 g`, `ENTRY_BURN_MAX_DURATION_S = 26.0 s`, `CALIBRATED (n=2 Block 5 flights)`).
+  - Across all 8 boostback flights with `stage1` descent data (`2` Block 5 + `6` independent Block 3/4) at telemetry-inferred realistic aero-descent mass (`31.6 t` Block 5, `30.5 t` all 8), mean ignition-altitude bias is **`+0.06 km`** (passing `±2.0 km` gate, reproducing the full spread from `Iridium 8` `45.6 km` to `NROL-76` `64.6 / 64.9 km`), with both single-flight Block 5 LOO folds also within `±2.0 km` (`-1.93 km` and `+0.97 km`).
+  - Reconstructed `M < 1.2` tail-first `Cd(M)` across all 8 flights (`1.31–1.40` B5, `1.03–1.30` B3/4 — lower than supersonic) and updated `BOOSTER_DESCENT_CD_MACH_TABLE`. Reconciled the `0.085 MW/m²` ballistic ASDS thermal ceiling against the 3 real GTO ASDS flights (`0.068–0.126 MW/m²`, `CALIBRATED (n=3 GTO flights)`).
+- **Closed-loop MECO cutoff, actual-state booster cutoffs & `dt = 0.01 s` solver verification (`ascent.ts`, `booster.ts`, `mission-design.ts`):**
+  - `computeClosedLoopMecoReserveKg()` triggers MECO on absolute measured S1 propellant required for the actual recovery profile (propagating `stageSepDelayS + 15 s` sep+flip drift + boostback/entry/landing + lean floor using actual dry mass and Isp), absorbing load, dry-mass, thrust, and ascent-wind dispersions into MECO time and Stage 2 orbit margin.
+  - Replaced all nominal-load fractions in `booster.ts` with Tsiolkovsky reserves from actual dry mass and propellant state.
+  - Added shipped `dt = 0.01 s` verification and `~1.3°` LEO-median kick stability tie-breaker in `solveMissionAscentDesign()`.
+- **One-at-a-time variance attribution (`N = 300 × 9` drivers) & anti-hover terminal flare:**
+  - Identified and fixed a terminal-flare velocity-bias hover-hang (`navErrors` `σ` dropped `635 → 43 kg`) via a smooth `+0.15 m/s/s` anti-hover ramp after `3.5 s` in `< 2.5 m` AGL while keeping nominal `vTd = 0.55 m/s` for ASDS deck heave.
+  - Set the boostback-class landing floor directly from the measured `3σ` left-tail post-MECO cost (`3,465 kg → 3,500 kg`, vs `2,500 kg` ballistic ASDS — less than half the legacy `7,500 kg` floor).
+- **Fresh-seed Monte Carlo validation (`N = 1,000 × 2` unseen seeds `496045`/`507046`, S2 orbit-margin reporting added to `montecarlo.ts`):**
+  - `ASDS Ballistic` (`1.90° / 7.5%`): **`1,998/2,000 (99.90%)`** (`S2 p5 = 5,087–5,126 kg`).
+  - `RTLS LZ-40` (`1.10° / 12.5% CL / -19°`): **`1,984/2,000 (99.20%)`** (`S2 p5 = 7,403–7,443 kg`).
+  - `ASDS Partial Boostback` (`Iridium 8`, `1.63° / 7.5% CL / -34°`): **`2,000/2,000 (100.00%)`** (`S2 p5 = 3,005–3,017 kg`).
+
 ## [1.8.0] — 2026-11-24 (Calibrated Booster Descent Timing, LOO Holdout Validation & Historical Kick Provenance)
 
 ### Added

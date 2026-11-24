@@ -391,11 +391,11 @@ export const ASCENT_CD_MACH_TABLE: readonly (readonly [number, number])[] = (
 export const BOOSTER_DESCENT_CD_MACH_TABLE: readonly (readonly [number, number])[] = [
   [0.0, 1.15],
   [0.5, 1.20],
-  [0.85, 1.38],
-  [1.05, 1.55],
-  [1.5, 1.75],
-  [2.2, 1.72],
-  [2.9, 1.70],
-  [4.0, 1.60],
+  [0.85, 1.30],
+  [1.05, 1.42],
+  [1.5, 1.68],
+  [2.2, 1.68],
+  [2.9, 1.65],
+  [4.0, 1.58],
   [8.0, 1.50],
 ];

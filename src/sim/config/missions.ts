@@ -10,8 +10,8 @@ import { LAUNCH_SITES } from './falcon9.js';
 const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
   /** ASSUMED: Clear tower (~150 m) before pitchover */
   pitchKickAltitudeM: 150,
-  /** Mission-design pitchover kick solved by solveMissionAscentDesign (2.90 g LEO + telemetry-calibrated descent Cd(M)) */
-  pitchKickAngleDeg: 1.1,
+  /** Mission-design pitchover kick solved by solveMissionAscentDesign (2.90 g LEO + predictive Sutton-Graves entry burn) */
+  pitchKickAngleDeg: 1.9,
   /** ASSUMED: Smooth pitchover duration */
   pitchKickDurationS: 8.0,
   /** Shared v1 max-Q throttle bucket (22 kPa, Mach 1.02..1.38, 72% min throttle) */
@@ -66,8 +66,8 @@ export const DEFAULT_LEO_RTLS_MISSION: MissionConfig = {
   guidance: {
     ...BASELINE_RTLS_GUIDANCE,
     /** Mission-design pitchover kick, reserve & boostback pitch solved jointly by solveMissionAscentDesign for SLC-40 -> LZ-40 */
-    pitchKickAngleDeg: 1.25,
-    mecoPropellantReserveFraction: 0.135,
+    pitchKickAngleDeg: 1.1,
+    mecoPropellantReserveFraction: 0.125,
     boostbackPitchDeg: -19,
   },
 };
@@ -168,8 +168,8 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
   guidance: {
     ...BASELINE_ASDS_GUIDANCE,
     pitchKickAngleDeg: 1.63,
-    mecoPropellantReserveFraction: 0.105,
-    boostbackPitchDeg: -25,
+    mecoPropellantReserveFraction: 0.075,
+    boostbackPitchDeg: -34,
   },
 };
 
@@ -220,7 +220,7 @@ export const SAOCOM_1A_MISSION: MissionConfig = {
   guidance: {
     ...BASELINE_RTLS_GUIDANCE,
     pitchKickAngleDeg: 1.1,
-    mecoPropellantReserveFraction: 0.145,
-    boostbackPitchDeg: -19,
+    mecoPropellantReserveFraction: 0.135,
+    boostbackPitchDeg: -10,
   },
 };

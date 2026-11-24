@@ -59,7 +59,7 @@ Validated at `dt = 0.01 s` with **`WEBCAST_LIFTOFF_OFFSET_S = 0.0 s` fixed** (ho
 | **Class 0 — LEO-like** (`SAOCOM 1A`, `SSO-A`; S1-only) | `3.05 → 0.59 → 0.59 s` (`0.09 s`) | `4.86 → 1.65 → 0.55 s` | `2.47 → 0.41 → 0.41 km` | `137.9 → 48.9 → 48.9 m/s` | S1-only |
 | **Class 1 — GTO-like** (`TelStar v19`, `Iridium 7`, `Eshail 2`, `GPS III`) | `8.78 → 6.18 → 6.18 s` (`7.18 s`) | `8.75 → 2.69 → 2.69 s` | `2.10 → 1.07 → 1.07 km` | `135.2 → 65.8 → 65.8 m/s` | `190.8 → 258.8 → 258.8 m/s` |
 
-*Booster recovery highlights (`CALIBRATED (n=2 flights)` tail-first `Cd(M)` + `52 km / 1,200 m/s` boostback entry trigger, zero per-flight tuning; LOO validated within `+16%` Alt / `-4.8%` Vel EA RMS): `Iridium NEXT 8` (`1.63° / 10.5% / -25°`, `244 km` `ASSUMED`) matches apogee (`108.1` vs `105.0 km`), entry timing (`T+330.3` vs `337 s`, `-6.7 s`), time-aligned Coast/Entry/Aero/Landing Alt RMS (`1.66–2.28 km`), and event-aligned Landing Alt RMS (`0.14 km`); `SAOCOM 1A` (`1.10° / 14.5% / -19°`, `LZ-4`) matches apogee (`133.2` vs `134.0 km`), Entry EA Alt RMS (`2.98 km`), and Landing EA Alt RMS (`0.42–0.50 km`); unseen Block 4 holdout `Iridium NEXT 3` achieves `2.85 km` Entry EA and `0.12 km` Landing EA.*
+*Booster recovery highlights (physics-based predictive Sutton-Graves `0.022 MW/m² / 3.6 g` entry controller + `CALIBRATED (n=2 Block 5)` `Cd(M)` + closed-loop MECO, zero per-flight tuning): across all 8 boostback flights (`2` B5 + `6` independent B3/4) at telemetry-inferred `31 t` aero mass, mean entry ignition-altitude bias is **`+0.06 km`** (`Iridium 8` `46.9/45.6 km` to `NROL-76` `64.6/64.9 km`; LOO `-1.93 / +0.97 km`); end-to-end `Iridium NEXT 8` (`1.63° / 7.5% CL / -34°`) achieves **`2.35 km / 32 m/s`** Entry EA, **`0.81 km / 69 m/s`** Aero EA, and **`0.19 km / 29 m/s`** Landing EA.*
 
 #### Per-Flight Validation Breakdown (`Fair Baseline → v1.6.0 → v1.7.0`)
 
@@ -80,19 +80,19 @@ Validated at `dt = 0.01 s` with **`WEBCAST_LIFTOFF_OFFSET_S = 0.0 s` fixed** (ho
 
 All robustness numbers below are measured on **unseen holdout seeds** (zero tuning on these seeds); complete append-only history (including superseded configs) is in [docs/MONTE_CARLO_LOG.md](docs/MONTE_CARLO_LOG.md).
 
-#### v1.8.0 Full Realistic Dispersion Set (Calibrated Descent `Cd(M)` & Entry Trigger + Solved Boostback Geometry + Unified Mode-Free Landing-Burn Law, Gauss-Markov Nav + Terminal Radar Altimeter Aiding)
+#### v1.9.0 Full Realistic Dispersion Set (Predictive Sutton-Graves Entry Controller + Closed-Loop MECO + Variance-Derived `3.5 t / 2.5 t` Floors + Anti-Hover Flare)
 Dispersions: Thrust `±1%`, Isp `±0.5%`, `Cd ±5%`, propellant load `±0.5%`, dry mass `±1%`, base wind `±12 m/s` + gusts `±10 m/s`, ASDS droneship offset `±10 m`, ASDS deck heave `0–1.5 m` & roll `0–2.5°`, throttle/actuator lag `40–120 ms`, **first-order Gauss-Markov (`τ = 45 s`, `ASSUMED`) time-correlated navigation biases** (horizontal `σ = 0.5–2.0 m`, altitude `3σ = ±5 m`, velocity `3σ = ±0.3 m/s`), plus **terminal-phase radar altimeter aiding** below `3,000 m` AGL (`0.2%` AGL scale + `0.15 m` residual floor, inverse-variance fusion, `τ_min = 2.0 s`, `ASSUMED`; horizontal & velocity channels unaided). Touchdown criteria and miss distances are **always evaluated on the TRUE vehicle position**.
 
-| Profile | Seed (`N=1000`) | Landing Success | Orbit Achieved | True Miss (p50 / p95) | S1 Fuel (p5) | Peak `q·α` (p95) |
-| --- | --- | --- | --- | --- | --- | --- |
-| **ASDS Ballistic** (`1.10° / 7.5%`) | `363032` | **999/1000 (99.9%)** | 100.0% | `1.51 m` / `3.88 m` | `3,478 kg` (`0.82%`) | `99.6 kPa·deg` (`0` exceed) |
-| **ASDS Ballistic** (`1.10° / 7.5%`) | `374033` | **1000/1000 (100.0%)** | 100.0% | `1.57 m` / `3.81 m` | `3,543 kg` (`0.84%`) | `97.2 kPa·deg` (`0` exceed) |
-| **RTLS LZ-40** (`1.25° / 13.5% / -19°`) | `363032` | **1000/1000 (100.0%)** | 100.0% | `1.44 m` / `3.69 m` | `5,292 kg` (`1.25%`) | `101.8 kPa·deg` (`0` exceed) |
-| **RTLS LZ-40** (`1.25° / 13.5% / -19°`) | `374033` | **1000/1000 (100.0%)** | 100.0% | `1.29 m` / `3.48 m` | `5,442 kg` (`1.29%`) | `98.8 kPa·deg` (`0` exceed) |
-| **ASDS Partial Boostback** (`Iridium 8`, `1.63° / 10.5% / -25°`) | `363032` | **1000/1000 (100.0%)** | 100.0% | `1.42 m` / `3.74 m` | `6,930 kg` (`1.64%`) | `98.9 kPa·deg` (`0` exceed) |
-| **ASDS Partial Boostback** (`Iridium 8`, `1.63° / 10.5% / -25°`) | `374033` | **1000/1000 (100.0%)** | 100.0% | `1.39 m` / `3.50 m` | `6,909 kg` (`1.63%`) | `96.4 kPa·deg` (`0` exceed) |
+| Profile | Seed (`N=1000`) | Landing Success | Orbit Achieved | True Miss (p50 / p95) | S1 Fuel (p5) | S2 Orbit Margin (p5) | Peak `q·α` (p95) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **ASDS Ballistic** (`1.90° / 7.5%`) | `496045` | **999/1000 (99.9%)** | 100.0% | `1.56 m` / `3.63 m` | `5,762 kg` (`1.36%`) | `5,126 kg` | `99.7 kPa·deg` (`0` exceed) |
+| **ASDS Ballistic** (`1.90° / 7.5%`) | `507046` | **999/1000 (99.9%)** | 100.0% | `1.52 m` / `3.63 m` | `5,760 kg` (`1.36%`) | `5,087 kg` | `97.4 kPa·deg` (`0` exceed) |
+| **RTLS LZ-40** (`1.10° / 12.5% CL / -19°`) | `496045` | **993/1000 (99.3%)** | 100.0% | `1.41 m` / `3.70 m` | `2,533 kg` (`0.60%`) | `7,443 kg` | `99.1 kPa·deg` (`0` exceed) |
+| **RTLS LZ-40** (`1.10° / 12.5% CL / -19°`) | `507046` | **991/1000 (99.1%)** | 100.0% | `1.42 m` / `3.75 m` | `2,466 kg` (`0.58%`) | `7,403 kg` | `98.6 kPa·deg` (`0` exceed) |
+| **ASDS Partial Boostback** (`Iridium 8`, `1.63° / 7.5% CL / -34°`) | `496045` | **1000/1000 (100.0%)** | 100.0% | `1.47 m` / `3.79 m` | `4,403 kg` (`1.04%`) | `3,017 kg` | `99.8 kPa·deg` (`0` exceed) |
+| **ASDS Partial Boostback** (`Iridium 8`, `1.63° / 7.5% CL / -34°`) | `507046` | **1000/1000 (100.0%)** | 100.0% | `1.51 m` / `3.85 m` | `4,338 kg` (`1.03%`) | `3,005 kg` | `97.9 kPa·deg` (`0` exceed) |
 
-*Combined across unseen seeds (`6,000` trials total): **ASDS Ballistic `1,999/2,000 (99.95%)`**, **RTLS `LZ-40` `2,000/2,000 (100.00%)`**, and **ASDS Partial Boostback `2,000/2,000 (100.00%)`** — **5,999/6,000 (99.98%)** landed, `100.0%` orbit, and `0/6,000` `q·α` exceedances.*
+*Combined across unseen seeds (`6,000` trials total): **ASDS Ballistic `1,998/2,000 (99.90%)`**, **RTLS `LZ-40` `1,984/2,000 (99.20%)`**, and **ASDS Partial Boostback `2,000/2,000 (100.00%)`** — **5,982/6,000 (99.70%)** landed, `100.0%` orbit, and `0/6,000` `q·α` exceedances.*
 
 ---
 
