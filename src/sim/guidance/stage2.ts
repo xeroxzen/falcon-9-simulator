@@ -107,7 +107,7 @@ export function computeStage2Guidance(
 
   // Coast between MECO / stage sep and SES-1
   if (timeS < ses1TimeS) {
-    const prePitch = 0.25; // ~14 deg above horizontal
+    const prePitch = R.STAGE2_COAST_PRE_PITCH_RAD.value; // ~14 deg above horizontal
     const att = normalize(
       add(scale(hHat, Math.cos(prePitch)), scale(rHat, Math.sin(prePitch)))
     );
@@ -192,23 +192,24 @@ export function computeStage2Guidance(
     // Piecewise exact time-to-go tGo accounting for Stage 2 G-limiting:
     //   - Phase A (full thrust): mass > mCap = T_vac / (maxG * g0)
     //   - Phase B (constant accel aMax = maxG * g0): mass <= mCap
-    const highAltLoft = mission.targetOrbitAltitudeM > 250_000;
+    const highAltLoft = mission.targetOrbitAltitudeM > AUTO_TWO_BURN_ALTITUDE_M;
     const vMag = norm(dynamic.velocityEci);
     const vReqSq = vCirc * vCirc + 2 * (EARTH_MU / r - EARTH_MU / rTarget);
     const dvEnergyRem = Math.max(0.5, Math.sqrt(Math.max(0, vReqSq)) - vMag);
     const dvHorizRem = Math.max(0.5, vCirc - vHoriz);
     // Use energy-equivalent dv (exact at circular cutoff) with horizontal floor
-    const dvEst = Math.max(dvEnergyRem, dvHorizRem * 0.98);
+    const dvEst = Math.max(dvEnergyRem, dvHorizRem * R.STAGE2_DV_HORIZ_FLOOR_FRAC.value);
 
     const aMax = maxG * G0;
     const mCap = mvac.thrustVacuumN / aMax;
     const mdotMax = mvac.thrustVacuumN / vEx;
-    const gLimited = totalMassKg <= mCap * 1.001;
+    const gLimited = totalMassKg <= mCap * R.STAGE2_GLIMIT_MASS_MARGIN.value;
+    const minAThrust = R.STAGE2_MIN_ATHRUST_GUARD_MS2.value;
 
     let tGoRaw: number;
     if (gLimited) {
       // Exact constant-acceleration remaining burn time
-      tGoRaw = dvEst / Math.max(0.1, aThrust);
+      tGoRaw = dvEst / Math.max(minAThrust, aThrust);
     } else {
       const dvToCap = vEx * Math.log(totalMassKg / mCap);
       if (dvEst <= dvToCap) {
@@ -221,11 +222,15 @@ export function computeStage2Guidance(
       }
     }
     const tau = mdot > 1e-6 ? totalMassKg / mdot : 1_000;
-    const tGo = clamp(tGoRaw, 3.0, tau * 0.96);
+    const tGo = clamp(
+      tGoRaw,
+      R.STAGE2_PEG_MIN_TGO_S.value,
+      tau * R.STAGE2_PEG_MAX_TAU_FRAC.value
+    );
 
     let aRadCmd: number;
     const gEff = EARTH_MU / (r * r) - (vHoriz * vHoriz) / r;
-    if (highAltLoft && !gLimited && tGo > 15.0) {
+    if (highAltLoft && !gLimited && tGo > R.STAGE2_PEG_LOFT_MIN_TGO_S.value) {
       // Exact variable-mass PEG integrals over [0, tGo] during constant-thrust climb,
       // with linear gravity decay gEff(t) = gEff * (1 - t / tGo) -> rhsV uses 1/2, rhsR uses 1/3.
       const b0 = -vEx * Math.log(Math.max(1e-4, 1 - tGo / tau));
@@ -235,27 +240,30 @@ export function computeStage2Guidance(
       const det = b0 * c1 - b1 * c0;
 
       const rhsV = -vRadial + 0.5 * gEff * tGo;
-      const rhsR = altErr - vRadial * tGo + (1 / 3) * gEff * tGo * tGo;
+      const rhsR = altErr - vRadial * tGo + (1 / 3) * gEff * tGo * tGo; /* math: exact integral 1/3 */
 
       if (Math.abs(det) > 1e-6) {
         const A = (c1 * rhsV - b1 * rhsR) / det;
         aRadCmd = A * aThrust;
       } else {
-        aRadCmd = gEff + (6.0 * altErr) / (tGo * tGo) - (4.0 * vRadial) / tGo;
+        aRadCmd = gEff + (6.0 * altErr) / (tGo * tGo) - (4.0 * vRadial) / tGo; /* math: ZEM/ZEV BVP */
       }
     } else {
       // Exact constant-acceleration BVP for linear gravity decay gEff(t) = gEff*(1 - t/tGo)
-      aRadCmd = gEff + (6.0 * altErr) / (tGo * tGo) - (4.0 * vRadial) / tGo;
+      aRadCmd = gEff + (6.0 * altErr) / (tGo * tGo) - (4.0 * vRadial) / tGo; /* math: ZEM/ZEV BVP */
     }
 
     const sinTheta = clamp(
-      aRadCmd / Math.max(0.1, aThrust),
-      highAltLoft ? -0.80 : -0.55,
-      highAltLoft ? 0.90 : 0.72
+      aRadCmd / Math.max(minAThrust, aThrust),
+      highAltLoft ? R.STAGE2_DIRECT_LOFT_MIN_SIN_THETA.value : R.STAGE2_DIRECT_MIN_SIN_THETA.value,
+      highAltLoft ? R.STAGE2_DIRECT_LOFT_MAX_SIN_THETA.value : R.STAGE2_DIRECT_MAX_SIN_THETA.value
     );
     const cosTheta = Math.sqrt(Math.max(0, 1 - sinTheta * sinTheta));
 
-    const horizSteered = computeYawSteeredHoriz(26.0, 0.35);
+    const horizSteered = computeYawSteeredHoriz(
+      R.STAGE2_YAW_GAIN_SES1.value,
+      R.STAGE2_MAX_SIN_YAW_SES1.value
+    );
     const targetAttitudeEci = normalize(
       add(scale(horizSteered, cosTheta), scale(rHat, sinTheta))
     );
@@ -304,7 +312,7 @@ export function computeStage2Guidance(
     // Trigger SECO-1 once transfer orbit perigee is safely out of atmosphere (>120 km)
     // and osculating apogee reaches targetOrbitAltitudeM.
     if (
-      orb.perigeeAltitudeM > 120_000 &&
+      orb.perigeeAltitudeM > R.STAGE2_SECO1_MIN_PERIGEE_M.value &&
       orb.apogeeAltitudeM >= mission.targetOrbitAltitudeM
     ) {
       mem.phase = 'COAST_TO_SES2';
@@ -321,21 +329,29 @@ export function computeStage2Guidance(
       };
     }
 
-    const dvRem = Math.max(20, vPerigeeTx - vHoriz);
+    const minAThrust = R.STAGE2_MIN_ATHRUST_GUARD_MS2.value;
+    const dvRem = Math.max(R.STAGE2_SES1_MIN_DV_REM_MS.value, vPerigeeTx - vHoriz);
     const tGoEst =
       mdot > 0
         ? (totalMassKg / mdot) * (1 - Math.exp(-dvRem / vEx))
-        : dvRem / Math.max(0.1, aThrust);
-    const tGo = Math.max(25.0, tGoEst);
+        : dvRem / Math.max(minAThrust, aThrust);
+    const tGo = Math.max(R.STAGE2_SES1_MIN_TGO_S.value, tGoEst);
 
     const gEff = EARTH_MU / (r * r) - (vHoriz * vHoriz) / r;
     const altErr = hParkM - altitudeM;
-    const aRadCmd = gEff + (6.0 * altErr) / (tGo * tGo) - (4.0 * vRadial) / tGo;
+    const aRadCmd = gEff + (6.0 * altErr) / (tGo * tGo) - (4.0 * vRadial) / tGo; /* math: ZEM/ZEV BVP */
 
-    const sinTheta = clamp(aRadCmd / Math.max(0.1, aThrust), -0.45, 0.72);
+    const sinTheta = clamp(
+      aRadCmd / Math.max(minAThrust, aThrust),
+      R.STAGE2_SES1_MIN_SIN_THETA.value,
+      R.STAGE2_DIRECT_MAX_SIN_THETA.value
+    );
     const cosTheta = Math.sqrt(Math.max(0, 1 - sinTheta * sinTheta));
 
-    const horizSteered = computeYawSteeredHoriz(26.0, 0.35);
+    const horizSteered = computeYawSteeredHoriz(
+      R.STAGE2_YAW_GAIN_SES1.value,
+      R.STAGE2_MAX_SIN_YAW_SES1.value
+    );
     const targetAttitudeEci = normalize(
       add(scale(horizSteered, cosTheta), scale(rHat, sinTheta))
     );
@@ -362,7 +378,7 @@ export function computeStage2Guidance(
 
     // Analytic Keplerian time to apoapsis (E -> pi, M -> pi)
     let tToApo = 0;
-    if (a > EARTH_RADIUS_EQUATORIAL_M && e > 1e-5 && e < 0.99) {
+    if (a > EARTH_RADIUS_EQUATORIAL_M && e > 1e-5 && e < R.STAGE2_KEPLER_MAX_ECC.value) {
       const cosE = clamp((1 - r / a) / e, -1, 1);
       const E = Math.acos(cosE);
       const M = E - e * Math.sin(E);
@@ -371,7 +387,8 @@ export function computeStage2Guidance(
         tToApo = Math.max(0, (Math.PI - M) / n);
       } else {
         // Past apoapsis (or slightly descending right after SECO-1 before climbing)
-        tToApo = coastElapsedS < 120 ? (Math.PI + M) / n : 0;
+        tToApo =
+          coastElapsedS < R.STAGE2_COAST_DESCENDING_GUARD_S.value ? (Math.PI + M) / n : 0;
       }
     }
     mem.timeToApoapsisS = tToApo;
@@ -384,17 +401,20 @@ export function computeStage2Guidance(
     const tBurn2 =
       mdot > 0 && dv2 > 0
         ? (totalMassKg / mdot) * (1 - Math.exp(-dv2 / vEx))
-        : dv2 / Math.max(0.1, aThrust);
+        : dv2 / Math.max(R.STAGE2_MIN_ATHRUST_GUARD_MS2.value, aThrust);
 
     const readyForSes2 =
-      (coastElapsedS >= 60 && tToApo <= 0.5 * tBurn2) ||
-      (coastElapsedS >= 300 && vRadial <= 0);
+      (coastElapsedS >= R.STAGE2_COAST_MIN_DURATION_S.value && tToApo <= 0.5 * tBurn2) ||
+      (coastElapsedS >= R.STAGE2_COAST_APOAPSIS_FALLBACK_S.value && vRadial <= 0);
 
     if (readyForSes2) {
       mem.ses2Started = true;
       mem.phase = 'STAGE2_BURN_2';
       mem.timeToApoapsisS = 0;
-      const horizSteered = computeYawSteeredHoriz(12.0, 0.15);
+      const horizSteered = computeYawSteeredHoriz(
+        R.STAGE2_YAW_GAIN_SES2.value,
+        R.STAGE2_MAX_SIN_YAW_SES2.value
+      );
       return {
         phase: 'STAGE2_BURN_2',
         targetAttitudeEci: normalize(horizSteered),
@@ -424,7 +444,7 @@ export function computeStage2Guidance(
   if (
     dynamic.propellantKg <= 0 ||
     currentEnergy >= Math.max(targetCircEnergy, targetApoCircEnergy) ||
-    orb2.perigeeAltitudeM >= mission.targetOrbitAltitudeM - 1_500
+    orb2.perigeeAltitudeM >= mission.targetOrbitAltitudeM - R.STAGE2_SECO2_PERIGEE_TOL_M.value
   ) {
     mem.phase = 'SECO';
     mem.seco2Done = true;
@@ -441,7 +461,10 @@ export function computeStage2Guidance(
   }
 
   // Prograde horizontal burn with gentle inclination trim
-  const horizSteered = computeYawSteeredHoriz(12.0, 0.15);
+  const horizSteered = computeYawSteeredHoriz(
+    R.STAGE2_YAW_GAIN_SES2.value,
+    R.STAGE2_MAX_SIN_YAW_SES2.value
+  );
   mem.phase = 'STAGE2_BURN_2';
   return {
     phase: 'STAGE2_BURN_2',

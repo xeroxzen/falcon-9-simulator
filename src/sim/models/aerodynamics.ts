@@ -131,7 +131,8 @@ export function evaluateBoosterAerodynamics(
   const vHat = scale(vAirRelEci, 1 / speed);
   const dragForceEci = scale(vHat, -dragMagnitudeN);
 
-  const clampedDefl = clamp(gridFinDeflectionDeg, -20, 20);
+  const maxDefl = R.BOOSTER_GRID_FIN_MAX_DEFL_DEG.value;
+  const clampedDefl = clamp(gridFinDeflectionDeg, -maxDefl, maxDefl);
   const cl = BOOSTER_GRID_FIN_CL_PER_RAD * Math.abs(clampedDefl) * DEG_TO_RAD;
   const liftMagnitudeN = dynamicPressurePa * cl * referenceAreaM2;
 

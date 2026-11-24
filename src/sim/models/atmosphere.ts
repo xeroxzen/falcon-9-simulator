@@ -4,7 +4,6 @@ import {
   AIR_GAS_CONSTANT,
   G0,
   SEA_LEVEL_PRESSURE_PA,
-  SEA_LEVEL_TEMP_K,
   US76_R0_M,
 } from '../config/constants.js';
 import { CONSTANTS_REGISTRY as R } from '../config/registry.js';
@@ -34,15 +33,11 @@ const RAW_LAYERS: readonly {
   readonly baseGeopotentialM: number;
   readonly baseTempK: number;
   readonly lapseRateKPerM: number;
-}[] = [
-  { baseGeopotentialM: 0, baseTempK: SEA_LEVEL_TEMP_K, lapseRateKPerM: -0.0065 },
-  { baseGeopotentialM: 11_000, baseTempK: 216.65, lapseRateKPerM: 0.0 },
-  { baseGeopotentialM: 20_000, baseTempK: 216.65, lapseRateKPerM: 0.001 },
-  { baseGeopotentialM: 32_000, baseTempK: 228.65, lapseRateKPerM: 0.0028 },
-  { baseGeopotentialM: 47_000, baseTempK: 270.65, lapseRateKPerM: 0.0 },
-  { baseGeopotentialM: 51_000, baseTempK: 270.65, lapseRateKPerM: -0.0028 },
-  { baseGeopotentialM: 71_000, baseTempK: 214.65, lapseRateKPerM: -0.002 },
-];
+}[] = R.US76_LAYERS_TABLE.value.map(([baseGeopotentialM, baseTempK, lapseRateKPerM]) => ({
+  baseGeopotentialM,
+  baseTempK,
+  lapseRateKPerM,
+}));
 
 function computeLayerPressure(
   pBase: number,
