@@ -2,6 +2,21 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
+## [1.8.0] — 2026-11-24 (Calibrated Booster Descent Timing, LOO Holdout Validation & Historical Kick Provenance)
+
+### Added
+- **Telemetry-calibrated tail-first booster descent `Cd(M)` & boostback entry trigger (`CALIBRATED (n=2 flights)`, BACKLOG #13 & #6):**
+  - Updated `BOOSTER_DESCENT_CD_MACH_TABLE` (`src/sim/config/falcon9.ts`) to `1.55–1.75` supersonic (reconstructed from `Iridium NEXT 8` & `SAOCOM 1A` `stage1` descent telemetry; prior `1.00–1.35` was ~50% too low) and boostback entry-burn trigger (`src/sim/guidance/booster.ts`) to `52 km / 1,200 m/s` (`aeroFallbackAlt = 44 km`), matching real ignition (`45.6–55.7 km / 1,254–1,268 m/s`) with zero per-flight tuning.
+  - **`Iridium NEXT 8` (`1.63° / 10.5% / -25°`):** Entry timing closed `-41.2 → -6.7 s` (`T+330.3` vs `337 s`), event-aligned Entry Alt RMS dropped `16.02 → 7.26 km`, time-aligned Coast/Entry/Aero/Landing Alt RMS dropped to `1.66–2.28 km`, and touchdown moved `T+397.0 → T+434.4 s` (real `~426 s`).
+  - **`SAOCOM 1A` (`1.10° / 14.5% / -19°`):** Event-aligned Entry Alt RMS `2.98 km`, Landing Alt RMS `0.42–0.50 km`, touchdown `T+460.6 s` (real `467 s`).
+  - **Leave-One-Out (LOO) & unseen-flight holdout validation:** LOO 5-phase mean event-aligned RMS held within the `~20%` gate (`+16.0%` Alt, `-4.8%` Vel vs in-sample); unseen Block 4 `Iridium NEXT 3` achieved `2.85 km` Entry EA / `6.75 km` Aero EA / `0.12 km` Landing EA (`LANDED 0.08 m`), and telemetry reconstruction across all 6 unseen Block 3/4 boostback flights confirmed `Cd_sup = 1.56–1.66` and entry ignition `47.5–54.3 km / 1,225–1,291 m/s` on 5/6 flights.
+  - **Closed BACKLOG #6 (recovery efficiency gap):** Higher realistic descent drag cut landing-burn propellant consumption so `DEFAULT_LEO_ASDS_MISSION` re-solved from `1.75° / 7.5%` to **`1.10° / 7.5%`** and `DEFAULT_LEO_RTLS_MISSION` to **`1.25° / 13.5% / -19°`**.
+- **Historical kick provenance, DM-1 re-fit & automated drift/rule tests:**
+  - Added `MissionConfig.fittedKickProvenance` (`{ modelVersion, commit, sourceTelemetry }`) on `DM1_MISSION` (re-fitted `1.41° → 1.56°`, cutting DM-1 S1 Alt RMS `1.68 → 1.03 km`), `IRIDIUM_NEXT_8_MISSION` (`1.63°`), and `SAOCOM_1A_MISSION` (`1.10°`).
+  - `solveMissionAscentDesign` automatically locks `pitchKickAngleDeg` for historical missions carrying `fittedKickProvenance` (unit-tested in `tests/ascent.test.ts`); `tests/validation.test.ts` re-fits all three historical kicks and fails if any drifts `> 0.10°`.
+- **Fresh-seed Monte Carlo validation (`N = 1,000 × 2` unseen seeds `363032`/`374033`, logged in `docs/MONTE_CARLO_LOG.md`):**
+  - `ASDS Ballistic` (`1.10° / 7.5%`): **`1,999/2,000 (99.95%)`**, `RTLS LZ-40` (`1.25° / 13.5% / -19°`): **`2,000/2,000 (100.00%)`**, `ASDS Partial Boostback` (`Iridium 8`, `1.63° / 10.5% / -25°`): **`2,000/2,000 (100.00%)`** — **5,999/6,000 (99.98%)** landed, `100.0%` orbit, `0/6,000` `q·α` exceedances.
+
 ## [1.7.0] — 2026-11-24 (Solved Boostback Thrust Geometry & Sutton-Graves Entry Heating Constraint)
 
 ### Added

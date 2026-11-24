@@ -265,7 +265,7 @@ export function computeBoosterGuidance(
   }
 
   // 4. Ballistic coast to atmospheric entry interface
-  // Real telemetry ignition: Iridium 8 (45.6 km, 1,268 m/s, M=3.88),
+  // CALIBRATED (n=2 flights): Iridium 8 (45.6 km, 1,268 m/s, M=3.88),
   // SAOCOM 1A (55.7 km, 1,254 m/s, M=3.89) -> 52 km / 1,200 m/s for boostback entries.
   if (mem.phase === 'BALLISTIC_COAST') {
     const entryAltTrigger = hasBoostback ? 52_000 : 70_000;

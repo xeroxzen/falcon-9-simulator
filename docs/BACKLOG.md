@@ -61,6 +61,10 @@ Known model gaps identified during Phase 2.5 validation and holdout testing, tra
    - Reconstructing tail-first descent drag directly from `Iridium NEXT 8` & `SAOCOM 1A` `stage1 raw.json` (`Cd_est = 1.47–1.83` over `M = 1.0–2.9`) showed `BOOSTER_DESCENT_CD_MACH_TABLE` (`1.00–1.35`) was ~50% too low and the `60 km / 1,050 m/s` boostback entry trigger ignited too high/early compared to real ignition (`45.6–55.7 km / 1,254–1,268 m/s`).
    - Updated `BOOSTER_DESCENT_CD_MACH_TABLE` (`1.55–1.75` supersonic) and boostback entry trigger (`52 km / 1,200 m/s`, fallback `44 km`) universally with zero per-flight tuning. On `Iridium NEXT 8`, entry timing closed from `-41.2 s` to `-6.7 s`, event-aligned entry Alt RMS dropped `16.02 → 7.26 km`, time-aligned coast/entry/aero/landing Alt RMS dropped to `1.66–2.28 km`, and touchdown moved from `T+397.0 s` to `T+434.4 s` (real `~426 s`). On `SAOCOM 1A`, event-aligned entry Alt RMS is `2.98 km`, landing Alt RMS is `0.50 km`, and touchdown moved from `T+448.9 s` to `T+460.6 s` (real `467 s`).
 
-14. **Stretch goals from original spec:**
+14. **Landing-burn ignition speed (`~410–429 m/s` vs real `~280–310 m/s`) & aero-descent velocity RMS (`~270–280 m/s`):**
+    - After calibrating supersonic tail-first descent `Cd(M)` (`1.55–1.75`) and the boostback entry trigger (`52 km / 1,200 m/s`), post-apogee timing and altitude profiles align closely (`1.66–4.09 km` TA Alt RMS), but landing-burn ignition speed remains `~100–130 m/s` high (`410 m/s` on `Iridium NEXT 8` vs real `279 m/s`; `429 m/s` on `SAOCOM 1A` vs real `314 m/s`), driving `~270–280 m/s` event-aligned aero-descent velocity RMS.
+    - Investigate the entry-burn `Δv` / cutoff velocity (`850 m/s` vs real `586 m/s` on `SAOCOM 1A` and `846 m/s` on `Iridium NEXT 8`) and subsonic/transonic tail-first descent `Cd(M)` (`M < 1.2`).
+
+15. **Stretch goals from original spec:**
    - Convex-optimization (G-FOLD-style) powered descent guidance.
    - 6-DOF rigid-body rotational dynamics (inertia tensor, TVC gimbal torque, RCS cold-gas thrusters, aerodynamic center-of-pressure / center-of-mass pitching moments).
