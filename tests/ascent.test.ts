@@ -3,11 +3,14 @@ import { FALCON9_BLOCK5 } from '../src/sim/config/falcon9.js';
 import {
   DEFAULT_LEO_ASDS_MISSION,
   DEFAULT_LEO_RTLS_MISSION,
+  IRIDIUM_NEXT_8_MISSION,
+  SAOCOM_1A_MISSION,
 } from '../src/sim/config/missions.js';
 import {
   defaultWhatIfPitchKickDeg,
   MISSION_CLASS_SCHEDULES,
   selectMissionClassSchedule,
+  solveMissionAscentDesign,
   solveMissionPitchKickDeg,
 } from '../src/sim/guidance/mission-design.js';
 import { runAscentToMeco } from '../src/sim/simulation.js';
@@ -151,4 +154,32 @@ describe('Stage 1 ascent through MECO', () => {
     expect(t0!.throttle).toBe(1.0);
     expect(t0!.axialAccelG).toBeGreaterThan(1.2);
   });
+
+  it('keeps telemetry-fitted pitch kick fixed for historical missions and solves only recovery variables', () => {
+    for (const historical of [IRIDIUM_NEXT_8_MISSION, SAOCOM_1A_MISSION]) {
+      expect(historical.fittedKickProvenance).toBeDefined();
+
+      // Perturb recovery variables (reserve and boostback pitch); solver must NOT touch pitchKickAngleDeg
+      const perturbed = {
+        ...historical,
+        guidance: {
+          ...historical.guidance,
+          mecoPropellantReserveFraction: 0.08,
+          boostbackPitchDeg: -4,
+        },
+      };
+      const solved = solveMissionAscentDesign(FALCON9_BLOCK5, perturbed);
+      expect(solved.feasible).toBe(true);
+      expect(solved.boosterOutcome).toBe('LANDED');
+      expect(solved.pitchKickAngleDeg).toBe(historical.guidance.pitchKickAngleDeg);
+      expect(solved.mecoPropellantReserveFraction).toBeCloseTo(
+        historical.guidance.mecoPropellantReserveFraction,
+        3
+      );
+      expect(solved.boostbackPitchDeg).toBeCloseTo(
+        historical.guidance.boostbackPitchDeg!,
+        1
+      );
+    }
+  }, 60_000);
 });

@@ -222,13 +222,22 @@ export interface MissionConfig {
   readonly missionDate?: string;
   readonly landingMode: LandingMode;
   readonly landingSiteId?: LandingSiteId;
-  /**
-   * Optional ASDS droneship downrange distance from the launch site (km).
+  /** Optional ASDS droneship downrange distance from the launch site (km).
    * When specified and closer than the natural ballistic impact point (by > 15 km),
    * the recovery planner triggers a partial boostback burn toward the droneship.
    * When omitted (or >= ballistic impact distance), ASDS flies pure ballistic entry.
    */
   readonly droneshipDownrangeKm?: number;
+  /**
+   * Provenance of a telemetry-fitted ascent pitch kick for historical missions.
+   * When present, solveMissionAscentDesign keeps pitchKickAngleDeg fixed and solves
+   * only recovery variables (mecoPropellantReserveFraction, boostbackPitchDeg).
+   */
+  readonly fittedKickProvenance?: {
+    readonly modelVersion: string;
+    readonly commit: string;
+    readonly sourceTelemetry: string;
+  };
   readonly enableJ2: boolean;
   readonly dtS: number;
   /** Optional pre-launch terminal countdown duration in seconds (e.g. 10 -> T-10 s to T-0 clamp release). */

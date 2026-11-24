@@ -1,8 +1,13 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { FALCON9_BLOCK5 } from '../src/sim/config/falcon9.js';
-import { DM1_MISSION, SAOCOM_1A_MISSION } from '../src/sim/config/missions.js';
+import {
+  DM1_MISSION,
+  IRIDIUM_NEXT_8_MISSION,
+  SAOCOM_1A_MISSION,
+} from '../src/sim/config/missions.js';
 import { runFullMission } from '../src/sim/mission.js';
+import { runAscentToMeco } from '../src/sim/simulation.js';
 import {
   cleanAndResampleTelemetry,
   loadMissionTelemetry,
@@ -60,4 +65,87 @@ describe('Telemetry loader & OCR cleaner', () => {
     expect(bReport!.phaseErrors.length).toBe(4);
     expect(bReport!.overlayRows.length).toBeGreaterThan(5);
   });
+
+  it('records kick provenance on all historical missions and detects >0.10 deg kick drift on re-fit', () => {
+    const historicalMissions = [
+      { mission: DM1_MISSION, telemetryKey: 'DM-1' },
+      { mission: IRIDIUM_NEXT_8_MISSION, telemetryKey: 'Iridium NEXT 8' },
+      { mission: SAOCOM_1A_MISSION, telemetryKey: 'SAOCOM 1A' },
+    ] as const;
+
+    for (const { mission } of historicalMissions) {
+      expect(mission.fittedKickProvenance).toBeDefined();
+      expect(mission.fittedKickProvenance!.modelVersion.length).toBeGreaterThan(0);
+      expect(mission.fittedKickProvenance!.commit.length).toBeGreaterThanOrEqual(7);
+      expect(mission.fittedKickProvenance!.sourceTelemetry.length).toBeGreaterThan(0);
+    }
+
+    if (!fs.existsSync(TELEMETRY_ROOT)) {
+      return;
+    }
+
+    const fitLoss = (
+      mission: (typeof historicalMissions)[number]['mission'],
+      real: ReturnType<typeof loadMissionTelemetry>,
+      kickDeg: number
+    ): number => {
+      const candidate = {
+        ...mission,
+        dtS: 0.02,
+        guidance: { ...mission.guidance, pitchKickAngleDeg: kickDeg },
+      };
+      const sim = runAscentToMeco(FALCON9_BLOCK5, candidate, 1.0);
+      const s1Series = real.stage1?.samples1Hz ?? [];
+      const s2Series = real.stage2?.samples1Hz ?? [];
+      const series =
+        s2Series.length > 0 && s2Series[0]!.timeS <= 10 ? s2Series : s1Series;
+      const tEnd = Math.min(real.events?.meco ?? 160, sim.finalState.timeS);
+      let altSq = 0;
+      let velSq = 0;
+      let n = 0;
+      for (const s of sim.samples) {
+        if (s.timeS < 0 || s.timeS > tEnd) continue;
+        const r = series.find((p) => Math.abs(p.timeS - s.timeS) < 0.51);
+        if (!r) continue;
+        const dAltKm = (s.geodetic.altitudeM - r.altitudeM) / 1000;
+        const dVelMs = s.speedAirRelMs - r.velocityMs;
+        altSq += dAltKm * dAltKm;
+        velSq += dVelMs * dVelMs;
+        n++;
+      }
+      if (n === 0) return Infinity;
+      const altRmsKm = Math.sqrt(altSq / n);
+      const velRmsMs = Math.sqrt(velSq / n);
+      return (altRmsKm / 1.0) ** 2 + (velRmsMs / 50.0) ** 2;
+    };
+
+    for (const { mission, telemetryKey } of historicalMissions) {
+      const real = loadMissionTelemetry(TELEMETRY_ROOT, telemetryKey);
+      let bestKick = mission.guidance.pitchKickAngleDeg;
+      let bestLoss = Infinity;
+      // Coarse search [0.5, 3.0] deg in 0.10 deg steps
+      for (let k = 0.5; k <= 3.001; k += 0.1) {
+        const loss = fitLoss(mission, real, k);
+        if (loss < bestLoss) {
+          bestLoss = loss;
+          bestKick = k;
+        }
+      }
+      // Fine search [bestKick - 0.12, bestKick + 0.12] in 0.01 deg steps
+      const fineLo = Math.max(0.5, bestKick - 0.12);
+      const fineHi = Math.min(3.0, bestKick + 0.12);
+      for (let k = fineLo; k <= fineHi + 1e-6; k += 0.01) {
+        const loss = fitLoss(mission, real, k);
+        if (loss < bestLoss) {
+          bestLoss = loss;
+          bestKick = k;
+        }
+      }
+      const driftDeg = Math.abs(bestKick - mission.guidance.pitchKickAngleDeg);
+      expect(
+        driftDeg,
+        `${mission.name} kick drifted ${driftDeg.toFixed(2)} deg (shipped ${mission.guidance.pitchKickAngleDeg} deg vs re-fit ${bestKick.toFixed(2)} deg)`
+      ).toBeLessThanOrEqual(0.1);
+    }
+  }, 30_000);
 });

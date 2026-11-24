@@ -265,9 +265,12 @@ export function computeBoosterGuidance(
   }
 
   // 4. Ballistic coast to atmospheric entry interface
+  // Real telemetry ignition: Iridium 8 (45.6 km, 1,268 m/s, M=3.88),
+  // SAOCOM 1A (55.7 km, 1,254 m/s, M=3.89) -> 52 km / 1,200 m/s for boostback entries.
   if (mem.phase === 'BALLISTIC_COAST') {
-    const entryAltTrigger = hasBoostback ? 60_000 : 70_000;
-    const entrySpeedTrigger = hasBoostback ? 1_050 : 1_300;
+    const entryAltTrigger = hasBoostback ? 52_000 : 70_000;
+    const entrySpeedTrigger = hasBoostback ? 1_200 : 1_300;
+    const aeroFallbackAlt = hasBoostback ? 44_000 : 52_000;
     if (
       vUp < 0 &&
       geodetic.altitudeM <= entryAltTrigger &&
@@ -276,7 +279,7 @@ export function computeBoosterGuidance(
     ) {
       mem.phase = 'ENTRY_BURN';
       mem.entryBurnStartTimeS = timeS;
-    } else if (vUp < 0 && geodetic.altitudeM <= 52_000) {
+    } else if (vUp < 0 && geodetic.altitudeM <= aeroFallbackAlt) {
       mem.phase = 'AERO_DESCENT';
     } else {
       return {
