@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import {
   CONSTANTS_REGISTRY,
@@ -140,6 +141,70 @@ describe('Constants Registry & Label Audit', () => {
     expect(
       violations,
       `Unlabeled numeric constants found outside src/sim/config/registry.ts:\n${violations.join('\n')}`
+    ).toEqual([]);
+  });
+
+  it('flags any magic numeric literal in src/sim/guidance/** and src/sim/models/** outside the allowlist', () => {
+    // Tight allowlist: basic algebraic numbers, unit conversions, and tiny numerical epsilons.
+    const ALLOWED_LITERALS = new Set<number>([0, 1, 2, 0.5, -1, 1000, 3600, 1e6]);
+    const MATH_ANNOTATION_RE = /\/\*\s*math:\s*[^*]+\*\//;
+    const dirs = [
+      path.resolve(process.cwd(), 'src/sim/guidance'),
+      path.resolve(process.cwd(), 'src/sim/models'),
+    ];
+    const violations: string[] = [];
+
+    for (const dir of dirs) {
+      for (const file of collectTsFiles(dir)) {
+        const rel = path.relative(process.cwd(), file);
+        const text = fs.readFileSync(file, 'utf8');
+        const lines = text.split('\n');
+        const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+
+        const visit = (node: ts.Node): void => {
+          if (ts.isNumericLiteral(node)) {
+            const parent = node.parent;
+            // Allow array index accesses (arr[i])
+            if (ts.isElementAccessExpression(parent) && parent.argumentExpression === node) {
+              return;
+            }
+            // Allow formatting / slice helpers (.toFixed(N), .slice(0, N))
+            if (ts.isCallExpression(parent) && ts.isPropertyAccessExpression(parent.expression)) {
+              const method = parent.expression.name.text;
+              if (method === 'toFixed' || method === 'slice') {
+                return;
+              }
+            }
+
+            const rawVal = Number(node.text);
+            const isNeg =
+              ts.isPrefixUnaryExpression(parent) &&
+              parent.operator === ts.SyntaxKind.MinusToken;
+            const signedVal = isNeg ? -rawVal : rawVal;
+
+            // Allow allowlisted numbers & pure numerical stability epsilons (0 < |v| <= 1e-3)
+            const isTinyEpsilon = rawVal > 0 && rawVal <= 1e-3;
+            if (ALLOWED_LITERALS.has(signedVal) || isTinyEpsilon) {
+              return;
+            }
+
+            // Allow exact textbook mathematical formula coefficients explicitly annotated `/* math: ... */`
+            const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+            if (MATH_ANNOTATION_RE.test(lines[line]!)) {
+              return;
+            }
+
+            violations.push(`${rel}:${line + 1} [${signedVal}]  ${lines[line]!.trim()}`);
+          }
+          ts.forEachChild(node, visit);
+        };
+        visit(sf);
+      }
+    }
+
+    expect(
+      violations,
+      `Unregistered numeric literals found in src/sim/guidance/** or src/sim/models/** — move to src/sim/config/registry.ts:\n${violations.join('\n')}`
     ).toEqual([]);
   });
 });

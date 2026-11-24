@@ -9,7 +9,7 @@ This document tracks every `ASSUMED` parameter, modeling simplification, and emp
 
 ## Constants Registry (Single Source of Truth)
 
-Every `SOURCED`, `CALIBRATED`, `EMPIRICAL`, `ASSUMED`, and `HEURISTIC` constant in `src/sim/` (88 entries) is defined in `src/sim/config/registry.ts` and rendered here automatically.
+Every `SOURCED`, `CALIBRATED`, `EMPIRICAL`, `ASSUMED`, and `HEURISTIC` constant in `src/sim/` (208 entries) is defined in `src/sim/config/registry.ts` and rendered here automatically.
 
 ### Planetary & Atmosphere
 
@@ -28,6 +28,7 @@ Every `SOURCED`, `CALIBRATED`, `EMPIRICAL`, `ASSUMED`, and `HEURISTIC` constant 
 | `AIR_GAS_CONSTANT` | `287.05287 J/(kg*K)` | `SOURCED` | — | `v1.0.0` | US Standard Atmosphere 1976 specific gas constant for dry air |
 | `AIR_GAMMA` | `1.4` | `SOURCED` | — | `v1.0.0` | US Standard Atmosphere 1976 ratio of specific heats for dry air |
 | `US76_TOP_GEOMETRIC_M` | `86,000 m` | `SOURCED` | — | `v1.0.0` | US Standard Atmosphere 1976 top of 7-layer geopotential model |
+| `US76_LAYERS_TABLE` | `[7 layers]` ([H(m), T(K), L(K/m)]) | `SOURCED` | — | `v1.0.0` | US Standard Atmosphere 1976 (NOAA-S/T 76-1562) 7-layer geopotential temperature/lapse table |
 | `ATMO_UPPER_SCALE_HEIGHT_M` | `5,800 m` | `ASSUMED` | — | `v1.0.0` | Exponential scale height continuation above 86 km in lower thermosphere |
 | `ATMO_VACUUM_CUTOFF_M` | `200,000 m` | `ASSUMED` | — | `v1.0.0` | Altitude above which atmospheric density and pressure are treated as vacuum (0) |
 | `ASSUMED_MAX_Q_ALPHA_PA_DEG` | `200,000 Pa*deg` | `ASSUMED` | — | `v1.1.0` | Representative orbital launch vehicle structural bending-moment envelope (~3.49 kPa*rad) |
@@ -68,6 +69,7 @@ Every `SOURCED`, `CALIBRATED`, `EMPIRICAL`, `ASSUMED`, and `HEURISTIC` constant 
 | `ASCENT_CD_MACH_BASE_TABLE` | `[12 pts]` (0:0.48, 0.5:0.48, 0.8:0.56, 0.95:0.76, 1.05:0.88, 1.2:0.8, 1.5:0.66, 2:0.52, 3:0.42, 4:0.36, 6:0.32, 10:0.3) | `ASSUMED` | — | `v1.0.0` | Core-area-referenced (10.7521 m^2) slender launch-vehicle Cd(M), scaled by 1.975x fairing/core area ratio |
 | `BOOSTER_DESCENT_CD_MACH_TABLE` | `[9 pts]` (0:1.15, 0.5:1.2, 0.85:1.3, 1.05:1.42, 1.5:1.68, 2.2:1.68, 2.9:1.65, 4:1.58, 8:1.5) | `CALIBRATED` | Iridium NEXT 8, SAOCOM 1A | `99843f1` | Tail-first octaweb + titanium grid-fin Cd(M) reconstructed from stage1 telemetry (incl. M < 1.2); LOO validated & cross-checked on 6 B3/4 flights |
 | `BOOSTER_GRID_FIN_CL_PER_RAD` | `0.8 rad^-1` | `ASSUMED` | — | `v1.0.0` | Simplified grid-fin + booster-body lateral lift slope (max +/-20 deg -> L/D ~ 0.25-0.30) |
+| `BOOSTER_GRID_FIN_MAX_DEFL_DEG` | `20 deg` | `ASSUMED` | — | `v1.0.0` | Maximum titanium grid-fin aerodynamic deflection authority (+/-20 deg) |
 
 ### Ascent & Stage 2 Guidance
 
@@ -92,6 +94,50 @@ Every `SOURCED`, `CALIBRATED`, `EMPIRICAL`, `ASSUMED`, and `HEURISTIC` constant 
 | `DEFAULT_TRANSFER_PERIGEE_ALT_M` | `185,000 m` | `ASSUMED` | — | `v1.3.1` | Two-burn Hohmann transfer parking perigee altitude (matching ~183 km Iridium-8 transfer perigee) |
 | `AUTO_TWO_BURN_ALTITUDE_M` | `250,000 m` | `HEURISTIC` | — | `v1.3.1` | What-If default altitude threshold to enable two-burn Hohmann transfer when ascentProfile is omitted |
 | `IRIDIUM_8_DRONESHIP_DOWNRANGE_KM` | `244 km` | `ASSUMED` | — | `e87a77e` | Estimated from Pacific NOTMAR hazard zone & observed 33 s partial boostback burn (exact km unpublished in press kit) |
+| `CLOSED_LOOP_MECO_TRIGGER_RATIO` | `1.45` | `HEURISTIC` | — | `388a1cd` | Activate real-time closed-loop MECO reserve estimator when S1 prop drops below 1.45x nominal reserve |
+| `BOOSTBACK_LOCAL_G_MS2` | `9.55 m/s^2` | `ASSUMED` | — | `v1.0.0` | Effective local gravity at ~60-100 km boostback altitude for analytic ballistic impact predictor |
+| `BOOSTBACK_FLIP_COAST_S` | `15 s` | `ASSUMED` | — | `388a1cd` | Cold-gas RCS 180 deg flip duration (~180 deg / 12 deg/s) added to stageSepDelayS in closed-loop MECO predictor |
+| `BOOSTBACK_DRAG_FACTOR_RTLS` | `0.92` | `ASSUMED` | — | `v1.0.0` | Ballistic time-of-flight drag shortening factor (~8% loss) for steeper RTLS descent |
+| `BOOSTBACK_DRAG_FACTOR_ASDS_BB` | `0.965` | `ASSUMED` | — | `5a610c4` | Ballistic time-of-flight drag shortening factor (~3.5% loss) for shallower close-in ASDS partial boostback |
+| `BOOSTBACK_DEFAULT_PITCH_DEG` | `-4 deg` | `ASSUMED` | — | `v1.0.0` | Fallback boostback thrust depression angle when boostbackPitchDeg is omitted |
+| `CLOSED_LOOP_BB_PITCH_TOF_COEFF` | `0.28` | `HEURISTIC` | — | `388a1cd` | Linear approximation of downward boostback pitch apogee/time-of-flight shortening in MECO reserve estimator |
+| `CLOSED_LOOP_MIN_TFLIGHT_S` | `10 s` | `HEURISTIC` | — | `388a1cd` | Numerical floor on predicted boostback time-of-flight in closed-loop MECO reserve estimator |
+| `CLOSED_LOOP_LANDING_DV_MS` | `720 m/s` | `ASSUMED` | — | `388a1cd` | Budgeted landing-burn delta-v in closed-loop MECO propellant reserve estimator |
+| `CLOSED_LOOP_ENTRY_DV_MIN_MS` | `550 m/s` | `ASSUMED` | — | `388a1cd` | Minimum budgeted entry-burn delta-v in closed-loop MECO propellant reserve estimator |
+| `CLOSED_LOOP_ENTRY_DV_MAX_MS` | `920 m/s` | `ASSUMED` | — | `388a1cd` | Maximum budgeted entry-burn delta-v in closed-loop MECO propellant reserve estimator |
+| `CLOSED_LOOP_ENTRY_DV_VFALL_FRAC` | `0.54` | `ASSUMED` | — | `388a1cd` | Fraction of estimated ballistic fall speed budgeted for entry burn in closed-loop MECO estimator |
+| `CLOSED_LOOP_BB_DV_MARGIN_MULT` | `1.05` | `ASSUMED` | — | `388a1cd` | 5% finite-burn / gravity-loss margin on boostback delta-v in closed-loop MECO estimator |
+| `ASCENT_MAX_Q_ALT_CEILING_M` | `28,000 m` | `ASSUMED` | — | `v1.0.0` | Altitude ceiling below which transonic max-Q throttle bucket can engage |
+| `ASCENT_BUCKET_RAMP_FRAC` | `0.2` | `ASSUMED` | — | `04d3799` | Trapezoidal max-Q throttle bucket ramp-in/out fraction of total duration |
+| `ASCENT_BUCKET_MAX_RAMP_S` | `5 s` | `ASSUMED` | — | `04d3799` | Maximum trapezoidal max-Q throttle bucket ramp duration |
+| `ASCENT_MAX_Q_RAMP_DOWN_START_MACH` | `1.02 Mach` | `ASSUMED` | — | `v1.0.0` | Shared v1 max-Q throttle bucket ramp-down start Mach |
+| `ASCENT_MAX_Q_RAMP_DOWN_WIDTH_MACH` | `0.2 Mach` | `ASSUMED` | — | `v1.0.0` | Shared v1 max-Q throttle bucket ramp-down Mach span (1.02..1.22) |
+| `ASCENT_MAX_Q_RAMP_UP_START_MACH` | `1.24 Mach` | `ASSUMED` | — | `v1.0.0` | Shared v1 max-Q throttle bucket ramp-up start Mach |
+| `ASCENT_MAX_Q_RAMP_UP_MIN_WIDTH_MACH` | `0.05 Mach` | `HEURISTIC` | — | `v1.0.0` | Minimum denominator Mach span guard during max-Q throttle bucket ramp-up |
+| `STAGE2_COAST_PRE_PITCH_RAD` | `0.25 rad` | `ASSUMED` | — | `v1.0.0` | Stage 2 pre-SES-1 coast attitude pitch (~14 deg above horizontal) |
+| `STAGE2_DV_HORIZ_FLOOR_FRAC` | `0.98` | `HEURISTIC` | — | `0e1d762` | Horizontal delta-v floor multiplier in direct-insertion PEG t_go estimate |
+| `STAGE2_GLIMIT_MASS_MARGIN` | `1.001` | `HEURISTIC` | — | `0e1d762` | 0.1% mass tolerance for detecting Stage 2 axial G-limited burn phase |
+| `STAGE2_MIN_ATHRUST_GUARD_MS2` | `0.1 m/s^2` | `HEURISTIC` | — | `v1.0.0` | Numerical floor on Stage 2 thrust acceleration in guidance divisions |
+| `STAGE2_PEG_MIN_TGO_S` | `3 s` | `ASSUMED` | — | `0e1d762` | Minimum PEG time-to-go clamp during direct insertion |
+| `STAGE2_PEG_MAX_TAU_FRAC` | `0.96` | `HEURISTIC` | — | `0e1d762` | Maximum fraction of propellant exhaustion time tau in PEG t_go clamp |
+| `STAGE2_PEG_LOFT_MIN_TGO_S` | `15 s` | `ASSUMED` | — | `0e1d762` | Minimum t_go to use exact variable-mass PEG integrals during high-altitude direct loft |
+| `STAGE2_DIRECT_LOFT_MIN_SIN_THETA` | `-0.8` | `ASSUMED` | — | `0e1d762` | Minimum sin(pitch) clamp for high-altitude (>250 km) direct-insertion loft |
+| `STAGE2_DIRECT_LOFT_MAX_SIN_THETA` | `0.9` | `ASSUMED` | — | `0e1d762` | Maximum sin(pitch) clamp for high-altitude (>250 km) direct-insertion loft |
+| `STAGE2_DIRECT_MIN_SIN_THETA` | `-0.55` | `ASSUMED` | — | `v1.0.0` | Minimum sin(pitch) clamp for standard LEO direct insertion |
+| `STAGE2_DIRECT_MAX_SIN_THETA` | `0.72` | `ASSUMED` | — | `v1.0.0` | Maximum sin(pitch) clamp for standard LEO direct insertion & SES-1 |
+| `STAGE2_YAW_GAIN_SES1` | `26` | `ASSUMED` | — | `v1.0.0` | Cross-track orbital inclination steering proportional gain during SES-1 / direct burn |
+| `STAGE2_MAX_SIN_YAW_SES1` | `0.35` | `ASSUMED` | — | `v1.0.0` | Maximum sin(yaw) steering authority (~20.5 deg) during SES-1 / direct burn |
+| `STAGE2_SECO1_MIN_PERIGEE_M` | `120,000 m` | `ASSUMED` | — | `v1.3.1` | Minimum transfer-orbit perigee altitude required before two-burn SECO-1 cutoff |
+| `STAGE2_SES1_MIN_DV_REM_MS` | `20 m/s` | `HEURISTIC` | — | `v1.3.1` | Minimum remaining delta-v floor in two-burn SES-1 t_go estimate |
+| `STAGE2_SES1_MIN_TGO_S` | `25 s` | `ASSUMED` | — | `v1.3.1` | Minimum t_go clamp for two-burn SES-1 radial BVP guidance |
+| `STAGE2_SES1_MIN_SIN_THETA` | `-0.45` | `ASSUMED` | — | `v1.3.1` | Minimum sin(pitch) clamp during two-burn SES-1 transfer orbit insertion |
+| `STAGE2_KEPLER_MAX_ECC` | `0.99` | `HEURISTIC` | — | `v1.3.1` | Upper eccentricity guard for elliptic Keplerian time-to-apoapsis solver |
+| `STAGE2_COAST_DESCENDING_GUARD_S` | `120 s` | `HEURISTIC` | — | `v1.3.1` | Early post-SECO-1 coast window before treating v_radial < 0 as past apoapsis |
+| `STAGE2_COAST_MIN_DURATION_S` | `60 s` | `ASSUMED` | — | `v1.3.1` | Minimum ballistic transfer coast duration before allowing SES-2 ignition |
+| `STAGE2_COAST_APOAPSIS_FALLBACK_S` | `300 s` | `ASSUMED` | — | `v1.3.1` | Coast elapsed time after which v_radial <= 0 triggers SES-2 apoapsis ignition fallback |
+| `STAGE2_YAW_GAIN_SES2` | `12` | `ASSUMED` | — | `v1.3.1` | Gentle cross-track inclination trim gain during SES-2 circularization |
+| `STAGE2_MAX_SIN_YAW_SES2` | `0.15` | `ASSUMED` | — | `v1.3.1` | Maximum sin(yaw) trim authority (~8.6 deg) during SES-2 circularization |
+| `STAGE2_SECO2_PERIGEE_TOL_M` | `1,500 m` | `ASSUMED` | — | `v1.3.1` | Perigee altitude tolerance for SECO-2 circularization cutoff |
 
 ### Booster Recovery & Entry
 
@@ -109,6 +155,65 @@ Every `SOURCED`, `CALIBRATED`, `EMPIRICAL`, `ASSUMED`, and `HEURISTIC` constant 
 | `ANTI_HOVER_FLARE_DELAY_S` | `3.5 s` | `HEURISTIC` | — | `a6e7a2f` | Terminal flare dwell time before ramping vTd to break unaided INS velocity-bias hover-hang |
 | `ANTI_HOVER_FLARE_RAMP_MS_PER_S` | `0.15 m/s^2` | `HEURISTIC` | — | `a6e7a2f` | Smooth vTd ramp rate after flare dwell delay so descent resumes without hard free-fall |
 | `ANTI_HOVER_FLARE_MAX_ADD_MS` | `0.65 m/s` | `HEURISTIC` | — | `a6e7a2f` | Maximum additional descent speed commanded by anti-hover ramp (caps vTd at 1.20 m/s) |
+| `ENTRY_PRED_MAX_TIME_S` | `120 s` | `ASSUMED` | — | `99843f1` | Ballistic entry heating lookahead integration horizon |
+| `ENTRY_PRED_MIN_ALT_M` | `4,000 m` | `ASSUMED` | — | `99843f1` | Ballistic entry heating lookahead altitude floor |
+| `ENTRY_PRED_EARTH_RADIUS_M` | `6.3710e+6 m` | `ASSUMED` | — | `99843f1` | Rounded mean Earth radius used in 2D ballistic entry lookahead gravity scaling |
+| `ENTRY_PRED_CACHE_INTERVAL_S` | `0.49 s` | `HEURISTIC` | — | `99843f1` | Ballistic entry lookahead cache refresh interval (~2 Hz) |
+| `ASDS_DECK_HEAVE_PERIOD_S` | `7 s` | `ASSUMED` | — | `v1.1.0` | Simplified ocean swell heave period for ASDS barge deck motion |
+| `ASDS_DECK_ROLL_PERIOD_S` | `8 s` | `ASSUMED` | — | `v1.1.0` | Simplified ocean swell roll period for ASDS barge deck motion |
+| `ASDS_DECK_ROLL_PHASE_MULT` | `1.3` | `ASSUMED` | — | `v1.1.0` | Phase offset multiplier decorrelating ASDS barge roll from heave |
+| `TOUCHDOWN_CHECK_DELAY_S` | `10 s` | `HEURISTIC` | — | `v1.0.0` | Post-stage-separation guard delay before enabling ground/deck touchdown detection |
+| `TOUCHDOWN_MAX_MISS_RTLS_M` | `15 m` | `ASSUMED` | — | `v1.1.0` | Strict RTLS lateral touchdown miss criterion (< 15 m on concrete pad) |
+| `TOUCHDOWN_MAX_MISS_ASDS_M` | `10 m` | `ASSUMED` | — | `v1.1.0` | Strict ASDS lateral touchdown miss criterion (< 10 m on barge deck) |
+| `TOUCHDOWN_MAX_TILT_DEG` | `5 deg` | `ASSUMED` | — | `v1.1.0` | Strict touchdown tilt criterion (< 5 deg including ASDS deck roll) |
+| `BOOSTER_SEP_COAST_S` | `3 s` | `ASSUMED` | — | `v1.0.0` | Post-stage-separation coast duration before initiating cold-gas RCS flip |
+| `BOOSTER_MIN_DRY_MASS_FLOOR_KG` | `10,000 kg` | `HEURISTIC` | — | `388a1cd` | Numerical safety floor on instantaneous booster dry mass |
+| `BOOSTER_LANDING_RESERVE_DV_MS` | `650 m/s` | `ASSUMED` | — | `388a1cd` | Tsiolkovsky landing-burn delta-v reserve used for actual-mass entry cutoff |
+| `BOOSTER_ENTRY_IGN_EXTRA_PROP_KG` | `1,500 kg` | `ASSUMED` | — | `388a1cd` | Minimum extra propellant above landing reserve required to ignite entry burn |
+| `BOOSTER_ENTRY_RESERVE_DV_MS` | `650 m/s` | `ASSUMED` | — | `388a1cd` | Tsiolkovsky entry-burn delta-v reserve used for actual-mass boostback cutoff |
+| `BOOSTER_FLIP_TARGET_MIN_DIST_M` | `100 m` | `HEURISTIC` | — | `v1.0.0` | Minimum horizontal distance to target for boostback flip vector calculation |
+| `BOOSTER_FLIP_COMPLETE_RAD` | `0.14 rad` | `ASSUMED` | — | `v1.0.0` | Attitude alignment tolerance (~8 deg) to finish cold-gas RCS flip |
+| `BOOSTBACK_CUTOFF_MISS_RTLS_M` | `1,500 m` | `ASSUMED` | — | `v1.0.0` | RTLS boostback ballistic impact miss cutoff threshold (grid fins close remaining miss) |
+| `BOOSTBACK_CUTOFF_MISS_ASDS_BB_M` | `500 m` | `ASSUMED` | — | `5a610c4` | Close-in ASDS partial-boostback ballistic impact miss cutoff threshold |
+| `BOOSTER_THREE_ENGINE_INDICES` | `[0, 1, 5] idx` | `SOURCED` | — | `v1.0.0` | Falcon 9 3-engine burn configuration (center engine 0 + opposite outer engines 1 & 5) |
+| `ENTRY_IGN_MIN_DESCENT_RATE_MS` | `-50 m/s` | `ASSUMED` | — | `99843f1` | Minimum downward speed to evaluate predictive entry-burn ignition |
+| `ENTRY_IGN_MAX_ALT_M` | `95,000 m` | `ASSUMED` | — | `99843f1` | Maximum altitude to begin predictive entry-burn heating lookahead |
+| `ENTRY_AERO_FALLBACK_ALT_M` | `35,000 m` | `ASSUMED` | — | `99843f1` | Altitude below which ballistic coast transitions to aero descent if no entry burn was needed |
+| `ENTRY_CUTOFF_MIN_ALT_M` | `28,000 m` | `ASSUMED` | — | `99843f1` | Minimum altitude safety cutoff floor for 3-engine entry burn |
+| `LANDING_NOM_THROTTLE_FRAC` | `0.88` | `ASSUMED` | — | `e87a77e` | Nominal 1-engine throttle fraction (88%) used for suicide-burn ignition altitude sizing |
+| `LANDING_3ENG_THROTTLE_SUM` | `2.4` | `ASSUMED` | — | `e87a77e` | 3-engine emergency stopping thrust multiplier (80% x 3 engines) for hStop3 envelope |
+| `LANDING_3ENG_MIN_ANET_MS2` | `4 m/s^2` | `HEURISTIC` | — | `e87a77e` | Minimum net 3-engine deceleration floor in hStop3 calculation |
+| `LANDING_IGN_ALT_BIAS_M` | `35 m` | `ASSUMED` | — | `e87a77e` | Ignition altitude safety bias above analytic zero-altitude stopping height |
+| `LANDING_MAX_IGN_ALT_CEILING_M` | `6,000 m` | `ASSUMED` | — | `e87a77e` | Upper cap on landing-burn ignition altitude |
+| `LANDING_MAX_IGN_ALT_FLOOR_M` | `4,500 m` | `ASSUMED` | — | `e87a77e` | Nominal landing-burn ignition ceiling allowing free aerodynamic drag braking |
+| `LANDING_HSTOP3_MARGIN_MULT` | `1.15` | `ASSUMED` | — | `e87a77e` | 15% margin on 3-engine stopping altitude when raising landing ignition ceiling |
+| `LANDING_IGN_MIN_VUP_MS` | `-5 m/s` | `ASSUMED` | — | `v1.0.0` | Minimum downward speed required to ignite landing burn |
+| `AERO_GLIDE_TOF_FACTOR` | `0.92` | `ASSUMED` | — | `v1.1.0` | Gravity-steepening factor on unpowered aero glide-slope time-to-go |
+| `AERO_GLIDE_MIN_VDOWN_MS` | `40 m/s` | `HEURISTIC` | — | `v1.1.0` | Numerical floor on downward speed in aero glide-slope predictor |
+| `AERO_GLIDE_MIN_ALT_REF_M` | `600 m` | `HEURISTIC` | — | `v1.1.0` | Minimum altitude denominator in aero glide-slope angular error calculation |
+| `AERO_GRID_FIN_GAIN` | `1.15` | `ASSUMED` | — | `v1.1.0` | Proportional gain mapping aero glide-slope angular error (deg) to grid-fin deflection (deg) |
+| `LANDING_LEGS_DEPLOY_ALT_M` | `120 m` | `ASSUMED` | — | `v1.0.0` | Altitude AGL at which Falcon 9 Block 5 landing legs deploy |
+| `TERMINAL_FLARE_TRANSITION_MARGIN_M` | `0.25 m` | `HEURISTIC` | — | `e87a77e` | Height margin above hFlare for switching from quadratic hoverslam to proportional flare |
+| `TERMINAL_FLARE_DENOM_FLOOR_M` | `0.35 m` | `HEURISTIC` | — | `e87a77e` | Minimum denominator in quadratic hoverslam vertical braking law near hFlare |
+| `TERMINAL_FLARE_VEL_GAIN` | `2.4 s^-1` | `ASSUMED` | — | `e87a77e` | Proportional vertical velocity damping gain in terminal flare |
+| `LANDING_TGO_MIN_VDEN_MS` | `1.5 m/s` | `HEURISTIC` | — | `v1.1.0` | Minimum velocity denominator in constant-deceleration t_go calculation |
+| `LANDING_ZEM_GATE_LEAD_S` | `1.8 s` | `ASSUMED` | — | `v1.1.0` | Terminal vertical alignment gate lead time prior to touchdown |
+| `LANDING_ZEM_GATE_MIN_TGO_S` | `0.8 s` | `HEURISTIC` | — | `v1.1.0` | Minimum t_go floor for ZEM/ZEV lateral guidance |
+| `LANDING_ZEM_MIN_ALT_M` | `12 m` | `ASSUMED` | — | `v1.1.0` | Altitude AGL below which ZEM/ZEV transitions to terminal vertical lateral damping |
+| `LANDING_ZEM_MIN_TGO_S` | `2.4 s` | `ASSUMED` | — | `v1.1.0` | Minimum total t_go required to keep ZEM/ZEV lateral targeting active |
+| `LANDING_TERM_POS_CUTOFF_ALT_M` | `3 m` | `ASSUMED` | — | `v1.1.0` | Altitude AGL below which terminal lateral position weight fades to zero |
+| `LANDING_TERM_POS_FADE_SPAN_M` | `9 m` | `ASSUMED` | — | `v1.1.0` | Altitude span (3..12 m AGL) over which terminal lateral position weight fades |
+| `LANDING_TERM_POS_GAIN` | `0.8 s^-2` | `ASSUMED` | — | `v1.1.0` | Terminal vertical descent lateral position gain |
+| `LANDING_TERM_VEL_GAIN` | `3.2 s^-1` | `ASSUMED` | — | `v1.1.0` | Terminal vertical descent lateral velocity damping gain |
+| `LANDING_UPRIGHT_FLARE_ALT_M` | `2.6 m` | `ASSUMED` | — | `v1.1.0` | Altitude AGL below which max tilt linearly flares to 0 deg by 0.5 m AGL |
+| `LANDING_UPRIGHT_FLARE_SPAN_M` | `2.1 m` | `ASSUMED` | — | `v1.1.0` | Altitude span (0.5..2.6 m AGL) for final upright alignment flare |
+| `LANDING_MAX_TILT_FLARE_RAD` | `0.12 rad` | `ASSUMED` | — | `v1.1.0` | Max tilt limit (~6.9 deg) entering final upright alignment flare |
+| `LANDING_MAX_TILT_LOW_ALT_M` | `30 m` | `ASSUMED` | — | `v1.1.0` | Altitude threshold for intermediate terminal tilt cap |
+| `LANDING_MAX_TILT_LOW_RAD` | `0.35 rad` | `ASSUMED` | — | `v1.1.0` | Max tilt limit (~20 deg) below 30 m AGL |
+| `LANDING_MAX_TILT_HIGH_RAD` | `0.65 rad` | `ASSUMED` | — | `v1.1.0` | Max tilt limit (~37 deg) during upper landing burn |
+| `LANDING_3TO1_MIN_VDOWN_MS` | `15 m/s` | `ASSUMED` | — | `e87a77e` | Minimum downward speed for unified 3-to-1 landing-burn engine handoff |
+| `LANDING_3TO1_MIN_ALT_M` | `30 m` | `ASSUMED` | — | `e87a77e` | Minimum altitude AGL for unified 3-to-1 landing-burn engine handoff |
+| `LANDING_3TO1_THRUST_FRAC` | `0.9` | `ASSUMED` | — | `e87a77e` | Single-engine thrust utilization threshold (90%) for unified 3-to-1 landing-burn handoff |
 
 ### Mission Design & Solver
 
@@ -123,6 +228,21 @@ Every `SOURCED`, `CALIBRATED`, `EMPIRICAL`, `ASSUMED`, and `HEURISTIC` constant 
 | `SOLVER_BOOSTBACK_FUEL_FLOOR_KG` | `3,500 kg` | `CALIBRATED` | DEFAULT_RTLS (MC N=300x9) | `a6e7a2f` | Boostback-class nominal landing fuel floor from measured skewed left-tail 3-sigma post-MECO RSS = 3,465 kg (9 MC drivers) |
 | `SOLVER_BALLISTIC_FUEL_FLOOR_KG` | `2,500 kg` | `CALIBRATED` | Iridium NEXT 8, SAOCOM 1A | `d5a054e` | Ballistic ASDS lean touchdown propellant margin floor derived from 8-flight aero-descent mass inference (~30.5-31.6 t) |
 | `SOLVER_MAX_GRID_FIN_SAT_FRACTION` | `0.15` | `ASSUMED` | — | `v1.3.0` | Maximum allowable aero-descent grid-fin saturation fraction for mission-design feasibility |
+| `WHATIF_GTO_ALTITUDE_THRESHOLD_M` | `1.0000e+7 m` | `HEURISTIC` | — | `v1.3.0` | Target altitude threshold selecting GTO default pitchover kick in What-If |
+| `SOLVER_GRID_FIN_PINNED_DEG` | `19.9 deg` | `ASSUMED` | — | `v1.3.0` | Grid-fin deflection threshold counting as saturated against +/-20 deg limit |
+| `SOLVER_ENTRY_HEAT_ALT_CEILING_M` | `90,000 m` | `ASSUMED` | — | `70826b1` | Altitude ceiling for evaluating peak descent convective heating in mission-design solver |
+| `SOLVER_INFEASIBLE_ORBIT_WEIGHT` | `1.0000e+6` | `HEURISTIC` | — | `v1.3.0` | Fallback ranking score weight prioritizing orbit achievement when no candidate is feasible |
+| `SOLVER_INFEASIBLE_LANDED_WEIGHT` | `100,000` | `HEURISTIC` | — | `v1.3.0` | Fallback ranking score weight prioritizing booster landing when no candidate is feasible |
+| `SOLVER_DEFAULT_DT_S` | `0.05 s` | `ASSUMED` | — | `v1.3.0` | Coarse integration timestep for mission-design solver candidate sweeps (winners verified at 0.01 s) |
+| `SOLVER_EXPENDABLE_RESERVE_FRAC` | `0.005` | `ASSUMED` | — | `v1.3.0` | Stage 1 MECO propellant reserve fraction for expendable missions (0.5%) |
+| `SOLVER_MIN_KICK_DEG` | `1.1 deg` | `ASSUMED` | — | `v1.3.0` | Default lower pitchover kick search bound for mission-design solver |
+| `SOLVER_MAX_KICK_DEG` | `2.6 deg` | `ASSUMED` | — | `v1.3.0` | Default upper pitchover kick search bound for mission-design solver |
+| `SOLVER_COARSE_KICK_STEP_DEG` | `0.15 deg` | `ASSUMED` | — | `v1.3.0` | Coarse pitchover kick search grid step |
+| `SOLVER_FINE_KICK_STEP_DEG` | `0.05 deg` | `ASSUMED` | — | `v1.3.0` | Fine pitchover kick local refinement step |
+| `SOLVER_RTLS_RESERVE_CANDIDATES` | `[0.115, 0.12, 0.125, 0.13, 0.135, 0.145, 0.155, 0.165]` | `ASSUMED` | — | `d5a054e` | Candidate RTLS MECO propellant reserve search grid (ascending) |
+| `SOLVER_ASDS_BB_RESERVE_CANDIDATES` | `[0.075, 0.085, 0.095, 0.1, 0.105, 0.115, 0.125, 0.135, 0.145]` | `ASSUMED` | — | `d5a054e` | Candidate close-in ASDS partial-boostback MECO propellant reserve search grid (ascending) |
+| `SOLVER_BOOSTBACK_PITCH_CANDIDATES_DEG` | `[-4, -7, -10, -13, -16, -19, -22, -25, -28, -31, -34, -37, -40, -43, -46] deg` | `ASSUMED` | — | `5418ae4` | Candidate boostback thrust depression angle search grid (-4..-46 deg in 3 deg steps) |
+| `SOLVER_REF_BOOSTBACK_PITCH_DEG` | `-16 deg` | `HEURISTIC` | — | `70826b1` | Reference boostback thrust pitch angle used during initial ascent-kick sweep |
 
 ### Monte Carlo & Navigation
 

@@ -2,6 +2,15 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
+## [1.9.2] — 2026-11-24 (Close Registry Blind Spot: AST Numeric-Literal Guard — Zero Physics Changes)
+
+### Added
+- **TypeScript AST magic-literal guard (`tests/constants-registry.test.ts`):**
+  - Flags any numeric literal in `src/sim/guidance/**` and `src/sim/models/**` outside a tight allowlist (`0, 1, 2, 0.5, -1`, unit conversions `1000 / 3600 / 1e6`, numerical stability epsilons `<= 1e-3`, array indices, `.toFixed()`/`.slice()`, and explicitly `/* math: ... */`-annotated textbook formulas such as Legendre `P_2` and ZEM/ZEV BVP `6/4`).
+- **Complete guidance & model constant registration (`src/sim/config/registry.ts`, `docs/ASSUMPTIONS.md`):**
+  - Moved all remaining tuned/assumed/heuristic/sourced guidance and model values (landing-burn 3→1 handoff thresholds, flare/anti-hover timings, ignition envelopes, boostback drag factors, Stage 2 PEG/coast/yaw parameters, solver candidate grids, US76 layer table, and grid-fin deflection cap) into `CONSTANTS_REGISTRY` (208 total entries) and regenerated `docs/ASSUMPTIONS.md`.
+- **Verification:** Bit-identical Monte Carlo output vs `v1.9.1` on seed `496045` (`ASDS N=200`, `RTLS N=200`, `Iridium 8 N=50` — zero-byte diff across all IEEE-754 metrics); all 14 test files (51 tests) pass.
+
 ## [1.9.1] — 2026-11-24 (Constants Registry, Auto-Generated ASSUMPTIONS Tables & Fidelity Audit — Zero Physics Changes)
 
 ### Added

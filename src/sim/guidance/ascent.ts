@@ -110,7 +110,7 @@ function computeClosedLoopMecoReserveKg(
   // Real-time closed-loop boostback + entry + landing budget for RTLS & close-in ASDS-BB
   if (
     input.positionEci !== undefined &&
-    input.stage1PropellantKg < reqKg * 1.45 &&
+    input.stage1PropellantKg < reqKg * R.CLOSED_LOOP_MECO_TRIGGER_RATIO.value &&
     (mission.landingMode === 'RTLS' || mission.droneshipDownrangeKm !== undefined)
   ) {
     const target = resolveAscentRecoveryTarget(mission, input.launchAzimuthDeg);
@@ -120,36 +120,48 @@ function computeClosedLoopMecoReserveKg(
       const targetEci = ecefToEci(geodeticToEcef(target), input.timeS);
       const toTargetEci = sub(targetEci, input.positionEci);
       const toTargetHoriz = sub(toTargetEci, scale(basis.up, dot(toTargetEci, basis.up)));
-      const gLocal = 9.55;
+      const gLocal = R.BOOSTBACK_LOCAL_G_MS2.value;
       const hAbove = Math.max(0, input.altitudeM - target.altitudeM);
       // Propagate physical stage-sep + cold-gas RCS flip coast before boostback ignition
-      const tFlipCoast = gCfg.stageSepDelayS + 15.0;
+      const tFlipCoast = gCfg.stageSepDelayS + R.BOOSTBACK_FLIP_COAST_S.value;
       const hFlip = Math.max(0, hAbove + vUp * tFlipCoast - 0.5 * gLocal * tFlipCoast * tFlipCoast);
       const vUpFlip = vUp - gLocal * tFlipCoast;
       const toTargetHorizFlip = sub(toTargetHoriz, scale(vHorizVec, tFlipCoast));
       const disc = Math.max(0, vUpFlip * vUpFlip + 2 * gLocal * hFlip);
-      const dragFactor = mission.landingMode === 'RTLS' ? 0.92 : 0.965;
-      const bbPitchRad = (gCfg.boostbackPitchDeg ?? -4.0) * DEG_TO_RAD;
+      const dragFactor =
+        mission.landingMode === 'RTLS'
+          ? R.BOOSTBACK_DRAG_FACTOR_RTLS.value
+          : R.BOOSTBACK_DRAG_FACTOR_ASDS_BB.value;
+      const bbPitchRad =
+        (gCfg.boostbackPitchDeg ?? R.BOOSTBACK_DEFAULT_PITCH_DEG.value) * DEG_TO_RAD;
       // Downward boostback pitch depresses apogee and shortens ballistic flight time
       const tFlight =
         ((vUpFlip + Math.sqrt(disc)) / gLocal) *
         dragFactor *
-        (1 + 0.28 * Math.sin(bbPitchRad));
-      const predMiss = sub(scale(vHorizVec, Math.max(10, tFlight)), toTargetHorizFlip);
+        (1 + R.CLOSED_LOOP_BB_PITCH_TOF_COEFF.value * Math.sin(bbPitchRad));
+      const minTFlight = R.CLOSED_LOOP_MIN_TFLIGHT_S.value;
+      const predMiss = sub(scale(vHorizVec, Math.max(minTFlight, tFlight)), toTargetHorizFlip);
       const missDist = norm(predMiss);
       const dvBb =
-        missDist / Math.max(10, tFlight) / Math.max(0.5, Math.cos(bbPitchRad));
+        missDist / Math.max(minTFlight, tFlight) / Math.max(0.5, Math.cos(bbPitchRad));
 
       const ispVac = vehicle.stage1.engine.ispVacuumS * ispScale;
       const ispSl = vehicle.stage1.engine.ispSeaLevelS * ispScale;
-      const dvLnd = 720;
+      const dvLnd = R.CLOSED_LOOP_LANDING_DV_MS.value;
       const vFallEst = Math.sqrt(Math.max(0, vUp * vUp + 2 * gLocal * hAbove));
-      const dvEnt = Math.min(920, Math.max(550, 0.54 * vFallEst));
+      const dvEnt = Math.min(
+        R.CLOSED_LOOP_ENTRY_DV_MAX_MS.value,
+        Math.max(
+          R.CLOSED_LOOP_ENTRY_DV_MIN_MS.value,
+          R.CLOSED_LOOP_ENTRY_DV_VFALL_FRAC.value * vFallEst
+        )
+      );
 
       const mAfterEnt =
         (mDryActual + CLOSED_LOOP_LEAN_FLOOR_KG) * Math.exp(dvLnd / (ispSl * G0));
       const mAfterBb = mAfterEnt * Math.exp(dvEnt / (ispVac * G0));
-      const mAtMeco = mAfterBb * Math.exp((dvBb * 1.05) / (ispVac * G0));
+      const mAtMeco =
+        mAfterBb * Math.exp((dvBb * R.CLOSED_LOOP_BB_DV_MARGIN_MULT.value) / (ispVac * G0));
       const closedLoopKg = mAtMeco - mDryActual;
 
       if (closedLoopKg > reqKg) {
@@ -257,7 +269,7 @@ export function computeAscentGuidance(
   ) {
     if (
       throttleBucketStartTimeS === null &&
-      input.altitudeM < 28_000 &&
+      input.altitudeM < R.ASCENT_MAX_Q_ALT_CEILING_M.value &&
       input.mach >= gCfg.maxQThrottleStartMach
     ) {
       throttleBucketStartTimeS = input.timeS;
@@ -267,7 +279,11 @@ export function computeAscentGuidance(
       const dur = gCfg.maxQThrottleDurationS;
       if (dtBucket >= 0 && dtBucket < dur) {
         phase = 'MAX_Q_THROTTLE';
-        const rampS = clamp(0.2 * dur, 2.0, 5.0);
+        const rampS = clamp(
+          R.ASCENT_BUCKET_RAMP_FRAC.value * dur,
+          2.0,
+          R.ASCENT_BUCKET_MAX_RAMP_S.value
+        );
         if (dtBucket < rampS) {
           const frac = clamp(dtBucket / rampS, 0, 1);
           throttle = Math.min(throttle, 1.0 - frac * (1.0 - gCfg.maxQMinThrottle));
@@ -283,19 +299,29 @@ export function computeAscentGuidance(
       }
     }
   } else if (
-    input.altitudeM < 28_000 &&
+    input.altitudeM < R.ASCENT_MAX_Q_ALT_CEILING_M.value &&
     input.dynamicPressurePa >= gCfg.maxQThrottleStartPa &&
     input.mach < gCfg.maxQThrottleEndMach
   ) {
     phase = 'MAX_Q_THROTTLE';
-    if (input.mach < 1.24) {
+    const rampUpMach = R.ASCENT_MAX_Q_RAMP_UP_START_MACH.value;
+    if (input.mach < rampUpMach) {
       // Smoothly ramp down across Mach 1.02..1.22 so q peaks naturally near T+58-61 s
-      const rampDown = clamp((input.mach - 1.02) / 0.20, 0, 1);
+      const rampDown = clamp(
+        (input.mach - R.ASCENT_MAX_Q_RAMP_DOWN_START_MACH.value) /
+          R.ASCENT_MAX_Q_RAMP_DOWN_WIDTH_MACH.value,
+        0,
+        1
+      );
       throttle = Math.min(throttle, 1.0 - rampDown * (1.0 - gCfg.maxQMinThrottle));
     } else {
       // Smoothly ramp back up from Mach 1.24 to maxQThrottleEndMach
       const rampUp = clamp(
-        (input.mach - 1.24) / Math.max(0.05, gCfg.maxQThrottleEndMach - 1.24),
+        (input.mach - rampUpMach) /
+          Math.max(
+            R.ASCENT_MAX_Q_RAMP_UP_MIN_WIDTH_MACH.value,
+            gCfg.maxQThrottleEndMach - rampUpMach
+          ),
         0,
         1
       );

@@ -78,10 +78,10 @@ export function defaultWhatIfPitchKickDeg(
   targetOrbitAltitudeM: number,
   isGto = false
 ): number {
-  if (isGto || targetOrbitAltitudeM >= 10_000_000) {
+  if (isGto || targetOrbitAltitudeM >= R.WHATIF_GTO_ALTITUDE_THRESHOLD_M.value) {
     return PROFILE_DEFAULT_PITCH_KICK_DEG.GTO;
   }
-  if (targetOrbitAltitudeM > 250_000) {
+  if (targetOrbitAltitudeM > R.AUTO_TWO_BURN_ALTITUDE_M.value) {
     return PROFILE_DEFAULT_PITCH_KICK_DEG.LEO_TWO_BURN;
   }
   return PROFILE_DEFAULT_PITCH_KICK_DEG.LEO_DIRECT;
@@ -155,12 +155,14 @@ function evaluateCandidate(
   };
   const res = runFullMission(vehicle, candidate, 1.0);
   const aero = res.boosterSamples.filter((s) => s.phase === 'AERO_DESCENT');
-  const pinned = aero.filter((s) => Math.abs(s.gridFinDeflectionDeg) >= 19.9);
+  const pinned = aero.filter(
+    (s) => Math.abs(s.gridFinDeflectionDeg) >= R.SOLVER_GRID_FIN_PINNED_DEG.value
+  );
   const gridFinSatFraction = aero.length > 0 ? pinned.length / aero.length : 0;
 
   let peakEntryHeatingMWm2 = 0;
   for (const s of res.boosterSamples) {
-    if (s.verticalSpeedMs < 0 && s.geodetic.altitudeM < 90_000) {
+    if (s.verticalSpeedMs < 0 && s.geodetic.altitudeM < R.SOLVER_ENTRY_HEAT_ALT_CEILING_M.value) {
       const rho = sampleAtmosphere(s.geodetic.altitudeM).densityKgM3;
       const v = s.speedAirRelMs;
       const qDotMWm2 =
@@ -224,14 +226,16 @@ function solveKickForReserve(
 
   const feasibleCoarse = coarseResults.filter((r) => r.feasible);
   if (feasibleCoarse.length === 0) {
+    const orbW = R.SOLVER_INFEASIBLE_ORBIT_WEIGHT.value;
+    const lndW = R.SOLVER_INFEASIBLE_LANDED_WEIGHT.value;
     coarseResults.sort((a, b) => {
       const sa =
-        (a.orbitAchieved ? 1e6 : 0) +
-        (a.boosterOutcome === 'LANDED' ? 1e5 : 0) +
+        (a.orbitAchieved ? orbW : 0) +
+        (a.boosterOutcome === 'LANDED' ? lndW : 0) +
         a.boosterFuelMarginKg;
       const sb =
-        (b.orbitAchieved ? 1e6 : 0) +
-        (b.boosterOutcome === 'LANDED' ? 1e5 : 0) +
+        (b.orbitAchieved ? orbW : 0) +
+        (b.boosterOutcome === 'LANDED' ? lndW : 0) +
         b.boosterFuelMarginKg;
       return sb - sa;
     });
@@ -302,10 +306,10 @@ export function solveMissionAscentDesign(
   const initialGuessKickDeg = defaultWhatIfPitchKickDeg(
     mission.targetOrbitAltitudeM
   );
-  const solverDtS = options.solverDtS ?? 0.05;
+  const solverDtS = options.solverDtS ?? R.SOLVER_DEFAULT_DT_S.value;
 
   if (mission.landingMode === 'EXPENDABLE') {
-    const reserve = 0.005;
+    const reserve = R.SOLVER_EXPENDABLE_RESERVE_FRAC.value;
     const ev = evaluateCandidate(
       vehicle,
       mission,
@@ -329,12 +333,12 @@ export function solveMissionAscentDesign(
     options.maxKickDeg === undefined;
   const minKick = isHistoricalFixedKick
     ? mission.guidance.pitchKickAngleDeg
-    : (options.minKickDeg ?? 1.1);
+    : (options.minKickDeg ?? R.SOLVER_MIN_KICK_DEG.value);
   const maxKick = isHistoricalFixedKick
     ? mission.guidance.pitchKickAngleDeg
-    : (options.maxKickDeg ?? 2.6);
-  const coarseStep = options.coarseStepDeg ?? 0.15;
-  const fineStep = options.fineStepDeg ?? 0.05;
+    : (options.maxKickDeg ?? R.SOLVER_MAX_KICK_DEG.value);
+  const coarseStep = options.coarseStepDeg ?? R.SOLVER_COARSE_KICK_STEP_DEG.value;
+  const fineStep = options.fineStepDeg ?? R.SOLVER_FINE_KICK_STEP_DEG.value;
   const maxSat = options.maxGridFinSatFraction ?? R.SOLVER_MAX_GRID_FIN_SAT_FRACTION.value;
   // Boostback recoveries must keep post-entry heating within ~15% of the vehicle's
   // 0.022 MW/m^2 entry-burn thermal target (<=0.025 MW/m^2, preventing 26 s cap
@@ -405,17 +409,13 @@ export function solveMissionAscentDesign(
   // shipped fidelity.
   const reserveCandidates =
     mission.landingMode === 'RTLS'
-      ? (options.rtlsReserveCandidates ?? [
-          0.115, 0.12, 0.125, 0.13, 0.135, 0.145, 0.155, 0.165,
-        ])
-      : (options.asdsBoostbackReserveCandidates ?? [
-          0.075, 0.085, 0.095, 0.1, 0.105, 0.115, 0.125, 0.135, 0.145,
-        ]);
-  const bbPitchCandidates = options.boostbackPitchCandidates ?? [
-    -4, -7, -10, -13, -16, -19, -22, -25, -28, -31, -34, -37, -40, -43, -46,
-  ];
-  const refBbPitch = bbPitchCandidates.includes(-16)
-    ? -16
+      ? (options.rtlsReserveCandidates ?? R.SOLVER_RTLS_RESERVE_CANDIDATES.value)
+      : (options.asdsBoostbackReserveCandidates ?? R.SOLVER_ASDS_BB_RESERVE_CANDIDATES.value);
+  const bbPitchCandidates =
+    options.boostbackPitchCandidates ?? R.SOLVER_BOOSTBACK_PITCH_CANDIDATES_DEG.value;
+  const defaultRefPitch = R.SOLVER_REF_BOOSTBACK_PITCH_DEG.value;
+  const refBbPitch = bbPitchCandidates.includes(defaultRefPitch)
+    ? defaultRefPitch
     : bbPitchCandidates[Math.floor(bbPitchCandidates.length / 2)]!;
 
   let bestFallback: MissionDesignResult | null = null;
@@ -471,10 +471,11 @@ export function solveMissionAscentDesign(
         }
       }
     }
+    const orbW = R.SOLVER_INFEASIBLE_ORBIT_WEIGHT.value;
     if (
       bestFallback === null ||
-      (bestForReserve.orbitAchieved ? 1e6 : 0) + bestForReserve.boosterFuelMarginKg >
-        (bestFallback.orbitAchieved ? 1e6 : 0) + bestFallback.boosterFuelMarginKg
+      (bestForReserve.orbitAchieved ? orbW : 0) + bestForReserve.boosterFuelMarginKg >
+        (bestFallback.orbitAchieved ? orbW : 0) + bestFallback.boosterFuelMarginKg
     ) {
       bestFallback = bestForReserve;
     }

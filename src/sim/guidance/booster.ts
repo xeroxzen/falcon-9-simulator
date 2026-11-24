@@ -83,7 +83,10 @@ export function predictBallisticEntryPeak(
   const dt = 0.5;
   const invMass = 1 / Math.max(1, massKg);
 
-  for (let t = 0; t < 120 && h > 4_000; t += dt) {
+  const maxPredTimeS = R.ENTRY_PRED_MAX_TIME_S.value;
+  const minPredAltM = R.ENTRY_PRED_MIN_ALT_M.value;
+  const predEarthR = R.ENTRY_PRED_EARTH_RADIUS_M.value;
+  for (let t = 0; t < maxPredTimeS && h > minPredAltM; t += dt) {
     const atm = sampleAtmosphere(h);
     const v = Math.hypot(vh, vz);
     const q = 0.5 * atm.densityKgM3 * v * v;
@@ -97,7 +100,7 @@ export function predictBallisticEntryPeak(
     if (q > peakQ) peakQ = q;
     const mach = atm.speedOfSoundMs > 0 ? v / atm.speedOfSoundMs : 0;
     const aDrag = q * boosterDescentDragCoefficient(mach) * referenceAreaM2 * invMass;
-    const g = G0 * (6_371_000 / (6_371_000 + h)) ** 2;
+    const g = G0 * (predEarthR / (predEarthR + h)) ** 2;
     const invV = v > 1 ? 1 / v : 0;
     vh -= aDrag * vh * invV * dt;
     vz += (-g - aDrag * vz * invV) * dt;
@@ -188,17 +191,29 @@ export function computeBoosterGuidance(
   const heaveAmp = isAsdsDeck ? (disp.deckHeaveAmpM ?? 0) : 0;
   const rollAmpDeg = isAsdsDeck ? (disp.deckRollAmpDeg ?? 0) : 0;
   const deckPhase = disp?.deckPhaseRad ?? 0;
-  const heaveOmega = (2 * Math.PI) / 7.0; // ~7 s ocean swell period
-  const rollOmega = (2 * Math.PI) / 8.0;  // ~8 s barge roll period
+  const heaveOmega = (2 * Math.PI) / R.ASDS_DECK_HEAVE_PERIOD_S.value;
+  const rollOmega = (2 * Math.PI) / R.ASDS_DECK_ROLL_PERIOD_S.value;
   const deckHeaveM = heaveAmp > 0 ? heaveAmp * Math.sin(heaveOmega * timeS + deckPhase) : 0;
   const deckHeaveVelMs =
     heaveAmp > 0 ? heaveAmp * heaveOmega * Math.cos(heaveOmega * timeS + deckPhase) : 0;
   const deckRollDeg =
-    rollAmpDeg > 0 ? Math.abs(rollAmpDeg * Math.sin(rollOmega * timeS + deckPhase * 1.3)) : 0;
+    rollAmpDeg > 0
+      ? Math.abs(
+          rollAmpDeg *
+            Math.sin(rollOmega * timeS + deckPhase * R.ASDS_DECK_ROLL_PHASE_MULT.value)
+        )
+      : 0;
 
   // Strict realistic touchdown check on TRUE vehicle state relative to moving ASDS deck
-  if (tdHeightAboveTarget <= deckHeaveM && timeS > stageSepTimeS + 10) {
-    const maxMissM = mission.landingMode === 'RTLS' ? 15.0 : 10.0;
+  if (
+    tdHeightAboveTarget <= deckHeaveM &&
+    timeS > stageSepTimeS + R.TOUCHDOWN_CHECK_DELAY_S.value
+  ) {
+    const maxMissM =
+      mission.landingMode === 'RTLS'
+        ? R.TOUCHDOWN_MAX_MISS_RTLS_M.value
+        : R.TOUCHDOWN_MAX_MISS_ASDS_M.value;
+    const maxTiltDeg = R.TOUCHDOWN_MAX_TILT_DEG.value;
     const relVUp = tdVUp - deckHeaveVelMs;
     const relTiltDeg = tdTiltDeg + deckRollDeg;
     const reasons: string[] = [];
@@ -209,8 +224,8 @@ export function computeBoosterGuidance(
     if (tdVHoriz >= 1.0) {
       reasons.push(`Horizontal speed ${tdVHoriz.toFixed(1)} m/s (>= 1 m/s)`);
     }
-    if (relTiltDeg >= 5.0) {
-      reasons.push(`Tilt ${relTiltDeg.toFixed(1)}° (>= 5°)`);
+    if (relTiltDeg >= maxTiltDeg) {
+      reasons.push(`Tilt ${relTiltDeg.toFixed(1)}° (>= ${maxTiltDeg}°)`);
     }
     if (tdDistHoriz >= maxMissM) {
       reasons.push(`Off-target miss ${tdDistHoriz.toFixed(1)} m (>= ${maxMissM} m)`);
@@ -245,7 +260,7 @@ export function computeBoosterGuidance(
   }
 
   // 1. Short coast after stage separation before initiating RCS flip
-  if (timeS < stageSepTimeS + 3.0) {
+  if (timeS < stageSepTimeS + R.BOOSTER_SEP_COAST_S.value) {
     mem.phase = 'MECO_COAST';
     return {
       phase: 'MECO_COAST',
@@ -261,39 +276,54 @@ export function computeBoosterGuidance(
   // Compute physics-based propellant reserves from actual instantaneous dry mass
   // (actual totalMassKg - measured dynamic.propellantKg) and actual Isp, rather than
   // fractions of nominal stage propellant load.
-  const actualDryMassKg = Math.max(10_000, totalMassKg - dynamic.propellantKg);
+  const actualDryMassKg = Math.max(
+    R.BOOSTER_MIN_DRY_MASS_FLOOR_KG.value,
+    totalMassKg - dynamic.propellantKg
+  );
   const ispScaleActual = disp?.ispScale ?? 1.0;
   const merlinCfg = vehicle.stage1.engine;
   const landingPropReserveKg =
     (actualDryMassKg + 1_000) *
-      (Math.exp(650 / (merlinCfg.ispSeaLevelS * ispScaleActual * G0)) - 1) +
+      (Math.exp(
+        R.BOOSTER_LANDING_RESERVE_DV_MS.value / (merlinCfg.ispSeaLevelS * ispScaleActual * G0)
+      ) -
+        1) +
     1_000;
-  const entryIgnitionMinPropKg = landingPropReserveKg + 1_500;
+  const entryIgnitionMinPropKg = landingPropReserveKg + R.BOOSTER_ENTRY_IGN_EXTRA_PROP_KG.value;
   const boostbackCutoffReserveKg =
     (actualDryMassKg + landingPropReserveKg) *
-      (Math.exp(650 / (merlinCfg.ispVacuumS * ispScaleActual * G0)) - 1) +
+      (Math.exp(
+        R.BOOSTER_ENTRY_RESERVE_DV_MS.value / (merlinCfg.ispVacuumS * ispScaleActual * G0)
+      ) -
+        1) +
     landingPropReserveKg;
   const retroDir = speedRel > 1 ? scale(vRel, -1 / speedRel) : basis.up;
 
   const hasBoostback = mem.needsBoostback ?? mission.landingMode === 'RTLS';
-  const bbPitchRad = (mission.guidance.boostbackPitchDeg ?? -4.0) * DEG_TO_RAD;
+  const bbPitchRad =
+    (mission.guidance.boostbackPitchDeg ?? R.BOOSTBACK_DEFAULT_PITCH_DEG.value) * DEG_TO_RAD;
   const cosBb = Math.cos(bbPitchRad);
   const sinBb = Math.sin(bbPitchRad);
+  const threeEngines = R.BOOSTER_THREE_ENGINE_INDICES.value;
+  const nThreeEngines = threeEngines.length;
 
   // 2. Flip maneuver (cold-gas RCS rotation toward boostback or retrograde)
   if (mem.phase === 'MECO_COAST' || mem.phase === 'FLIP') {
     mem.phase = 'FLIP';
     let flipTarget = retroDir;
-    if (hasBoostback && distHoriz > 100) {
+    if (hasBoostback && distHoriz > R.BOOSTER_FLIP_TARGET_MIN_DIST_M.value) {
       // Point at boostbackPitchDeg relative to local horizontal, opposite the predicted
       // drag-shortened ballistic miss — works identically for RTLS (pad behind)
       // and close-in ASDS partial boostback (droneship ahead, ballistic impact past it).
-      const gLocal = 9.55;
+      const gLocal = R.BOOSTBACK_LOCAL_G_MS2.value;
       const disc = Math.max(
         0,
         vUp * vUp + 2 * gLocal * Math.max(0, heightAboveTarget)
       );
-      const dragFactor = mission.landingMode === 'RTLS' ? 0.92 : 0.965;
+      const dragFactor =
+        mission.landingMode === 'RTLS'
+          ? R.BOOSTBACK_DRAG_FACTOR_RTLS.value
+          : R.BOOSTBACK_DRAG_FACTOR_ASDS_BB.value;
       const tFlight = ((vUp + Math.sqrt(disc)) / gLocal) * dragFactor;
       const predMiss = sub(scale(vHorizVec, tFlight), toTargetHoriz);
       const missDist = norm(predMiss);
@@ -302,7 +332,7 @@ export function computeBoosterGuidance(
       flipTarget = normalize(add(scale(burnHorizDir, cosBb), scale(basis.up, sinBb)));
     }
     const angErr = angleBetweenRad(dynamic.attitudeEci, flipTarget);
-    if (angErr < 0.14) {
+    if (angErr < R.BOOSTER_FLIP_COMPLETE_RAD.value) {
       mem.phase = hasBoostback ? 'BOOSTBACK_BURN' : 'BALLISTIC_COAST';
     } else {
       return {
@@ -322,16 +352,22 @@ export function computeBoosterGuidance(
     // Predict ballistic time of flight to target altitude (scaled for
     // atmospheric drag shortening during descent; steeper RTLS loses ~8%,
     // higher-velocity partial-boostback ASDS loses ~3.5% before entry burn).
-    const gLocal = 9.55;
+    const gLocal = R.BOOSTBACK_LOCAL_G_MS2.value;
     const disc = Math.max(
       0,
       vUp * vUp + 2 * gLocal * Math.max(0, heightAboveTarget)
     );
-    const dragFactor = mission.landingMode === 'RTLS' ? 0.92 : 0.965;
+    const dragFactor =
+      mission.landingMode === 'RTLS'
+        ? R.BOOSTBACK_DRAG_FACTOR_RTLS.value
+        : R.BOOSTBACK_DRAG_FACTOR_ASDS_BB.value;
     const tFlight = ((vUp + Math.sqrt(disc)) / gLocal) * dragFactor;
     const predMiss = sub(scale(vHorizVec, tFlight), toTargetHoriz);
     const missDist = norm(predMiss);
-    const cutoffMissM = mission.landingMode === 'RTLS' ? 1_500 : 500;
+    const cutoffMissM =
+      mission.landingMode === 'RTLS'
+        ? R.BOOSTBACK_CUTOFF_MISS_RTLS_M.value
+        : R.BOOSTBACK_CUTOFF_MISS_ASDS_BB_M.value;
 
     if (missDist < cutoffMissM || dynamic.propellantKg <= boostbackCutoffReserveKg) {
       mem.phase = 'BALLISTIC_COAST';
@@ -343,7 +379,7 @@ export function computeBoosterGuidance(
       return {
         phase: 'BOOSTBACK_BURN',
         targetAttitudeEci: burnDir,
-        activeEngineIndices: [0, 1, 5],
+        activeEngineIndices: threeEngines,
         throttle: 1.0,
         aeroSteerDirEci: zeroVec,
         gridFinDeflectionDeg: 0,
@@ -360,7 +396,7 @@ export function computeBoosterGuidance(
     if (
       mem.lastEntryPred !== undefined &&
       mem.lastEntryPredTimeS !== undefined &&
-      Math.abs(timeS - mem.lastEntryPredTimeS) < 0.49
+      Math.abs(timeS - mem.lastEntryPredTimeS) < R.ENTRY_PRED_CACHE_INTERVAL_S.value
     ) {
       return mem.lastEntryPred;
     }
@@ -378,8 +414,8 @@ export function computeBoosterGuidance(
 
   if (mem.phase === 'BALLISTIC_COAST') {
     if (
-      vUp < -50 &&
-      geodetic.altitudeM <= 95_000 &&
+      vUp < R.ENTRY_IGN_MIN_DESCENT_RATE_MS.value &&
+      geodetic.altitudeM <= R.ENTRY_IGN_MAX_ALT_M.value &&
       dynamic.propellantKg > entryIgnitionMinPropKg
     ) {
       const pred = getEntryPrediction();
@@ -387,7 +423,7 @@ export function computeBoosterGuidance(
         const vRatio = Math.cbrt(ENTRY_BURN_HEATING_LIMIT_MW_M2 / pred.peakQDotMWm2);
         const dvReq = Math.max(0, speedRel * (1 - vRatio));
         const a3 = Math.min(
-          (3 * vehicle.stage1.engine.thrustVacuumN) / Math.max(1, totalMassKg),
+          (nThreeEngines * vehicle.stage1.engine.thrustVacuumN) / Math.max(1, totalMassKg),
           ENTRY_BURN_TARGET_ACCEL_G * G0
         );
         const tBurnEst = Math.min(ENTRY_BURN_MAX_DURATION_S, dvReq / Math.max(1, a3));
@@ -398,7 +434,11 @@ export function computeBoosterGuidance(
         }
       }
     }
-    if (mem.phase === 'BALLISTIC_COAST' && vUp < 0 && geodetic.altitudeM <= 35_000) {
+    if (
+      mem.phase === 'BALLISTIC_COAST' &&
+      vUp < 0 &&
+      geodetic.altitudeM <= R.ENTRY_AERO_FALLBACK_ALT_M.value
+    ) {
       mem.phase = 'AERO_DESCENT';
     }
     if (mem.phase === 'BALLISTIC_COAST') {
@@ -423,21 +463,21 @@ export function computeBoosterGuidance(
     if (
       pred.peakQDotMWm2 <= ENTRY_BURN_HEATING_LIMIT_MW_M2 ||
       burnDur >= ENTRY_BURN_MAX_DURATION_S ||
-      geodetic.altitudeM <= 28_000 ||
+      geodetic.altitudeM <= R.ENTRY_CUTOFF_MIN_ALT_M.value ||
       dynamic.propellantKg <= landingPropReserveKg
     ) {
       mem.phase = 'AERO_DESCENT';
     } else {
       const entryThrottle = clamp(
         (ENTRY_BURN_TARGET_ACCEL_G * G0 * totalMassKg) /
-          Math.max(1, 3 * vehicle.stage1.engine.thrustVacuumN),
-        0.4,
+          Math.max(1, nThreeEngines * vehicle.stage1.engine.thrustVacuumN),
+        vehicle.stage1.engine.minThrottle,
         1.0
       );
       return {
         phase: 'ENTRY_BURN',
         targetAttitudeEci: retroDir,
-        activeEngineIndices: [0, 1, 5],
+        activeEngineIndices: threeEngines,
         throttle: entryThrottle,
         aeroSteerDirEci: zeroVec,
         gridFinDeflectionDeg: 0,
@@ -449,38 +489,33 @@ export function computeBoosterGuidance(
   // Compute analytic suicide-burn (hoverslam) ignition altitude using a single
   // unified physics-based deceleration envelope across all landing modes
   // (no RTLS/ASDS mode branch):
-  //  - Nominal 1-engine stopping altitude hIgnition (88% throttle)
-  //  - 3-engine emergency stopping floor hStop3 (at 80% x 3 engines): wait until
-  //    4,500 m so atmospheric drag brakes for free UNLESS current (vDown, mass)
-  //    physically requires higher altitude for safe 3-engine stopping (e.g., fast/heavy
-  //    steep entries).
   const merlin = vehicle.stage1.engine;
   const maxThrust1 =
     merlin.thrustVacuumN - ambientPressurePa * merlin.exitAreaM2;
-  const nomThrust = Math.max(1, 0.88 * maxThrust1);
+  const nomThrust = Math.max(1, R.LANDING_NOM_THROTTLE_FRAC.value * maxThrust1);
   const aNetNom = Math.max(2.0, nomThrust / totalMassKg - G0);
-  const aNet3 = Math.max(4.0, (2.4 * maxThrust1) / totalMassKg - G0);
+  const aNet3 = Math.max(
+    R.LANDING_3ENG_MIN_ANET_MS2.value,
+    (R.LANDING_3ENG_THROTTLE_SUM.value * maxThrust1) / totalMassKg - G0
+  );
   const vDown = Math.max(0, -vUp);
-  const hIgnition = (vDown * vDown) / (2 * aNetNom) + 35.0;
-  const hStop3 = (vDown * vDown) / (2 * aNet3) + 35.0;
+  const hIgnition = (vDown * vDown) / (2 * aNetNom) + R.LANDING_IGN_ALT_BIAS_M.value;
+  const hStop3 = (vDown * vDown) / (2 * aNet3) + R.LANDING_IGN_ALT_BIAS_M.value;
 
   // 6. Aerodynamic descent with titanium grid fins
-  const maxIgnitionAltM = Math.min(6_000, Math.max(4_500, 1.15 * hStop3));
+  const maxIgnitionAltM = Math.min(
+    R.LANDING_MAX_IGN_ALT_CEILING_M.value,
+    Math.max(R.LANDING_MAX_IGN_ALT_FLOOR_M.value, R.LANDING_HSTOP3_MARGIN_MULT.value * hStop3)
+  );
   if (mem.phase === 'AERO_DESCENT') {
     if (
       heightAboveTarget <= maxIgnitionAltM &&
-      vUp < -5 &&
+      vUp < R.LANDING_IGN_MIN_VUP_MS.value &&
       heightAboveTarget <= hIgnition &&
       dynamic.propellantKg > 0
     ) {
       mem.phase = 'LANDING_BURN';
     } else {
-      // Aerodynamic glide-slope proportional controller:
-      // Because drag acts anti-parallel to velocity, the glide ratio v_h / v_down
-      // is nearly invariant during atmospheric descent. Projecting along the
-      // current velocity vector gives the true unpowered impact miss; fin
-      // deflection is proportional to the angular glide-slope error (with a
-      // dynamic-pressure gate where fins have negligible authority above ~45 km).
       const qPa = 0.5 * ambientDensityKgM3 * speedRel * speedRel;
       if (qPa < 1_000) {
         return {
@@ -493,19 +528,21 @@ export function computeBoosterGuidance(
           landingLegsDeployed: false,
         };
       }
-      // Physical horizontal travel predictor:
-      //  - During aero glide, drag acts anti-parallel to v so v_h/v_down is nearly invariant.
-      //  - During constant-deceleration hoverslam, t_burn = 2*h/v_down and
-      //    d_burn = 0.5*v_h*t_burn = v_h * (h / v_down) (the 0.5 and 2 cancel).
-      //  - Slightly < 1.0 (~0.92) accounts for gravity steepening the flight path.
-      const tGlide = (0.92 * heightAboveTarget) / Math.max(40, vDown);
+      const tGlide =
+        (R.AERO_GLIDE_TOF_FACTOR.value * heightAboveTarget) /
+        Math.max(R.AERO_GLIDE_MIN_VDOWN_MS.value, vDown);
       const predMiss = sub(scale(vHorizVec, tGlide), toTargetHoriz);
       const missDist = norm(predMiss);
       const steerDir =
         missDist > 1 ? scale(predMiss, -1 / missDist) : zeroVec;
       const angleErrDeg =
-        Math.atan2(missDist, Math.max(heightAboveTarget, 600)) * RAD_TO_DEG;
-      const deflDeg = clamp(angleErrDeg * 1.15, 0, 20);
+        Math.atan2(missDist, Math.max(heightAboveTarget, R.AERO_GLIDE_MIN_ALT_REF_M.value)) *
+        RAD_TO_DEG;
+      const deflDeg = clamp(
+        angleErrDeg * R.AERO_GRID_FIN_GAIN.value,
+        0,
+        R.BOOSTER_GRID_FIN_MAX_DEFL_DEG.value
+      );
 
       return {
         phase: 'AERO_DESCENT',
@@ -520,7 +557,7 @@ export function computeBoosterGuidance(
   }
 
   // 7. Landing burn: ZEM/ZEV optimal powered descent + vertical hoverslam
-  if (heightAboveTarget <= 120) {
+  if (heightAboveTarget <= R.LANDING_LEGS_DEPLOY_ALT_M.value) {
     mem.landingLegsDeployed = true;
   }
 
@@ -542,7 +579,8 @@ export function computeBoosterGuidance(
   // an unaided negative INS vertical velocity bias holding true v_down <= 0), gently ramp v_td
   // (+0.15 m/s per second) so true descent resumes smoothly without hover-hang propellant depletion.
   // Labelled HEURISTIC in CONSTANTS_REGISTRY; tracked in docs/BACKLOG.md for radar-based velocity estimation.
-  if (heightAboveTarget < R.ANTI_HOVER_FLARE_GATE_ALT_M.value && mem.flareStartTimeS === undefined) {
+  const flareGateAltM = R.ANTI_HOVER_FLARE_GATE_ALT_M.value;
+  if (heightAboveTarget < flareGateAltM && mem.flareStartTimeS === undefined) {
     mem.flareStartTimeS = timeS;
   }
   const flareExcessS =
@@ -557,15 +595,18 @@ export function computeBoosterGuidance(
     );
   const hFlare = R.TERMINAL_FLARE_HEIGHT_M.value;
   let aUpCmd: number;
-  if (heightAboveTarget > hFlare + 0.25) {
+  if (heightAboveTarget > hFlare + R.TERMINAL_FLARE_TRANSITION_MARGIN_M.value) {
     const vDownExcessSq = Math.max(0, vDown * vDown - vTd * vTd);
-    aUpCmd = G0 + vDownExcessSq / (2 * Math.max(heightAboveTarget - hFlare, 0.35));
+    aUpCmd =
+      G0 +
+      vDownExcessSq /
+        (2 * Math.max(heightAboveTarget - hFlare, R.TERMINAL_FLARE_DENOM_FLOOR_M.value));
   } else {
-    aUpCmd = G0 + 2.4 * (vDown - vTd);
+    aUpCmd = G0 + R.TERMINAL_FLARE_VEL_GAIN.value * (vDown - vTd);
   }
   // Prevent T/W > 1 hover-bounce on light boosters: if vertical speed
   // reverses upward near the deck, command engine cutoff so it settles cleanly.
-  if (heightAboveTarget < 2.5 && vUp >= 0.0) {
+  if (heightAboveTarget < flareGateAltM && vUp >= 0.0) {
     return {
       phase: 'LANDING_BURN',
       targetAttitudeEci: basis.up,
@@ -578,34 +619,47 @@ export function computeBoosterGuidance(
   }
 
   // Exact constant-deceleration time-to-go: t_go = 2*h / (vDown + vTd)
-  // Exact constant-deceleration time-to-go: t_go = 2*h / (vDown + vTd)
-  // Target horizontal convergence (r_h -> 0, v_h -> 0) by a terminal vertical
-  // alignment gate ~1.8 s before touchdown (~8-12 m AGL) so the booster arrives
-  // upright with near-zero lateral speed before the final flare.
-  const tGoTotal = (2 * Math.max(heightAboveTarget, 0.5)) / Math.max(vDown + vTd, 1.5);
-  const tGoGate = Math.max(0.8, tGoTotal - 1.8);
+  const tGoTotal =
+    (2 * Math.max(heightAboveTarget, 0.5)) /
+    Math.max(vDown + vTd, R.LANDING_TGO_MIN_VDEN_MS.value);
+  const tGoGate = Math.max(
+    R.LANDING_ZEM_GATE_MIN_TGO_S.value,
+    tGoTotal - R.LANDING_ZEM_GATE_LEAD_S.value
+  );
 
   let aLatCmd: Vec3;
-  if (heightAboveTarget > 12.0 && tGoTotal > 2.4) {
+  if (
+    heightAboveTarget > R.LANDING_ZEM_MIN_ALT_M.value &&
+    tGoTotal > R.LANDING_ZEM_MIN_TGO_S.value
+  ) {
     // Textbook ZEM/ZEV targeting (r=0, v=0) at the terminal alignment gate
-    const posTerm = scale(toTargetHoriz, 6.0 / (tGoGate * tGoGate));
-    const velTerm = scale(vHorizVec, 4.0 / tGoGate);
+    const posTerm = scale(toTargetHoriz, 6.0 / (tGoGate * tGoGate)); /* math: ZEM/ZEV BVP */
+    const velTerm = scale(vHorizVec, 4.0 / tGoGate); /* math: ZEM/ZEV BVP */
     aLatCmd = sub(posTerm, velTerm);
   } else {
     // Terminal vertical descent (< 12 m): null residual horizontal velocity cleanly
-    const posWeight = clamp((heightAboveTarget - 3.0) / 9.0, 0, 1);
-    const posTerm = scale(toTargetHoriz, 0.8 * posWeight);
-    const velTerm = scale(vHorizVec, 3.2);
+    const posWeight = clamp(
+      (heightAboveTarget - R.LANDING_TERM_POS_CUTOFF_ALT_M.value) /
+        R.LANDING_TERM_POS_FADE_SPAN_M.value,
+      0,
+      1
+    );
+    const posTerm = scale(toTargetHoriz, R.LANDING_TERM_POS_GAIN.value * posWeight);
+    const velTerm = scale(vHorizVec, R.LANDING_TERM_VEL_GAIN.value);
     aLatCmd = sub(posTerm, velTerm);
   }
 
-  const uprightFlare = clamp((heightAboveTarget - 0.5) / 2.1, 0, 1);
+  const uprightFlare = clamp(
+    (heightAboveTarget - 0.5) / R.LANDING_UPRIGHT_FLARE_SPAN_M.value,
+    0,
+    1
+  );
   const maxTiltRad =
-    heightAboveTarget < 2.6
-      ? 0.12 * uprightFlare // smoothly flares to 0 deg by 0.5 m AGL -> touchdown tilt < 1 deg
-      : heightAboveTarget < 30.0
-        ? 0.35
-        : 0.65;
+    heightAboveTarget < R.LANDING_UPRIGHT_FLARE_ALT_M.value
+      ? R.LANDING_MAX_TILT_FLARE_RAD.value * uprightFlare // smoothly flares to 0 deg by 0.5 m AGL -> touchdown tilt < 1 deg
+      : heightAboveTarget < R.LANDING_MAX_TILT_LOW_ALT_M.value
+        ? R.LANDING_MAX_TILT_LOW_RAD.value
+        : R.LANDING_MAX_TILT_HIGH_RAD.value;
   const maxLatAccel = Math.max(1.0, aUpCmd) * Math.tan(maxTiltRad);
   const aLatMag = norm(aLatCmd);
   if (aLatMag > maxLatAccel) {
@@ -616,14 +670,13 @@ export function computeBoosterGuidance(
   const aCmdMag = norm(aCmdEci);
   const targetAttitudeEci = scale(aCmdEci, 1 / aCmdMag);
 
-  // Unified physics-based 3-to-1 engine handoff across all landing modes (no mode branch):
-  // Engage 3 engines whenever required braking thrust exceeds 90% of a single Merlin
-  // while above 30 m AGL and descending faster than 15 m/s; transition smoothly to
-  // the single center engine once 1 engine has ample thrust margin for terminal hoverslam.
+  // Unified physics-based 3-to-1 engine handoff across all landing modes (no mode branch)
   const reqThrustN = aCmdMag * totalMassKg;
   const useThreeEngines =
-    vDown > 15 && heightAboveTarget > 30 && reqThrustN > 0.9 * maxThrust1;
-  const activeEngines = useThreeEngines ? [0, 1, 5] : [0];
+    vDown > R.LANDING_3TO1_MIN_VDOWN_MS.value &&
+    heightAboveTarget > R.LANDING_3TO1_MIN_ALT_M.value &&
+    reqThrustN > R.LANDING_3TO1_THRUST_FRAC.value * maxThrust1;
+  const activeEngines = useThreeEngines ? threeEngines : [0];
   const nEng = activeEngines.length;
 
   const rawThrottle =
