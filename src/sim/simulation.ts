@@ -261,6 +261,7 @@ export function stepAscent(
       altitudeM: state.geodetic.altitudeM,
       latRad: state.geodetic.latRad,
       lonRad: state.geodetic.lonRad,
+      positionEci: state.dynamic.positionEci,
       // Ground-relative gravity turn; wind still applies physical aero loads & q*alpha.
       vAirRelEci: sub(
         state.dynamic.velocityEci,
@@ -271,6 +272,9 @@ export function stepAscent(
       dragN: state.dragN,
       totalMassKg: state.totalMassKg,
       stage1PropellantKg: state.dynamic.stage1PropellantKg,
+      actualStage1DryMassKg:
+        vehicle.stage1.dryMassKg * (disp?.dryMassScale ?? 1),
+      actualIspScale: disp?.ispScale ?? 1,
       activeEngineCount: activeCount,
       ambientPressurePa: state.atmosphere.pressurePa,
       launchAzimuthDeg: ctx.launchAzimuthDeg,

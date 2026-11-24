@@ -255,7 +255,21 @@ export function computeBoosterGuidance(
     };
   }
 
-  const s1PropTotal = vehicle.stage1.propellantMassKg;
+  // Compute physics-based propellant reserves from actual instantaneous dry mass
+  // (actual totalMassKg - measured dynamic.propellantKg) and actual Isp, rather than
+  // fractions of nominal stage propellant load.
+  const actualDryMassKg = Math.max(10_000, totalMassKg - dynamic.propellantKg);
+  const ispScaleActual = disp?.ispScale ?? 1.0;
+  const merlinCfg = vehicle.stage1.engine;
+  const landingPropReserveKg =
+    (actualDryMassKg + 1_000) *
+      (Math.exp(650 / (merlinCfg.ispSeaLevelS * ispScaleActual * G0)) - 1) +
+    1_000;
+  const entryIgnitionMinPropKg = landingPropReserveKg + 1_500;
+  const boostbackCutoffReserveKg =
+    (actualDryMassKg + landingPropReserveKg) *
+      (Math.exp(650 / (merlinCfg.ispVacuumS * ispScaleActual * G0)) - 1) +
+    landingPropReserveKg;
   const retroDir = speedRel > 1 ? scale(vRel, -1 / speedRel) : basis.up;
 
   const hasBoostback = mem.needsBoostback ?? mission.landingMode === 'RTLS';
@@ -302,7 +316,6 @@ export function computeBoosterGuidance(
 
   // 3. Boostback burn (RTLS or close-in ASDS partial boostback; 3 engines: center + 2 outer)
   if (mem.phase === 'BOOSTBACK_BURN') {
-    const reserveAfterBoostback = s1PropTotal * 0.042;
     // Predict ballistic time of flight to target altitude (scaled for
     // atmospheric drag shortening during descent; steeper RTLS loses ~8%,
     // higher-velocity partial-boostback ASDS loses ~3.5% before entry burn).
@@ -317,7 +330,7 @@ export function computeBoosterGuidance(
     const missDist = norm(predMiss);
     const cutoffMissM = mission.landingMode === 'RTLS' ? 1_500 : 500;
 
-    if (missDist < cutoffMissM || dynamic.propellantKg <= reserveAfterBoostback) {
+    if (missDist < cutoffMissM || dynamic.propellantKg <= boostbackCutoffReserveKg) {
       mem.phase = 'BALLISTIC_COAST';
     } else {
       const burnHorizDir = scale(predMiss, -1 / missDist);
@@ -364,7 +377,7 @@ export function computeBoosterGuidance(
     if (
       vUp < -50 &&
       geodetic.altitudeM <= 95_000 &&
-      dynamic.propellantKg > s1PropTotal * 0.026
+      dynamic.propellantKg > entryIgnitionMinPropKg
     ) {
       const pred = getEntryPrediction();
       if (pred.peakQDotMWm2 > ENTRY_BURN_HEATING_LIMIT_MW_M2) {
@@ -403,13 +416,12 @@ export function computeBoosterGuidance(
   if (mem.phase === 'ENTRY_BURN') {
     const burnDur =
       mem.entryBurnStartTimeS !== null ? timeS - mem.entryBurnStartTimeS : 0;
-    const landingReserve = s1PropTotal * 0.020;
     const pred = getEntryPrediction();
     if (
       pred.peakQDotMWm2 <= ENTRY_BURN_HEATING_LIMIT_MW_M2 ||
       burnDur >= ENTRY_BURN_MAX_DURATION_S ||
       geodetic.altitudeM <= 28_000 ||
-      dynamic.propellantKg <= landingReserve
+      dynamic.propellantKg <= landingPropReserveKg
     ) {
       mem.phase = 'AERO_DESCENT';
     } else {

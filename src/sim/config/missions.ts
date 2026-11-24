@@ -66,9 +66,9 @@ export const DEFAULT_LEO_RTLS_MISSION: MissionConfig = {
   guidance: {
     ...BASELINE_RTLS_GUIDANCE,
     /** Mission-design pitchover kick, reserve & boostback pitch solved jointly by solveMissionAscentDesign for SLC-40 -> LZ-40 */
-    pitchKickAngleDeg: 1.1,
-    mecoPropellantReserveFraction: 0.12,
-    boostbackPitchDeg: -22,
+    pitchKickAngleDeg: 1.65,
+    mecoPropellantReserveFraction: 0.115,
+    boostbackPitchDeg: -13,
   },
 };
 
@@ -168,8 +168,8 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
   guidance: {
     ...BASELINE_ASDS_GUIDANCE,
     pitchKickAngleDeg: 1.63,
-    mecoPropellantReserveFraction: 0.1,
-    boostbackPitchDeg: -28,
+    mecoPropellantReserveFraction: 0.075,
+    boostbackPitchDeg: -34,
   },
 };
 
@@ -220,7 +220,7 @@ export const SAOCOM_1A_MISSION: MissionConfig = {
   guidance: {
     ...BASELINE_RTLS_GUIDANCE,
     pitchKickAngleDeg: 1.1,
-    mecoPropellantReserveFraction: 0.13,
+    mecoPropellantReserveFraction: 0.135,
     boostbackPitchDeg: -10,
   },
 };

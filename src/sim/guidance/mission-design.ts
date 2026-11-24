@@ -339,9 +339,23 @@ export function solveMissionAscentDesign(
     r.gridFinSatFraction <= maxSat &&
     r.peakEntryHeatingMWm2 <= maxHeat;
 
+  const verifyAtShippedDt = (cand: MissionDesignResult): MissionDesignResult => {
+    if (Math.abs(mission.dtS - solverDtS) < 1e-6) return cand;
+    const ev = evaluateCandidate(
+      vehicle,
+      mission,
+      cand.pitchKickAngleDeg,
+      cand.mecoPropellantReserveFraction,
+      initialGuessKickDeg,
+      mission.dtS,
+      cand.boostbackPitchDeg
+    );
+    return { ...ev, feasible: isFeasible(ev) };
+  };
+
   if (mission.landingMode === 'ASDS' && mission.droneshipDownrangeKm === undefined) {
     const reserve = mission.guidance.mecoPropellantReserveFraction;
-    return solveKickForReserve(
+    const best = solveKickForReserve(
       vehicle,
       mission,
       reserve,
@@ -353,12 +367,15 @@ export function solveMissionAscentDesign(
       solverDtS,
       isFeasible
     );
+    return best.feasible ? verifyAtShippedDt(best) : best;
   }
 
   // RTLS or close-in ASDS with droneshipDownrangeKm: jointly solve for the minimum
   // feasible MECO reserve fraction, optimal ascent pitch kick, and optimal boostback
   // thrust pitch angle (maximizing landing fuel margin subject to fin-sat and entry
-  // heating proxy constraints; no hardcoded -4 deg).
+  // heating proxy constraints; no hardcoded -4 deg). Every winning candidate is
+  // verified at shipped mission.dtS (0.01 s) so the lean margin floor holds at
+  // shipped fidelity.
   const reserveCandidates =
     mission.landingMode === 'RTLS'
       ? (options.rtlsReserveCandidates ?? [
@@ -390,8 +407,10 @@ export function solveMissionAscentDesign(
       refBbPitch
     );
     // Sweep boostbackPitchDeg at the solved ascent kick (boostback happens after MECO,
-    // so Stage 2 orbit & fuel margin are invariant) and pick the angle maximizing
-    // booster landing fuel margin among feasible (LANDED, finSat <= maxSat, heat <= maxHeat) candidates.
+    // so Stage 2 orbit & fuel margin are invariant) and rank feasible candidates by
+    // booster landing fuel margin, then verify at shipped dt (0.01 s).
+    const feasibleAtCoarse: MissionDesignResult[] = [];
+    if (solvedAtRef.feasible) feasibleAtCoarse.push(solvedAtRef);
     let bestForReserve: MissionDesignResult = solvedAtRef;
     for (const bbPitch of bbPitchCandidates) {
       if (bbPitch === refBbPitch) continue;
@@ -405,16 +424,25 @@ export function solveMissionAscentDesign(
         bbPitch
       );
       const cand: MissionDesignResult = { ...ev, feasible: isFeasible(ev) };
-      if (
-        cand.feasible &&
-        (!bestForReserve.feasible ||
-          cand.boosterFuelMarginKg > bestForReserve.boosterFuelMarginKg)
-      ) {
-        bestForReserve = cand;
+      if (cand.feasible) {
+        feasibleAtCoarse.push(cand);
+        if (
+          !bestForReserve.feasible ||
+          cand.boosterFuelMarginKg > bestForReserve.boosterFuelMarginKg
+        ) {
+          bestForReserve = cand;
+        }
       }
     }
-    if (bestForReserve.feasible) {
-      return bestForReserve;
+    if (feasibleAtCoarse.length > 0) {
+      feasibleAtCoarse.sort((a, b) => b.boosterFuelMarginKg - a.boosterFuelMarginKg);
+      // Verify top feasible candidates at shipped dt (0.01 s)
+      for (const cand of feasibleAtCoarse.slice(0, 3)) {
+        const verified = verifyAtShippedDt(cand);
+        if (verified.feasible) {
+          return verified;
+        }
+      }
     }
     if (
       bestFallback === null ||
