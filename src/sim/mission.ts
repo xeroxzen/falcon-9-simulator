@@ -51,6 +51,11 @@ import {
 } from './guidance/stage2.js';
 import {
   computeBoosterGuidance,
+  ENTRY_BURN_AERO_LEAD_S,
+  ENTRY_BURN_AVG_THROTTLE,
+  ENTRY_BURN_HEATING_LIMIT_MW_M2,
+  ENTRY_BURN_MAX_DURATION_S,
+  predictBallisticEntryPeak,
   type BoosterGuidanceMemory,
 } from './guidance/booster.js';
 import { runAscentToMeco } from './simulation.js';
@@ -334,18 +339,52 @@ function predictAsdsTargetCoord(
     const vUp = dot(vRel, basis.up);
 
     let activeEngines: number[] = [];
-    if (
-      !entryBurnDone &&
-      vUp < 0 &&
-      geo.altitudeM <= 70_000 &&
-      speedRel >= 1_300 &&
-      dyn.propellantKg > s1PropTotal * 0.025
-    ) {
-      if (entryBurnStart === null) entryBurnStart = t;
-      if (speedRel > 850 && t - entryBurnStart < 22.0) {
-        activeEngines = [0, 1, 5];
-      } else {
-        entryBurnDone = true;
+    let throttle = 0;
+    const totalMassKg = vehicle.stage1.dryMassKg + dyn.propellantKg;
+    if (!entryBurnDone && vUp < -50 && geo.altitudeM <= 95_000 && dyn.propellantKg > s1PropTotal * 0.026) {
+      const vHoriz = norm(sub(vRel, scale(basis.up, vUp)));
+      if (entryBurnStart === null) {
+        if (i % 2 === 0) {
+          const pred = predictBallisticEntryPeak(
+            geo.altitudeM,
+            vHoriz,
+            vUp,
+            totalMassKg,
+            vehicle.referenceAreaM2
+          );
+          if (pred.peakQDotMWm2 > ENTRY_BURN_HEATING_LIMIT_MW_M2) {
+            const vRatio = Math.cbrt(ENTRY_BURN_HEATING_LIMIT_MW_M2 / pred.peakQDotMWm2);
+            const dvReq = Math.max(0, speedRel * (1 - vRatio));
+            const a3 =
+              (3 * vehicle.stage1.engine.thrustVacuumN * ENTRY_BURN_AVG_THROTTLE) /
+              Math.max(1, totalMassKg);
+            const tBurnEst = Math.min(ENTRY_BURN_MAX_DURATION_S, dvReq / Math.max(1, a3));
+            if (pred.timeToPeakS <= tBurnEst + ENTRY_BURN_AERO_LEAD_S) {
+              entryBurnStart = t;
+            }
+          }
+        }
+      }
+      if (entryBurnStart !== null) {
+        const burnDur = t - entryBurnStart;
+        const pred = predictBallisticEntryPeak(
+          geo.altitudeM,
+          vHoriz,
+          vUp,
+          totalMassKg,
+          vehicle.referenceAreaM2
+        );
+        if (
+          pred.peakQDotMWm2 <= ENTRY_BURN_HEATING_LIMIT_MW_M2 ||
+          burnDur >= ENTRY_BURN_MAX_DURATION_S ||
+          geo.altitudeM <= 28_000 ||
+          dyn.propellantKg <= s1PropTotal * 0.032
+        ) {
+          entryBurnDone = true;
+        } else {
+          activeEngines = [0, 1, 5];
+          throttle = ENTRY_BURN_AVG_THROTTLE;
+        }
       }
     }
 
@@ -360,7 +399,7 @@ function predictAsdsTargetCoord(
     const prop = evaluateBoosterEngines(
       vehicle,
       activeEngines,
-      1.0,
+      throttle,
       atmo.pressurePa,
       dyn.propellantKg,
       t,
