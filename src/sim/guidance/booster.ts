@@ -6,7 +6,7 @@ import type {
   Vec3,
   VehicleConfig,
 } from '../types.js';
-import { G0, RAD_TO_DEG } from '../config/constants.js';
+import { DEG_TO_RAD, G0, RAD_TO_DEG } from '../config/constants.js';
 import {
   add,
   angleBetweenRad,
@@ -187,13 +187,16 @@ export function computeBoosterGuidance(
   const retroDir = speedRel > 1 ? scale(vRel, -1 / speedRel) : basis.up;
 
   const hasBoostback = mem.needsBoostback ?? mission.landingMode === 'RTLS';
+  const bbPitchRad = (mission.guidance.boostbackPitchDeg ?? -4.0) * DEG_TO_RAD;
+  const cosBb = Math.cos(bbPitchRad);
+  const sinBb = Math.sin(bbPitchRad);
 
   // 2. Flip maneuver (cold-gas RCS rotation toward boostback or retrograde)
   if (mem.phase === 'MECO_COAST' || mem.phase === 'FLIP') {
     mem.phase = 'FLIP';
     let flipTarget = retroDir;
     if (hasBoostback && distHoriz > 100) {
-      // Point nearly horizontal (slightly depressed -4 deg) opposite the predicted
+      // Point at boostbackPitchDeg relative to local horizontal, opposite the predicted
       // drag-shortened ballistic miss — works identically for RTLS (pad behind)
       // and close-in ASDS partial boostback (droneship ahead, ballistic impact past it).
       const gLocal = 9.55;
@@ -201,12 +204,13 @@ export function computeBoosterGuidance(
         0,
         vUp * vUp + 2 * gLocal * Math.max(0, heightAboveTarget)
       );
-      const tFlight = ((vUp + Math.sqrt(disc)) / gLocal) * 0.92;
+      const dragFactor = mission.landingMode === 'RTLS' ? 0.92 : 0.965;
+      const tFlight = ((vUp + Math.sqrt(disc)) / gLocal) * dragFactor;
       const predMiss = sub(scale(vHorizVec, tFlight), toTargetHoriz);
       const missDist = norm(predMiss);
       const burnHorizDir =
         missDist > 1 ? scale(predMiss, -1 / missDist) : normalize(toTargetHoriz);
-      flipTarget = normalize(add(scale(burnHorizDir, 0.997), scale(basis.up, -0.07)));
+      flipTarget = normalize(add(scale(burnHorizDir, cosBb), scale(basis.up, sinBb)));
     }
     const angErr = angleBetweenRad(dynamic.attitudeEci, flipTarget);
     if (angErr < 0.14) {
@@ -244,11 +248,9 @@ export function computeBoosterGuidance(
     if (missDist < cutoffMissM || dynamic.propellantKg <= reserveAfterBoostback) {
       mem.phase = 'BALLISTIC_COAST';
     } else {
-      // Fire nearly horizontal (slightly depressed -4 deg) opposite predicted miss
-      // to reverse horizontal velocity cleanly without excessive apogee loft.
       const burnHorizDir = scale(predMiss, -1 / missDist);
       const burnDir = normalize(
-        add(scale(burnHorizDir, 0.997), scale(basis.up, -0.07))
+        add(scale(burnHorizDir, cosBb), scale(basis.up, sinBb))
       );
       return {
         phase: 'BOOSTBACK_BURN',

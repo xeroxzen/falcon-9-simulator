@@ -352,6 +352,9 @@ export function buildMissionTrajectory(
         ...mission.guidance,
         pitchKickAngleDeg: designed.pitchKickAngleDeg,
         mecoPropellantReserveFraction: designed.mecoPropellantReserveFraction,
+        ...(designed.boostbackPitchDeg !== undefined
+          ? { boostbackPitchDeg: designed.boostbackPitchDeg }
+          : {}),
         autoDesignAscent: false,
       },
     };

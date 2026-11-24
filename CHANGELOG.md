@@ -2,6 +2,23 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
+## [1.7.0] — 2026-11-24 (Solved Boostback Thrust Geometry & Sutton-Graves Entry Heating Constraint)
+
+### Added
+- **Boostback thrust pitch angle (`boostbackPitchDeg`) as a mission-design solver variable:**
+  - Removed hardcoded `-4°` boostback depression in `src/sim/guidance/booster.ts` and added `boostbackPitchDeg` to `AscentGuidanceConfig` and `solveMissionAscentDesign` (searched over `-4°..-46°` in `3°` steps — all missions converge to interior optima with zero boundary artifacts; wired into What-If `autoDesignAscent`).
+  - Added Sutton-Graves convective stagnation entry heating proxy (`qDot = 1.7415e-4 · sqrt(ρ / 1.85 m) · v³ <= 0.085 MW/m²`, `ASSUMED`) and unified the boostback-class nominal landing fuel margin floor to `7,500 kg` across RTLS and close-in ASDS-BB (`4,000 kg` for ballistic ASDS).
+- **Historical vs default/What-If mission kick rule (`src/sim/config/missions.ts`):**
+  - Historical missions (`DM-1`: `1.41°`, `Iridium NEXT 8`: `1.63°`, `SAOCOM 1A`: `1.10°`) use their telemetry-fitted ascent pitch kick with recovery variables `(reserve, boostbackPitchDeg)` solved by `solveMissionAscentDesign`; free kick solving applies to default and What-If missions only.
+  - `SAOCOM_1A_MISSION` (`1.10° / 14.5% / -19°`): `619.5 × 621.7 km`, `MECO = 142.0 s` (real `142 s`), `apogee = 133.2 km` (real `134.0 km`), `TD = T+449 s`, `LANDED (0.02 m)`.
+  - `IRIDIUM_NEXT_8_MISSION` (`1.63° / 10.5% / -37°`, `244 km`): `MECO = 149.8 s` (real `150 s`), `apogee = 102.8 km` (real `105.0 km`), event-aligned landing-burn Alt RMS `0.51 km`, `LANDED (0.02 m)` (entry-burn trigger timing tracked in BACKLOG #13).
+  - `SSO-A` (`50 km`, `SOURCED`): solver picks `13.5% / -25°` → `MECO Δ = +1.1 s` (Class 0 holdout `|MECO Δ|` drops `1.65 → 0.55 s`).
+  - `DEFAULT_LEO_RTLS_MISSION` (`LZ-40`, free kick): solves to `1.20° / 13.5% / -22°`, saving `1.0%` Stage 1 propellant vs `v1.6.0` (`14.5%`).
+- **Fresh-seed Monte Carlo validation (`N = 1,000`, logged in `docs/MONTE_CARLO_LOG.md`):**
+  - `ASDS Ballistic` (`1.75° / 7.5%`, `307026`/`318027`): `1,998/2,000 (99.90%)`.
+  - `RTLS LZ-40` (`1.20° / 13.5% / -22°`, `318027`/`329028`): `2,000/2,000 (100.00%)`.
+  - `ASDS Partial Boostback` (`Iridium 8`, `1.63° / 10.5% / -37°`, `341030`/`352031`): `1,996/2,000 (99.80%)`.
+
 ## [1.6.0] — 2026-11-23 (Close-In ASDS Partial Boostback & Unified Mode-Free Landing-Burn Handoff)
 
 ### Added

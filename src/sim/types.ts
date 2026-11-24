@@ -175,6 +175,12 @@ export interface AscentGuidanceConfig {
   readonly maxQMinThrottle: number;
   /** Minimum S1 propellant fraction reserved at MECO for recovery */
   readonly mecoPropellantReserveFraction: number;
+  /**
+   * Boostback thrust pitch angle relative to local horizontal (deg, negative = depressed
+   * downward to suppress apogee and entry heating). Solved by solveMissionAscentDesign
+   * for RTLS and close-in ASDS partial-boostback missions; defaults to -4 deg when omitted.
+   */
+  readonly boostbackPitchDeg?: number;
   /** Optional override for S1 max axial acceleration (g) (e.g. crewed flights) */
   readonly maxAxialAccelG?: number;
   /** Coast time (s) from MECO to stage separation (ASSUMED ~3-4 s) */

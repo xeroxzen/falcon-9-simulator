@@ -58,6 +58,10 @@ Known model gaps identified during Phase 2.5 validation and holdout testing, tra
    - Diagnostic across all 10 pure Block 5 flights over `T+100 s .. MECO` showed the simulator flies `~5.0°` flatter than telemetry on Class 0 LEO (`-21.8 m/s` less gravity loss, accounting for ~15–20% of the `EMPIRICAL`-cap gap vs reconstructed axial acceleration; Class 1 GTO is within `-0.5°`).
    - Add a second pitch-shaping parameter (late-S1 pitch-rate / loft term alongside initial pitchover kick) to match $\gamma(t)$ on LEO, then revisit the `EMPIRICAL` `2.90 g` / `3.60 g` late-S1 acceleration caps.
 
-13. **Stretch goals from original spec:**
+13. **Entry-burn trigger timing & event-aligned entry phase altitude error (`~16 km` Alt RMS):**
+   - On `Iridium NEXT 8` with solved boostback pitch (`1.63° / 10.5% / -37°`), apogee matches telemetry (`102.8` vs `105.0 km`) and event-aligned landing burn Alt RMS is `0.51 km`, but the entry burn starts early (`T+295.8 s` vs real `T+337 s`; `~23–41 s` early depending on depression) with `~16.0 km` event-aligned entry altitude RMS.
+   - Investigate the entry-burn altitude/speed trigger (`60 km / 1,050 m/s` for boostback entries vs real ignition altitude/Mach/dynamic-pressure trigger) and boostback depression vs coast timing.
+
+14. **Stretch goals from original spec:**
    - Convex-optimization (G-FOLD-style) powered descent guidance.
    - 6-DOF rigid-body rotational dynamics (inertia tensor, TVC gimbal torque, RCS cold-gas thrusters, aerodynamic center-of-pressure / center-of-mass pitching moments).
