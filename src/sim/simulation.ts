@@ -9,6 +9,7 @@ import type {
   VehicleConfig,
 } from './types.js';
 import { DEG_TO_RAD, G0, RAD_TO_DEG } from './config/constants.js';
+import { CONSTANTS_REGISTRY as R } from './config/registry.js';
 import { rk4Step, type Rk4Space } from './integrator.js';
 import {
   add,
@@ -407,9 +408,9 @@ export function stepAscent(
  *  - SPOOL_UP_DURATION_S = 2.2 s (ASSUMED): smoothstep thrust spool-up 0 -> 100% (-3.0 to -0.8 s),
  *    followed by 0.8 s full-thrust hold-down health verification (-0.8 to 0.0 s) before clamp release at T = 0.
  */
-export const IGNITION_START_S = -3.0;
-export const WATER_DELUGE_START_S = -5.0;
-const SPOOL_UP_DURATION_S = 2.2;
+export const IGNITION_START_S = R.IGNITION_START_S.value;
+export const WATER_DELUGE_START_S = R.WATER_DELUGE_START_S.value;
+const SPOOL_UP_DURATION_S = R.IGNITION_SPOOL_UP_DURATION_S.value;
 
 export function computeIgnitionSpoolThrottle(timeS: number): number {
   if (timeS < IGNITION_START_S) return 0;

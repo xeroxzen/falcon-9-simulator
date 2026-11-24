@@ -1,3 +1,4 @@
+import { CONSTANTS_REGISTRY } from '../sim/config/registry.js';
 import { sampleAtmosphere } from '../sim/models/atmosphere.js';
 import type { FullMissionResult } from '../sim/types.js';
 import type {
@@ -113,7 +114,7 @@ function makeDelta(real: number, sim: number): EventDelta {
  * +1.92/+2.00 s offset was a compensating error hiding excess late-S1
  * acceleration (tracked for System-ID v2 in docs/BACKLOG.md).
  */
-export const WEBCAST_LIFTOFF_OFFSET_S = 0;
+export const WEBCAST_LIFTOFF_OFFSET_S = CONSTANTS_REGISTRY.WEBCAST_LIFTOFF_OFFSET_S.value;
 
 /**
  * Compare a simulated full mission against real SpaceX webcast telemetry.

@@ -4,6 +4,140 @@ This document tracks every `ASSUMED` parameter, modeling simplification, and emp
 
 ---
 
+<!-- BEGIN GENERATED: CONSTANTS_REGISTRY -->
+<!-- Auto-generated from src/sim/config/registry.ts via `pnpm docs:assumptions`. Do not edit by hand. -->
+
+## Constants Registry (Single Source of Truth)
+
+Every `SOURCED`, `CALIBRATED`, `EMPIRICAL`, `ASSUMED`, and `HEURISTIC` constant in `src/sim/` (88 entries) is defined in `src/sim/config/registry.ts` and rendered here automatically.
+
+### Planetary & Atmosphere
+
+| Constant | Value | Label | Calibrated On | Commit | Source / Derivation |
+| --- | --- | --- | --- | --- | --- |
+| `G0` | `9.80665 m/s^2` | `SOURCED` | — | `v1.0.0` | CGPM 1901 / ISO 80000-3 standard gravity |
+| `EARTH_MU` | `3.9860e+14 m^3/s^2` | `SOURCED` | — | `v1.0.0` | WGS-84 (NIMA TR8350.2) geocentric gravitational constant |
+| `EARTH_RADIUS_EQUATORIAL_M` | `6.3781e+6 m` | `SOURCED` | — | `v1.0.0` | WGS-84 (NIMA TR8350.2) equatorial semi-major axis a |
+| `EARTH_FLATTENING` | `0.0033528106647474805` | `SOURCED` | — | `v1.0.0` | WGS-84 (NIMA TR8350.2) flattening f = 1 / 298.257223563 |
+| `EARTH_RADIUS_MEAN_M` | `6.3710e+6 m` | `SOURCED` | — | `v1.0.0` | WGS-84 mean Earth radius for great-circle downrange |
+| `EARTH_OMEGA_RAD_S` | `7.2921e-5 rad/s` | `SOURCED` | — | `v1.0.0` | WGS-84 (NIMA TR8350.2) Earth sidereal rotation rate |
+| `EARTH_J2` | `0.00108262668` | `SOURCED` | — | `v1.0.0` | EGM96 / WGS-84 second zonal harmonic J2 |
+| `US76_R0_M` | `6.3568e+6 m` | `SOURCED` | — | `v1.0.0` | US Standard Atmosphere 1976 (NOAA-S/T 76-1562) effective radius r0 |
+| `SEA_LEVEL_PRESSURE_PA` | `101,325 Pa` | `SOURCED` | — | `v1.0.0` | US Standard Atmosphere 1976 sea-level pressure p0 |
+| `SEA_LEVEL_TEMP_K` | `288.15 K` | `SOURCED` | — | `v1.0.0` | US Standard Atmosphere 1976 sea-level temperature T0 |
+| `AIR_GAS_CONSTANT` | `287.05287 J/(kg*K)` | `SOURCED` | — | `v1.0.0` | US Standard Atmosphere 1976 specific gas constant for dry air |
+| `AIR_GAMMA` | `1.4` | `SOURCED` | — | `v1.0.0` | US Standard Atmosphere 1976 ratio of specific heats for dry air |
+| `US76_TOP_GEOMETRIC_M` | `86,000 m` | `SOURCED` | — | `v1.0.0` | US Standard Atmosphere 1976 top of 7-layer geopotential model |
+| `ATMO_UPPER_SCALE_HEIGHT_M` | `5,800 m` | `ASSUMED` | — | `v1.0.0` | Exponential scale height continuation above 86 km in lower thermosphere |
+| `ATMO_VACUUM_CUTOFF_M` | `200,000 m` | `ASSUMED` | — | `v1.0.0` | Altitude above which atmospheric density and pressure are treated as vacuum (0) |
+| `ASSUMED_MAX_Q_ALPHA_PA_DEG` | `200,000 Pa*deg` | `ASSUMED` | — | `v1.1.0` | Representative orbital launch vehicle structural bending-moment envelope (~3.49 kPa*rad) |
+
+### Vehicle & Propulsion
+
+| Constant | Value | Label | Calibrated On | Commit | Source / Derivation |
+| --- | --- | --- | --- | --- | --- |
+| `MERLIN_1D_THRUST_VAC_N` | `908,722 N` | `CALIBRATED` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `cda728a` | MAP Variant A fit (prior 914.11 +/- 6.00 kN SpaceX spec = 8,227 kN / 9) *(post: 908.72 +/- 5.63 kN/engine)* |
+| `MERLIN_1D_EXIT_AREA_M2` | `0.68 m^2` | `CALIBRATED` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `cda728a` | MAP Variant A fit (prior 0.680 +/- 0.015 m^2 from SpaceX (T_vac - T_sl) / p0, d_exit = 0.931 m) *(post: 0.680 +/- 0.015 m^2)* |
+| `MERLIN_1D_ISP_VAC_S` | `311.04 s` | `CALIBRATED` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `cda728a` | MAP Variant A fit (prior 311.0 +/- 2.0 s SpaceX spec) *(post: 311.04 +/- 1.91 s)* |
+| `MERLIN_1D_MIN_THROTTLE` | `0.4` | `ASSUMED` | — | `v1.0.0` | Publicly cited Merlin 1D Block 5 deep-throttle floor (~40%) |
+| `MVAC_THRUST_VAC_N` | `983,169 N` | `CALIBRATED` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `cda728a` | MAP Variant A fit (prior 981.0 +/- 10.0 kN SpaceX spec) *(post: 983.17 +/- 9.26 kN)* |
+| `MVAC_ISP_VAC_S` | `347.9 s` | `CALIBRATED` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `cda728a` | MAP Variant A fit (prior 348.0 +/- 2.0 s SpaceX spec) *(post: 347.90 +/- 1.98 s)* |
+| `MVAC_NOZZLE_RADIUS_M` | `1.65 m` | `ASSUMED` | — | `v1.0.0` | Approximate 3.3 m diameter MVac radiatively cooled nozzle extension |
+| `MVAC_MIN_THROTTLE` | `0.39` | `ASSUMED` | — | `v1.0.0` | Publicly cited MVac minimum throttle (~39-40%) |
+| `F9_TOTAL_HEIGHT_M` | `70 m` | `SOURCED` | — | `v1.0.0` | SpaceX Falcon User's Guide (70 m overall vehicle height) |
+| `F9_CORE_DIAMETER_M` | `3.7 m` | `SOURCED` | — | `v1.0.0` | SpaceX Falcon User's Guide (3.7 m core diameter) |
+| `F9_FAIRING_DIAMETER_M` | `5.2 m` | `SOURCED` | — | `v1.0.0` | SpaceX Falcon User's Guide (5.2 m fairing diameter) |
+| `F9_FAIRING_LENGTH_M` | `13.1 m` | `SOURCED` | — | `v1.0.0` | SpaceX Falcon User's Guide (13.1 m fairing length) |
+| `F9_FAIRING_MASS_KG` | `1,900 kg` | `SOURCED` | — | `v1.0.0` | Public SpaceX / Wikipedia F9 Block 5 fairing mass (~1,900 kg both halves) |
+| `F9_S1_DRY_MASS_KG` | `26,955 kg` | `CALIBRATED` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `cda728a` | MAP Variant A fit (MAP ~ 27.0 +/- 1.9 t, prior 25.6 +/- 2.0 t; prior-dominated, see BACKLOG) *(post: 26,955 +/- 1,857 kg (prior 25,600 +/- 2,000 kg))* |
+| `F9_S1_PROPELLANT_MASS_KG` | `422,671 kg` | `CALIBRATED` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `cda728a` | MAP Variant A fit (prior 411,000 +/- 8,000 kg Spaceflight101 / Wikipedia F9 FT-B5) *(post: 422,671 +/- 6,148 kg)* |
+| `F9_S1_LENGTH_M` | `42.6 m` | `SOURCED` | — | `v1.0.0` | Public Falcon 9 Block 5 Stage 1 + interstage geometry (~42.6 m) |
+| `F9_S2_DRY_MASS_KG` | `4,234 kg` | `CALIBRATED` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `cda728a` | MAP Variant A fit (prior 4,200 +/- 400 kg public F9 Stage 2 estimates) *(post: 4,234 +/- 398 kg)* |
+| `F9_S2_PROPELLANT_MASS_KG` | `111,310 kg` | `CALIBRATED` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `cda728a` | MAP Variant A fit (prior 109,500 +/- 3,000 kg Spaceflight101 / Wikipedia F9 FT-B5) *(post: 111,310 +/- 1,668 kg)* |
+| `F9_S2_LENGTH_M` | `12.6 m` | `SOURCED` | — | `v1.0.0` | Public Falcon 9 Block 5 Stage 2 geometry (~12.6 m) |
+| `F9_S1_MAX_AXIAL_ACCEL_G` | `3.69 g` | `CALIBRATED` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `cda728a` | MAP Variant A vehicle-level Stage 1 axial G cap (prior 4.00 +/- 0.50 g) *(post: 3.69 +/- 0.45 g)* |
+| `F9_S2_MAX_AXIAL_ACCEL_G` | `3.52 g` | `CALIBRATED` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `c1adfc1` | MAP Stage 2-only fit with widened prior (3.50 +/- 0.40 g, MLE 3.52 g) *(post: 3.52 +/- 0.31 g)* |
+| `ASCENT_ATTITUDE_SLEW_RATE_DEG_S` | `5 deg/s` | `ASSUMED` | — | `v1.0.0` | Simplified 3-DOF ascent attitude slew rate cap |
+| `BOOSTER_FLIP_SLEW_RATE_DEG_S` | `12 deg/s` | `ASSUMED` | — | `v1.0.0` | Simplified cold-gas RCS booster flip slew rate (~15 s for 180 deg flip) |
+
+### Aerodynamics
+
+| Constant | Value | Label | Calibrated On | Commit | Source / Derivation |
+| --- | --- | --- | --- | --- | --- |
+| `ASCENT_CD_MAP_SCALE` | `1.041` | `CALIBRATED` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `cda728a` | MAP Variant A ascent drag multiplier (prior 1.00 +/- 0.15; prior-dominated) *(post: 1.041 +/- 0.149)* |
+| `ASCENT_CD_MACH_BASE_TABLE` | `[12 pts]` (0:0.48, 0.5:0.48, 0.8:0.56, 0.95:0.76, 1.05:0.88, 1.2:0.8, 1.5:0.66, 2:0.52, 3:0.42, 4:0.36, 6:0.32, 10:0.3) | `ASSUMED` | — | `v1.0.0` | Core-area-referenced (10.7521 m^2) slender launch-vehicle Cd(M), scaled by 1.975x fairing/core area ratio |
+| `BOOSTER_DESCENT_CD_MACH_TABLE` | `[9 pts]` (0:1.15, 0.5:1.2, 0.85:1.3, 1.05:1.42, 1.5:1.68, 2.2:1.68, 2.9:1.65, 4:1.58, 8:1.5) | `CALIBRATED` | Iridium NEXT 8, SAOCOM 1A | `99843f1` | Tail-first octaweb + titanium grid-fin Cd(M) reconstructed from stage1 telemetry (incl. M < 1.2); LOO validated & cross-checked on 6 B3/4 flights |
+| `BOOSTER_GRID_FIN_CL_PER_RAD` | `0.8 rad^-1` | `ASSUMED` | — | `v1.0.0` | Simplified grid-fin + booster-body lateral lift slope (max +/-20 deg -> L/D ~ 0.25-0.30) |
+
+### Ascent & Stage 2 Guidance
+
+| Constant | Value | Label | Calibrated On | Commit | Source / Derivation |
+| --- | --- | --- | --- | --- | --- |
+| `IGNITION_START_S` | `-3 s` | `SOURCED` | — | `558b5c7` | SpaceX Falcon User's Guide / webcast Merlin 1D TEA-TEB ignition command at T-3 s |
+| `WATER_DELUGE_START_S` | `-5 s` | `ASSUMED` | — | `558b5c7` | Pad Niagara acoustic water deluge start prior to T-3 s ignition (exact valve timings unpublished) |
+| `IGNITION_SPOOL_UP_DURATION_S` | `2.2 s` | `ASSUMED` | — | `558b5c7` | Smoothstep thrust spool-up 0->100% (T-3.0 to T-0.8 s) before 0.8 s hold-down health verification |
+| `WEBCAST_LIFTOFF_OFFSET_S` | `0 s` | `CALIBRATED` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `04d3799` | Hold-down clamp release at T=0 fits early webcast ascent (T+0..30 s) best at 0.0 s (38-40 m RMS) |
+| `ASCENT_PITCH_KICK_ALTITUDE_M` | `150 m` | `ASSUMED` | — | `v1.0.0` | Tower-clearance altitude AGL above launch pad before initiating pitchover kick |
+| `ASCENT_PITCH_KICK_DURATION_S` | `8 s` | `ASSUMED` | — | `v1.0.0` | Smooth pitchover ramp duration from vertical rise into gravity turn |
+| `ASCENT_MAX_Q_THROTTLE_START_PA` | `22,000 Pa` | `ASSUMED` | — | `v1.0.0` | Shared v1 transonic max-Q throttle bucket entry dynamic pressure |
+| `ASCENT_MAX_Q_THROTTLE_END_MACH` | `1.38 Mach` | `ASSUMED` | — | `v1.0.0` | Shared v1 transonic max-Q throttle bucket exit Mach number |
+| `ASCENT_MAX_Q_MIN_THROTTLE` | `0.72` | `ASSUMED` | — | `v1.0.0` | Shared v1 transonic max-Q throttle bucket minimum throttle setting |
+| `STAGE_SEP_DELAY_S` | `3.5 s` | `SOURCED` | — | `v1.0.0` | Typical MECO-to-stage-separation delay in SpaceX press kits and webcasts (~3-4 s) |
+| `SES1_DELAY_FROM_MECO_S` | `8 s` | `SOURCED` | — | `v1.0.0` | Typical MECO-to-SES-1 ignition delay in SpaceX press kits (DM-1 overrides with 11.0 s from events.json) |
+| `FAIRING_SEP_ALTITUDE_M` | `115,000 m` | `ASSUMED` | — | `v1.0.0` | Free-molecular aerodynamic heating threshold (~115 km) for payload fairing jettison |
+| `CLASS_LEO_MAX_AXIAL_ACCEL_G` | `2.9 g` | `EMPIRICAL` | DM-1, SpaceX CRS-16, Iridium NEXT 8 | `df229f4` | Effective late-S1 accel cap for Class 0 LEO (sits 0.39-0.77 g below reconstructed true axial accel 3.29-3.67 g; BACKLOG #10) |
+| `CLASS_GTO_MAX_AXIAL_ACCEL_G` | `3.6 g` | `EMPIRICAL` | Bangabandhu-1 | `df229f4` | Effective late-S1 accel cap for Class 1 GTO (sits 0.22-0.26 g below reconstructed true axial accel 3.82-3.86 g; BACKLOG #10) |
+| `CLASS_GTO_ALTITUDE_THRESHOLD_M` | `2.0000e+6 m` | `ASSUMED` | — | `d7e22aa` | What-If orbit-type mission-class predictor threshold (9/10 LOO accuracy on 10 Block 5 flights) |
+| `CLOSED_LOOP_LEAN_FLOOR_KG` | `2,500 kg` | `CALIBRATED` | Iridium NEXT 8, SAOCOM 1A | `388a1cd` | Closed-loop MECO absolute touchdown propellant floor above ~4.5-5.5 t landing burn (8-flight aero mass ~30.5-31.6 t) |
+| `DEFAULT_TRANSFER_PERIGEE_ALT_M` | `185,000 m` | `ASSUMED` | — | `v1.3.1` | Two-burn Hohmann transfer parking perigee altitude (matching ~183 km Iridium-8 transfer perigee) |
+| `AUTO_TWO_BURN_ALTITUDE_M` | `250,000 m` | `HEURISTIC` | — | `v1.3.1` | What-If default altitude threshold to enable two-burn Hohmann transfer when ascentProfile is omitted |
+| `IRIDIUM_8_DRONESHIP_DOWNRANGE_KM` | `244 km` | `ASSUMED` | — | `e87a77e` | Estimated from Pacific NOTMAR hazard zone & observed 33 s partial boostback burn (exact km unpublished in press kit) |
+
+### Booster Recovery & Entry
+
+| Constant | Value | Label | Calibrated On | Commit | Source / Derivation |
+| --- | --- | --- | --- | --- | --- |
+| `SUTTON_GRAVES_K_EARTH` | `1.7415e-4 W/(m^(3/2)*(m/s)^3)` | `SOURCED` | — | `70826b1` | Sutton & Graves (1971) NASA TR R-376 Earth convective stagnation heating constant |
+| `BOOSTER_BASE_RADIUS_M` | `1.85 m` | `SOURCED` | — | `70826b1` | Falcon 9 core base radius (3.7 m / 2) used as blunt-body effective nose radius in Sutton-Graves proxy |
+| `ENTRY_BURN_HEATING_LIMIT_MW_M2` | `0.022 MW/m^2` | `CALIBRATED` | Iridium NEXT 8, SAOCOM 1A | `d5a054e` | Predictive Sutton-Graves entry-burn thermal envelope target (+0.06 km 8-flight ignition-altitude bias; LOO -1.93 / +0.97 km) |
+| `ENTRY_BURN_AERO_LEAD_S` | `14 s` | `CALIBRATED` | Iridium NEXT 8, SAOCOM 1A | `d5a054e` | Predictive entry-burn aerodynamic lead time before unburned peak stagnation heating |
+| `ENTRY_BURN_TARGET_ACCEL_G` | `3.6 g` | `CALIBRATED` | Iridium NEXT 8, SAOCOM 1A | `d5a054e` | Mass-invariant 3-engine throttled / 1-3-1 average entry deceleration (matches 3.4-4.2 g across 11 telemetry flights) |
+| `ENTRY_BURN_MAX_DURATION_S` | `26 s` | `CALIBRATED` | Iridium NEXT 8, SAOCOM 1A | `d5a054e` | Maximum 3-engine entry-burn duration cap |
+| `TERMINAL_FLARE_TARGET_VTD_MS` | `0.55 m/s` | `ASSUMED` | — | `e87a77e` | Nominal terminal touchdown vertical speed keeping 0.55 + 1.35 m/s max ASDS deck heave < 2.0 m/s |
+| `TERMINAL_FLARE_HEIGHT_M` | `1.85 m` | `ASSUMED` | — | `e87a77e` | Terminal flare transition altitude AGL above 1.5 m peak ASDS ocean heave |
+| `ANTI_HOVER_FLARE_GATE_ALT_M` | `2.5 m` | `HEURISTIC` | — | `a6e7a2f` | Altitude gate below which anti-hover timer starts to mitigate unaided INS negative v_z bias (tracked in BACKLOG for radar velocity estimation) |
+| `ANTI_HOVER_FLARE_DELAY_S` | `3.5 s` | `HEURISTIC` | — | `a6e7a2f` | Terminal flare dwell time before ramping vTd to break unaided INS velocity-bias hover-hang |
+| `ANTI_HOVER_FLARE_RAMP_MS_PER_S` | `0.15 m/s^2` | `HEURISTIC` | — | `a6e7a2f` | Smooth vTd ramp rate after flare dwell delay so descent resumes without hard free-fall |
+| `ANTI_HOVER_FLARE_MAX_ADD_MS` | `0.65 m/s` | `HEURISTIC` | — | `a6e7a2f` | Maximum additional descent speed commanded by anti-hover ramp (caps vTd at 1.20 m/s) |
+
+### Mission Design & Solver
+
+| Constant | Value | Label | Calibrated On | Commit | Source / Derivation |
+| --- | --- | --- | --- | --- | --- |
+| `PROFILE_KICK_LEO_DIRECT_DEG` | `1.3 deg` | `CALIBRATED` | DM-1, SpaceX CRS-16, SAOCOM 1A, SSO-A | `cda728a` | Median Part D per-flight fitted pitch kick for LEO direct profiles (1.19-1.37 deg) |
+| `PROFILE_KICK_LEO_TWO_BURN_DEG` | `1.7 deg` | `CALIBRATED` | Iridium NEXT 8, Iridium NEXT 7 | `cda728a` | Median Part D per-flight fitted pitch kick for LEO two-burn profiles (1.71-1.73 deg) |
+| `PROFILE_KICK_GTO_DEG` | `2.45 deg` | `CALIBRATED` | Bangabandhu-1, TelStar v19, Eshail 2 | `cda728a` | Median Part D per-flight fitted pitch kick for GTO profiles (2.40-2.51 deg) |
+| `SOLVER_S2_TIE_BAND_KG` | `500 kg` | `HEURISTIC` | — | `a6e7a2f` | Stage 2 fuel-margin tie-breaker band (~0.45% S2 prop) within which solver prefers kick closest to profile median |
+| `SOLVER_BOOSTBACK_HEAT_CEILING_MW_M2` | `0.025 MW/m^2` | `CALIBRATED` | Iridium NEXT 8, SAOCOM 1A | `d5a054e` | Boostback-class solver entry-heating ceiling (~15% above 0.022 target; real 8 boostback flights 0.013-0.033 MW/m^2) |
+| `SOLVER_BALLISTIC_HEAT_CEILING_MW_M2` | `0.085 MW/m^2` | `CALIBRATED` | KoreaSat 5A, SES-11, BulgariaSat-1 | `388a1cd` | Ballistic ASDS solver entry-heating ceiling inside real GTO ASDS envelope (0.068-0.126 MW/m^2, mean 0.099) |
+| `SOLVER_BOOSTBACK_FUEL_FLOOR_KG` | `3,500 kg` | `CALIBRATED` | DEFAULT_RTLS (MC N=300x9) | `a6e7a2f` | Boostback-class nominal landing fuel floor from measured skewed left-tail 3-sigma post-MECO RSS = 3,465 kg (9 MC drivers) |
+| `SOLVER_BALLISTIC_FUEL_FLOOR_KG` | `2,500 kg` | `CALIBRATED` | Iridium NEXT 8, SAOCOM 1A | `d5a054e` | Ballistic ASDS lean touchdown propellant margin floor derived from 8-flight aero-descent mass inference (~30.5-31.6 t) |
+| `SOLVER_MAX_GRID_FIN_SAT_FRACTION` | `0.15` | `ASSUMED` | — | `v1.3.0` | Maximum allowable aero-descent grid-fin saturation fraction for mission-design feasibility |
+
+### Monte Carlo & Navigation
+
+| Constant | Value | Label | Calibrated On | Commit | Source / Derivation |
+| --- | --- | --- | --- | --- | --- |
+| `NAV_CORR_TIME_S` | `45 s` | `ASSUMED` | — | `v1.2.0` | First-order Gauss-Markov INS/GPS navigation bias correlation time constant |
+| `NAV_ALT_AID_ACQ_M` | `3,000 m` | `ASSUMED` | — | `v1.2.0` | Downward-looking landing radar altimeter acquisition altitude AGL |
+| `NAV_ALT_RADAR_FLOOR_M` | `0.15 m` | `ASSUMED` | — | `v1.2.0` | Landing radar altimeter residual multipath/clutter floor sigma |
+| `NAV_ALT_RADAR_SCALE` | `0.002` | `ASSUMED` | — | `v1.2.0` | Landing radar altimeter range-proportional error scale (0.2% of AGL) |
+| `NAV_ALT_AID_MIN_TAU_S` | `2 s` | `ASSUMED` | — | `v1.2.0` | Minimum closed-loop radar/INS vertical filter correlation time near touchdown |
+
+<!-- END GENERATED: CONSTANTS_REGISTRY -->
+
+---
+
 ## 1. Dynamics & Attitude
 
 - **3-DOF translation + rate-limited commanded attitude:** Rotational inertia, TVC gimbal dynamics, slosh, structural bending, and aerodynamic pitching moments are not modeled. The thrust vector slews smoothly toward the guidance command at a capped rate (`maxAttitudeSlewRateRadS = 5 deg/s` during ascent, `boosterFlipSlewRateRadS = 12 deg/s` during RCS flip, and `35 deg/s` TVC gimbal authority during powered descent, `ASSUMED`).
@@ -295,10 +429,10 @@ Standardized `k = 2` clustering on `(bucketDurS, v140Ms, peakLateS1AccelG)` part
   - **Inferred real aero-descent mass from telemetry (`m = (q · Cd(M) · A) / (-(dv/dt + g·sinγ))` across all 8 boostback flights):**
     - Block 5 (`n=2`): `Iridium NEXT 8` `31.6 t` (`m_ign = 30.8 t`, `EstLndProp = 4.46 t`, `ImpliedDry+Res = 27.1 t`); `SAOCOM 1A` `31.6 t` (`m_ign = 32.1 t`, `EstLndProp = 5.49 t`, `ImpliedDry+Res = 26.1 t`) — mean **`31.6 t`**.
     - Block 3/4 (`n=6` independent): `Iridium NEXT 3` `31.3 t`, `SpaceX CRS-12` `29.8 t`, `SpaceX CRS-11` `30.3 t`, `NROL-76` `30.6 t`, `X-37B OTV-5` `29.3 t`, `ZUMA` `29.1 t` — mean **`30.1 t`** (`30.5 t` across all 8 flights).
-    - Compared to our `27.2 t` fitted Block 5 dry mass, real operational touchdown reserve is inferred at `~0–2.0 t` above the `~4.5–5.5 t` landing burn (note: this `0–2 t` touchdown-reserve inference lies within our `±1.9 t` S1 dry-mass MAP uncertainty, so exact real touchdown reserve cannot be separated from dry-mass uncertainty below `~2 t`).
+    - Compared to our fitted Block 5 S1 dry mass (`MAP ≈ 27.0 ± 1.9 t`, prior `25.6 ± 2.0 t`; `26,955 ± 1,857 kg`), real operational touchdown reserve is inferred at `~0–2.0 t` above the `~4.5–5.5 t` landing burn (note: this `0–2 t` touchdown-reserve inference lies within the `±1.9 t` S1 dry-mass MAP uncertainty, so exact real touchdown reserve cannot be separated from dry-mass uncertainty below `~2 t`; see `docs/BACKLOG.md` for S1 dry-mass identification).
   - **Lean Landing-Margin Policy, Variance Attribution, Closed-Loop MECO Cutoff & Shipped `dt = 0.01 s` Verification (`src/sim/guidance/ascent.ts`, `booster.ts`, `mission-design.ts`):**
     - **One-at-a-time variance attribution (`N = 300` per driver across all 9 MC dispersions):**
-      - Exposed a dominant terminal-flare hover-hang bug in `navErrors` on `DEFAULT_RTLS` (`14/300` propellant-depleted crashes, `σ = 635 kg`, `3σ = 1,904 kg`) when negative unaided INS vertical velocity bias exceeded `vTd = 0.55 m/s`. Fixed via a smooth anti-hover-hang ramp (`vTd = 0.55 + min(0.65, 0.15 * max(0, flareTimeS - 3.5))` below `2.5 m` AGL) that preserves `0.55 m/s` nominal touchdown speed (keeping `0.55 + 1.35 m/s` ocean heave below `2.0 m/s` on ASDS) while overcoming negative velocity bias on rare flare hangs (`navErrors` `σ` collapsed from `635 → ~43 kg`).
+      - Exposed a dominant terminal-flare hover-hang bug in `navErrors` on `DEFAULT_RTLS` (`14/300` propellant-depleted crashes, `σ = 635 kg`, `3σ = 1,904 kg`) when negative unaided INS vertical velocity bias exceeded `vTd = 0.55 m/s`. Mitigated via a smooth **`HEURISTIC`** anti-hover-hang ramp (`vTd = 0.55 + min(0.65, 0.15 * max(0, flareTimeS - 3.5))` below `2.5 m` AGL) that preserves `0.55 m/s` nominal touchdown speed (keeping `0.55 + 1.35 m/s` ocean heave below `2.0 m/s` on ASDS) while overcoming negative velocity bias on rare flare hangs (`navErrors` `σ` collapsed from `635 → ~43 kg`; tracked in `docs/BACKLOG.md` to be replaced by radar-based terminal vertical velocity estimation).
       - Remaining `DEFAULT_RTLS` per-driver `σ` (`p50 - p5` left tail): `thrustScale` `515 kg` (`-1,267`), `baseWind` `431 kg` (`-1,137`), `propLoad` `340 kg` (`-794`), `ispScale` `177 kg` (`-128`), `windGusts` `106 kg` (`-134`), `cdScale` `92 kg` (`-168`), `dryMass` `71 kg` (`-127`), `navErrors` `43 kg` (`-76`), `actuatorLag` `35 kg` (`-59`) — RSS `1σ = 791 kg` (`3σ = 2,372 kg`), skewed left-tail `3σ ≈ (3/1.645) × RSS(p50 - p5) = 3,465 kg`. On `Iridium NEXT 8`, all 9 drivers are small (`RSS 1σ = 385 kg`, `3σ = 1,155 kg`, `300/300` on every driver).
     - **Derived landing-margin floors (`solveMissionAscentDesign`, verified at shipped `dt = 0.01 s`):** **`3,500 kg`** for boostback-class recoveries (`RTLS` & close-in `ASDS-BB`, set directly from the measured `3,465 kg` left-tail `3σ` post-MECO cost — less than half the legacy `7,500 kg` floor) and **`2,500 kg`** for ballistic `ASDS`.
     - **Kick stability tie-breaker (`solveMissionAscentDesign`):** Among feasible kicks within `500 kg` (`~0.45%` of S2 prop) of the maximum Stage 2 fuel margin, the solver prefers the kick closest to the class-fitted profile median (`~1.3°` for LEO direct).

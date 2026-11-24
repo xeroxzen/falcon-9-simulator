@@ -1,6 +1,7 @@
 import type { AscentGuidanceConfig, MissionConfig } from '../types.js';
 import { MISSION_CLASS_SCHEDULES } from '../guidance/mission-design.js';
 import { LAUNCH_SITES } from './falcon9.js';
+import { CONSTANTS_REGISTRY as R } from './registry.js';
 
 /**
  * Shared baseline Falcon 9 Block 5 LEO ascent guidance parameters.
@@ -9,22 +10,22 @@ import { LAUNCH_SITES } from './falcon9.js';
  */
 const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
   /** ASSUMED: Clear tower (~150 m) before pitchover */
-  pitchKickAltitudeM: 150,
+  pitchKickAltitudeM: R.ASCENT_PITCH_KICK_ALTITUDE_M.value,
   /** Mission-design pitchover kick solved by solveMissionAscentDesign (2.90 g LEO + predictive Sutton-Graves entry burn) */
   pitchKickAngleDeg: 1.9,
   /** ASSUMED: Smooth pitchover duration */
-  pitchKickDurationS: 8.0,
+  pitchKickDurationS: R.ASCENT_PITCH_KICK_DURATION_S.value,
   /** Shared v1 max-Q throttle bucket (22 kPa, Mach 1.02..1.38, 72% min throttle) */
-  maxQThrottleStartPa: 22_000,
-  maxQThrottleEndMach: 1.38,
-  maxQMinThrottle: 0.72,
+  maxQThrottleStartPa: R.ASCENT_MAX_Q_THROTTLE_START_PA.value,
+  maxQThrottleEndMach: R.ASCENT_MAX_Q_THROTTLE_END_MACH.value,
+  maxQMinThrottle: R.ASCENT_MAX_Q_MIN_THROTTLE.value,
   /** Simplified Mission-Class MAP (Class 0 LEO): per-class S1 late-burn accel limit only */
   maxAxialAccelG: MISSION_CLASS_SCHEDULES.LEO.maxAxialAccelG,
   /** ASSUMED: 7.5% S1 propellant reserve at MECO for ASDS entry + landing */
   mecoPropellantReserveFraction: 0.075,
-  stageSepDelayS: 3.5,
-  ses1DelayFromMecoS: 8.0,
-  fairingSepAltitudeM: 115_000,
+  stageSepDelayS: R.STAGE_SEP_DELAY_S.value,
+  ses1DelayFromMecoS: R.SES1_DELAY_FROM_MECO_S.value,
+  fairingSepAltitudeM: R.FAIRING_SEP_ALTITUDE_M.value,
 };
 
 const BASELINE_RTLS_GUIDANCE: AscentGuidanceConfig = {
@@ -148,7 +149,7 @@ export const IRIDIUM_NEXT_8_MISSION: MissionConfig = {
   launchDirection: 'DESCENDING',
   landingMode: 'ASDS',
   /** ASSUMED: 244 km downrange (not published in SpaceX press kit; estimated from Pacific NOTMAR hazard zone & 33 s boostback burn). */
-  droneshipDownrangeKm: 244,
+  droneshipDownrangeKm: R.IRIDIUM_8_DRONESHIP_DOWNRANGE_KM.value,
   fittedKickProvenance: {
     modelVersion: 'v1.7.0',
     commit: '7e71b8c',

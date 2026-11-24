@@ -11,6 +11,7 @@ import {
   EARTH_RADIUS_EQUATORIAL_M,
   G0,
 } from '../config/constants.js';
+import { CONSTANTS_REGISTRY as R } from '../config/registry.js';
 import {
   add,
   clamp,
@@ -24,10 +25,10 @@ import {
 } from '../math.js';
 
 /** Default ASSUMED parking/transfer perigee altitude for two-burn Hohmann insertions (185 km). */
-export const DEFAULT_TRANSFER_PERIGEE_ALT_M = 185_000;
+export const DEFAULT_TRANSFER_PERIGEE_ALT_M = R.DEFAULT_TRANSFER_PERIGEE_ALT_M.value;
 
-/** Target orbit altitude threshold used ONLY as the What-If default when ascentProfile is omitted. */
-export const AUTO_TWO_BURN_ALTITUDE_M = 250_000;
+/** HEURISTIC: Target orbit altitude threshold used ONLY as the What-If default when ascentProfile is omitted. */
+export const AUTO_TWO_BURN_ALTITUDE_M = R.AUTO_TWO_BURN_ALTITUDE_M.value;
 
 export function isTwoBurnMission(mission: MissionConfig): boolean {
   if (mission.ascentProfile !== undefined) {

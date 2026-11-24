@@ -1,5 +1,6 @@
 import { runFullMission } from '../mission.js';
 import { sampleAtmosphere } from '../models/atmosphere.js';
+import { CONSTANTS_REGISTRY as R } from '../config/registry.js';
 import type { MissionConfig, VehicleConfig } from '../types.js';
 
 export type AscentTrajectoryProfile = 'LEO_DIRECT' | 'LEO_TWO_BURN' | 'GTO';
@@ -29,11 +30,11 @@ export const MISSION_CLASS_SCHEDULES: Readonly<
 > = {
   LEO: {
     missionClass: 'LEO',
-    maxAxialAccelG: 2.9,
+    maxAxialAccelG: R.CLASS_LEO_MAX_AXIAL_ACCEL_G.value,
   },
   GTO: {
     missionClass: 'GTO',
-    maxAxialAccelG: 3.6,
+    maxAxialAccelG: R.CLASS_GTO_MAX_AXIAL_ACCEL_G.value,
   },
 };
 
@@ -47,7 +48,7 @@ export function selectMissionClassSchedule(
   targetOrbitAltitudeM: number,
   isGto = false
 ): MissionClassSchedule {
-  return isGto || targetOrbitAltitudeM >= 2_000_000
+  return isGto || targetOrbitAltitudeM >= R.CLASS_GTO_ALTITUDE_THRESHOLD_M.value
     ? MISSION_CLASS_SCHEDULES.GTO
     : MISSION_CLASS_SCHEDULES.LEO;
 }
@@ -64,9 +65,9 @@ export function selectMissionClassSchedule(
 export const PROFILE_DEFAULT_PITCH_KICK_DEG: Readonly<
   Record<AscentTrajectoryProfile, number>
 > = {
-  LEO_DIRECT: 1.3,
-  LEO_TWO_BURN: 1.7,
-  GTO: 2.45,
+  LEO_DIRECT: R.PROFILE_KICK_LEO_DIRECT_DEG.value,
+  LEO_TWO_BURN: R.PROFILE_KICK_LEO_TWO_BURN_DEG.value,
+  GTO: R.PROFILE_KICK_GTO_DEG.value,
 };
 
 /**
@@ -127,10 +128,10 @@ export interface MissionDesignResult {
   readonly peakEntryHeatingMWm2: number;
 }
 
-/** Sutton-Graves Earth convective stagnation heating constant (W / (m^(3/2) * (m/s)^3)). */
-const SUTTON_GRAVES_K_EARTH = 1.7415e-4;
-/** Falcon 9 core base radius (m) used as effective blunt-body nose radius for entry heating proxy. */
-const BOOSTER_BASE_RADIUS_M = 1.85;
+/** SOURCED: Sutton-Graves Earth convective stagnation heating constant (W / (m^(3/2) * (m/s)^3)). */
+const SUTTON_GRAVES_K_EARTH = R.SUTTON_GRAVES_K_EARTH.value;
+/** SOURCED: Falcon 9 core base radius (m) used as effective blunt-body nose radius for entry heating proxy. */
+const BOOSTER_BASE_RADIUS_M = R.BOOSTER_BASE_RADIUS_M.value;
 
 function evaluateCandidate(
   vehicle: VehicleConfig,
@@ -241,7 +242,8 @@ function solveKickForReserve(
   // of the best Stage 2 fuel margin, prefer the kick closest to the class-fitted
   // profile median (initialGuessKickDeg, ~1.3 deg for LEO direct).
   const maxS2Coarse = Math.max(...feasibleCoarse.map((r) => r.stage2FuelMarginKg));
-  const S2_TIE_BAND_KG = 500;
+  /** HEURISTIC: Stage 2 fuel-margin tie-breaker band (kg) */
+  const S2_TIE_BAND_KG = R.SOLVER_S2_TIE_BAND_KG.value;
   const pickBestKick = (cands: readonly MissionDesignResult[], maxS2: number): MissionDesignResult => {
     const nearBest = cands.filter((r) => r.stage2FuelMarginKg >= maxS2 - S2_TIE_BAND_KG);
     nearBest.sort((a, b) => {
@@ -333,14 +335,17 @@ export function solveMissionAscentDesign(
     : (options.maxKickDeg ?? 2.6);
   const coarseStep = options.coarseStepDeg ?? 0.15;
   const fineStep = options.fineStepDeg ?? 0.05;
-  const maxSat = options.maxGridFinSatFraction ?? 0.15;
+  const maxSat = options.maxGridFinSatFraction ?? R.SOLVER_MAX_GRID_FIN_SAT_FRACTION.value;
   // Boostback recoveries must keep post-entry heating within ~15% of the vehicle's
   // 0.022 MW/m^2 entry-burn thermal target (<=0.025 MW/m^2, preventing 26 s cap
   // saturation from over-lofted -4 deg boostbacks); ballistic ASDS keeps 0.085 MW/m^2.
   const isBoostbackCandidate =
     mission.landingMode === 'RTLS' || mission.droneshipDownrangeKm !== undefined;
   const maxHeat =
-    options.maxEntryHeatingMWm2 ?? (isBoostbackCandidate ? 0.025 : 0.085);
+    options.maxEntryHeatingMWm2 ??
+    (isBoostbackCandidate
+      ? R.SOLVER_BOOSTBACK_HEAT_CEILING_MW_M2.value
+      : R.SOLVER_BALLISTIC_HEAT_CEILING_MW_M2.value);
   // Telemetry-derived lean touchdown propellant margin floor:
   //  - Ballistic ASDS: 2,500 kg (~0.59% S1 prop; real Block 5 aero-descent mass ~31.6 t).
   //  - Boostback-class (RTLS / close-in ASDS-BB): 3,500 kg, set directly from the measured
@@ -348,7 +353,10 @@ export function solveMissionAscentDesign(
   //    the 9 MC drivers after fixing terminal-flare velocity-bias hover-hang; less than
   //    half the legacy 7,500 kg floor, guaranteeing >=99% landing without sitting at the edge).
   const minBoosterFuel =
-    options.minBoosterFuelMarginKg ?? (isBoostbackCandidate ? 3_500 : 2_500);
+    options.minBoosterFuelMarginKg ??
+    (isBoostbackCandidate
+      ? R.SOLVER_BOOSTBACK_FUEL_FLOOR_KG.value
+      : R.SOLVER_BALLISTIC_FUEL_FLOOR_KG.value);
 
   const isFeasible = (r: MissionDesignResult): boolean =>
     r.orbitAchieved &&

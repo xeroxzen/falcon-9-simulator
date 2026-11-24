@@ -98,7 +98,22 @@ Dispersions: Thrust `±1%`, Isp `±0.5%`, `Cd ±5%`, propellant load `±0.5%`, d
 
 ## Model Fidelity & Limitations
 
-This simulator is a **3-DOF (point-mass translational + rate-limited attitude vector)** flight dynamics model, **not** a full 6-DOF rigid-body or CFD simulation. Every public specification, empirical correction, and modeling assumption is explicitly documented in **[docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)**.
+This simulator is a **3-DOF (point-mass translational + rate-limited attitude vector)** flight dynamics model, **not** a full 6-DOF rigid-body or CFD simulation. Every public specification, calibrated parameter, empirical cap, and modeling heuristic lives in the single-source-of-truth registry **[src/sim/config/registry.ts](src/sim/config/registry.ts)** and is auto-rendered into **[docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)** (verified in CI so docs cannot drift from code).
+
+### Model Fidelity at a Glance
+
+| Subsystem | Fidelity Class | Basis / Provenance |
+| --- | --- | --- |
+| **Orbital & Planetary Dynamics** | **Physical (`SOURCED`)** | ECI RK4 (`dt = 0.01 s`), WGS-84 rotating Earth, inverse-square + `J2` gravity, US Standard Atmosphere 1976 (`0–86 km`; `ASSUMED` exponential tail `86–200 km`) |
+| **Propulsion & Choked-Nozzle Flow** | **Physical + Calibrated (`n = 3` B5)** | Exact `T = T_vac − p_amb·A_exit`, `ṁ = T_vac/(I_sp,vac·g₀)`; Block 5 engine & mass parameters MAP-fitted on `DM-1`, `CRS-16`, `Iridium NEXT 8` (S1 dry mass `MAP ≈ 27.0 ± 1.9 t`, prior `25.6 t`) |
+| **Stage 2 Orbital Insertion** | **Physical (`DIRECT` / `TWO_BURN`)** | Closed-form variable-mass PEG radial BVP + cross-track yaw steering + analytic Keplerian apoapsis coast; `AUTO_TWO_BURN_ALTITUDE_M = 250 km` fallback is **`HEURISTIC`** |
+| **Booster Entry-Burn Trigger & Cut-off** | **Physical + Calibrated (`n = 2` B5)** | Predictive Sutton-Graves convective heating lookahead (`0.022 MW/m²`, `14 s` lead, `3.6 g`, `26 s` cap) calibrated on `Iridium NEXT 8` & `SAOCOM 1A`, validated across 6 independent B3/4 flights (`+0.06 km` 8-flight bias); ballistic ASDS solver ceiling `0.085 MW/m²` calibrated on `n = 3` GTO flights |
+| **Tail-First Booster Descent `Cd(M)`** | **Calibrated (`n = 2` B5)** | Reconstructed from `Iridium NEXT 8` & `SAOCOM 1A` `stage1` telemetry (incl. `M < 1.2`), LOO-validated and cross-checked on 6 B3/4 flights; ascent `Cd(M)` & grid-fin `C_L = 0.8/rad` are **`ASSUMED`** |
+| **Closed-Loop MECO & Landing Burn** | **Physical + Calibrated (`n = 2` B5 / MC)** | Tsiolkovsky actual-mass MECO & booster burn cutoffs, mode-free 3→1 engine handoff, ZEM/ZEV powered descent; `2.5 t` ballistic / `3.5 t` boostback fuel floors derived from 8-flight mass inference & 9-driver MC variance attribution |
+| **Late-S1 Axial Accel Caps (`2.90 g` / `3.60 g`)** | **Empirical (`n = 4` B5)** | Mission-class effective caps (`DM-1`, `CRS-16`, `Iridium NEXT 8` for LEO; `Bangabandhu-1` for GTO) compensating for unmodeled late-S1 discrepancy (BACKLOG #10) |
+| **Terminal-Flare Anti-Hover Ramp** | **Heuristic** | Dwell-time `vTd` ramp (`> 3.5 s` below `2.5 m` AGL) mitigating unaided INS negative `v_z` bias until radar vertical velocity estimation is added (BACKLOG #15) |
+| **Solver Kick Tie-Breaker (`500 kg` band)** | **Heuristic** | Prefers feasible kick closest to class-fitted median (`~1.3°` LEO direct) when Stage 2 fuel margins are within `500 kg` (`~0.45%` S2 prop) |
+| **Attitude, Wind & Navigation Noise** | **Assumed (3-DOF)** | Rate-limited thrust vector (no 6-DOF inertia/slosh/gimbal torque), constant wind + sinusoidal gusts, Gauss-Markov (`τ = 45 s`) nav biases + radar altimeter AGL fusion (`< 3 km`) |
 
 Key simplifications and assumptions:
 - **3-DOF Attitude:** Vehicle orientation is represented as a unit thrust/longitudinal axis vector with finite slew-rate limits rather than full rigid-body Euler/quaternion rotational inertia, TVC gimbal torque dynamics, or propellant slosh.
