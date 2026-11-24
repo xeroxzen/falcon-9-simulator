@@ -41,6 +41,8 @@ export interface BoosterGuidanceMemory {
   /** Cached ballistic entry heating lookahead (refreshed every 0.5 s). */
   lastEntryPredTimeS?: number;
   lastEntryPred?: EntryBallisticPrediction;
+  /** Timestamp when booster first entered terminal flare (< 2.5 m AGL). */
+  flareStartTimeS?: number;
 }
 
 /**
@@ -533,11 +535,17 @@ export function computeBoosterGuidance(
     };
   }
 
-  // Terminal vertical profile with heave & altimeter-noise margin (unified across all modes):
-  // Brake toward a gentle v_td = 0.55 m/s at h_flare = 1.85 m (above max ±1.5 m ASDS heave),
-  // then hold a regulated ~0.55 m/s descent through the final flare window so ocean heave
-  // and residual altimeter noise do not cause >= 2 m/s impacts without hover bounce.
-  const vTd = 0.55;
+  // Terminal vertical profile with heave & velocity-bias anti-hover guard (unified across all modes):
+  // Brake toward v_td = 0.55 m/s at h_flare = 1.85 m (keeping v_td + max 1.35 m/s ASDS deck heave
+  // below 2.0 m/s). If the booster remains in the final 2.5 m flare longer than 3.5 s (indicating
+  // an unaided negative INS vertical velocity bias holding true v_down <= 0), gently ramp v_td
+  // (+0.15 m/s per second) so true descent resumes smoothly without hover-hang propellant depletion.
+  if (heightAboveTarget < 2.5 && mem.flareStartTimeS === undefined) {
+    mem.flareStartTimeS = timeS;
+  }
+  const flareExcessS =
+    mem.flareStartTimeS !== undefined ? Math.max(0, timeS - mem.flareStartTimeS - 3.5) : 0;
+  const vTd = 0.55 + Math.min(0.65, 0.15 * flareExcessS);
   const hFlare = 1.85;
   let aUpCmd: number;
   if (heightAboveTarget > hFlare + 0.25) {
@@ -546,7 +554,7 @@ export function computeBoosterGuidance(
   } else {
     aUpCmd = G0 + 2.4 * (vDown - vTd);
   }
-  // Prevent T/W > 1 hover-bounce on light ASDS boosters: if vertical speed
+  // Prevent T/W > 1 hover-bounce on light boosters: if vertical speed
   // reverses upward near the deck, command engine cutoff so it settles cleanly.
   if (heightAboveTarget < 2.5 && vUp >= 0.0) {
     return {

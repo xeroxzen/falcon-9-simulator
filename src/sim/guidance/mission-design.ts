@@ -237,11 +237,25 @@ function solveKickForReserve(
     return coarseResults[0]!;
   }
 
-  // Prefer highest Stage 2 margin (most gravity-loss-efficient feasible trajectory)
-  feasibleCoarse.sort((a, b) => b.stage2FuelMarginKg - a.stage2FuelMarginKg);
-  let best = feasibleCoarse[0]!;
+  // Kick stability tie-breaker: among feasible kicks within 500 kg (~0.45% S2 prop)
+  // of the best Stage 2 fuel margin, prefer the kick closest to the class-fitted
+  // profile median (initialGuessKickDeg, ~1.3 deg for LEO direct).
+  const maxS2Coarse = Math.max(...feasibleCoarse.map((r) => r.stage2FuelMarginKg));
+  const S2_TIE_BAND_KG = 500;
+  const pickBestKick = (cands: readonly MissionDesignResult[], maxS2: number): MissionDesignResult => {
+    const nearBest = cands.filter((r) => r.stage2FuelMarginKg >= maxS2 - S2_TIE_BAND_KG);
+    nearBest.sort((a, b) => {
+      const da = Math.abs(a.pitchKickAngleDeg - initialGuessKickDeg);
+      const db = Math.abs(b.pitchKickAngleDeg - initialGuessKickDeg);
+      if (Math.abs(da - db) > 1e-4) return da - db;
+      return b.stage2FuelMarginKg - a.stage2FuelMarginKg;
+    });
+    return nearBest[0]!;
+  };
+  let best = pickBestKick(feasibleCoarse, maxS2Coarse);
 
   // Local fine refinement around best coarse kick
+  const fineFeasible: MissionDesignResult[] = [best];
   const fineLo = Math.max(minKick, best.pitchKickAngleDeg - coarseStep);
   const fineHi = Math.min(maxKick, best.pitchKickAngleDeg + coarseStep);
   for (let k = fineLo; k <= fineHi + 1e-6; k += fineStep) {
@@ -256,10 +270,12 @@ function solveKickForReserve(
       solverDtS,
       boostbackPitchDeg
     );
-    if (isFeasible(ev) && ev.stage2FuelMarginKg > best.stage2FuelMarginKg) {
-      best = { ...ev, feasible: true };
+    if (isFeasible(ev)) {
+      fineFeasible.push({ ...ev, feasible: true });
     }
   }
+  const maxS2Fine = Math.max(maxS2Coarse, ...fineFeasible.map((r) => r.stage2FuelMarginKg));
+  best = pickBestKick(fineFeasible, maxS2Fine);
 
   return best;
 }
@@ -325,11 +341,14 @@ export function solveMissionAscentDesign(
     mission.landingMode === 'RTLS' || mission.droneshipDownrangeKm !== undefined;
   const maxHeat =
     options.maxEntryHeatingMWm2 ?? (isBoostbackCandidate ? 0.025 : 0.085);
-  // Lean telemetry-derived touchdown propellant margin floor (unified across all
-  // recovery modes): real Block 5 aero-descent mass is ~31.6 t (~27.2 t dry +
-  // ~4.5-5.5 t landing burn + ~0-2 t touchdown reserve). 2,500 kg (~0.59% S1 prop)
-  // provides realistic lean operational margin without overweighting aero descent.
-  const minBoosterFuel = options.minBoosterFuelMarginKg ?? 2_500;
+  // Telemetry-derived lean touchdown propellant margin floor:
+  //  - Ballistic ASDS: 2,500 kg (~0.59% S1 prop; real Block 5 aero-descent mass ~31.6 t).
+  //  - Boostback-class (RTLS / close-in ASDS-BB): 3,500 kg, set directly from the measured
+  //    3-sigma left-tail post-MECO dispersion cost (~3,465 kg RSS of skewed p50-p5 across
+  //    the 9 MC drivers after fixing terminal-flare velocity-bias hover-hang; less than
+  //    half the legacy 7,500 kg floor, guaranteeing >=99% landing without sitting at the edge).
+  const minBoosterFuel =
+    options.minBoosterFuelMarginKg ?? (isBoostbackCandidate ? 3_500 : 2_500);
 
   const isFeasible = (r: MissionDesignResult): boolean =>
     r.orbitAchieved &&

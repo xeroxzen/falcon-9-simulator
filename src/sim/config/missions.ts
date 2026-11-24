@@ -11,7 +11,7 @@ const BASELINE_ASDS_GUIDANCE: AscentGuidanceConfig = {
   /** ASSUMED: Clear tower (~150 m) before pitchover */
   pitchKickAltitudeM: 150,
   /** Mission-design pitchover kick solved by solveMissionAscentDesign (2.90 g LEO + predictive Sutton-Graves entry burn) */
-  pitchKickAngleDeg: 1.95,
+  pitchKickAngleDeg: 1.9,
   /** ASSUMED: Smooth pitchover duration */
   pitchKickDurationS: 8.0,
   /** Shared v1 max-Q throttle bucket (22 kPa, Mach 1.02..1.38, 72% min throttle) */
@@ -66,9 +66,9 @@ export const DEFAULT_LEO_RTLS_MISSION: MissionConfig = {
   guidance: {
     ...BASELINE_RTLS_GUIDANCE,
     /** Mission-design pitchover kick, reserve & boostback pitch solved jointly by solveMissionAscentDesign for SLC-40 -> LZ-40 */
-    pitchKickAngleDeg: 1.65,
-    mecoPropellantReserveFraction: 0.115,
-    boostbackPitchDeg: -13,
+    pitchKickAngleDeg: 1.1,
+    mecoPropellantReserveFraction: 0.125,
+    boostbackPitchDeg: -19,
   },
 };
 
