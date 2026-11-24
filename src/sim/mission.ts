@@ -16,6 +16,7 @@ import {
   G0,
   RAD_TO_DEG,
 } from './config/constants.js';
+import { CONSTANTS_REGISTRY as R } from './config/registry.js';
 import { LANDING_SITES } from './config/falcon9.js';
 import { rk4Step, type Rk4Space } from './integrator.js';
 import {
@@ -608,11 +609,11 @@ export function runFullMission(
   //   sigma_rad(h) = sqrt(sigma_floor^2 + (eps_scale * h)^2)
   //   sigma_eff(h) = 1 / sqrt(sigma_ins^-2 + sigma_rad(h)^-2)
   // with closed-loop filter time constant tau_eff = max(2.0 s, tau_ins * (sigma_eff/sigma_ins)^2).
-  const NAV_CORR_TIME_S = 45.0;
-  const NAV_ALT_AID_ACQ_M = 3_000.0;
-  const NAV_ALT_RADAR_FLOOR_M = 0.15;
-  const NAV_ALT_RADAR_SCALE = 0.002;
-  const NAV_ALT_AID_MIN_TAU_S = 2.0;
+  const NAV_CORR_TIME_S = R.NAV_CORR_TIME_S.value;
+  const NAV_ALT_AID_ACQ_M = R.NAV_ALT_AID_ACQ_M.value;
+  const NAV_ALT_RADAR_FLOOR_M = R.NAV_ALT_RADAR_FLOOR_M.value;
+  const NAV_ALT_RADAR_SCALE = R.NAV_ALT_RADAR_SCALE.value;
+  const NAV_ALT_AID_MIN_TAU_S = R.NAV_ALT_AID_MIN_TAU_S.value;
   const initDisp = mission.dispersions;
   const altSigmaM = (initDisp?.navAltNoiseM ?? 0) / 3.0;
   const velSigmaMs = (initDisp?.navVelNoiseMs ?? 0) / 3.0;

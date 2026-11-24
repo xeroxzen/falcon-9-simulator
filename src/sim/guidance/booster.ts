@@ -7,6 +7,7 @@ import type {
   VehicleConfig,
 } from '../types.js';
 import { DEG_TO_RAD, G0, RAD_TO_DEG } from '../config/constants.js';
+import { CONSTANTS_REGISTRY as R } from '../config/registry.js';
 import { sampleAtmosphere } from '../models/atmosphere.js';
 import { boosterDescentDragCoefficient } from '../models/aerodynamics.js';
 import {
@@ -50,16 +51,16 @@ export interface BoosterGuidanceMemory {
  * (CALIBRATED on Block 5 Iridium NEXT 8 & SAOCOM 1A; single shared rule across
  * all recovery modes, zero per-flight or mode-specific altitude/speed thresholds).
  */
-export const ENTRY_BURN_HEATING_LIMIT_MW_M2 = 0.022;
-export const ENTRY_BURN_AERO_LEAD_S = 14.0;
+export const ENTRY_BURN_HEATING_LIMIT_MW_M2 = R.ENTRY_BURN_HEATING_LIMIT_MW_M2.value;
+export const ENTRY_BURN_AERO_LEAD_S = R.ENTRY_BURN_AERO_LEAD_S.value;
 /**
- * Target 3-engine axial deceleration (g) during the throttled / 1-3-1 entry burn
+ * CALIBRATED: Target 3-engine axial deceleration (g) during the throttled / 1-3-1 entry burn
  * (reconstructed 3.4-4.2 g across all 11 telemetry flights; mass-invariant).
  */
-export const ENTRY_BURN_TARGET_ACCEL_G = 3.6;
-export const ENTRY_BURN_MAX_DURATION_S = 26.0;
-const SUTTON_GRAVES_K = 1.7415e-4;
-const BOOSTER_BASE_RADIUS_M = 1.85;
+export const ENTRY_BURN_TARGET_ACCEL_G = R.ENTRY_BURN_TARGET_ACCEL_G.value;
+export const ENTRY_BURN_MAX_DURATION_S = R.ENTRY_BURN_MAX_DURATION_S.value;
+const SUTTON_GRAVES_K = R.SUTTON_GRAVES_K_EARTH.value;
+const BOOSTER_BASE_RADIUS_M = R.BOOSTER_BASE_RADIUS_M.value;
 
 /**
  * Fast 2D ballistic lookahead from the current descending state to predict
@@ -535,18 +536,26 @@ export function computeBoosterGuidance(
     };
   }
 
-  // Terminal vertical profile with heave & velocity-bias anti-hover guard (unified across all modes):
+  // Terminal vertical profile with heave & HEURISTIC velocity-bias anti-hover guard:
   // Brake toward v_td = 0.55 m/s at h_flare = 1.85 m (keeping v_td + max 1.35 m/s ASDS deck heave
   // below 2.0 m/s). If the booster remains in the final 2.5 m flare longer than 3.5 s (indicating
   // an unaided negative INS vertical velocity bias holding true v_down <= 0), gently ramp v_td
   // (+0.15 m/s per second) so true descent resumes smoothly without hover-hang propellant depletion.
-  if (heightAboveTarget < 2.5 && mem.flareStartTimeS === undefined) {
+  // Labelled HEURISTIC in CONSTANTS_REGISTRY; tracked in docs/BACKLOG.md for radar-based velocity estimation.
+  if (heightAboveTarget < R.ANTI_HOVER_FLARE_GATE_ALT_M.value && mem.flareStartTimeS === undefined) {
     mem.flareStartTimeS = timeS;
   }
   const flareExcessS =
-    mem.flareStartTimeS !== undefined ? Math.max(0, timeS - mem.flareStartTimeS - 3.5) : 0;
-  const vTd = 0.55 + Math.min(0.65, 0.15 * flareExcessS);
-  const hFlare = 1.85;
+    mem.flareStartTimeS !== undefined
+      ? Math.max(0, timeS - mem.flareStartTimeS - R.ANTI_HOVER_FLARE_DELAY_S.value)
+      : 0;
+  const vTd =
+    R.TERMINAL_FLARE_TARGET_VTD_MS.value +
+    Math.min(
+      R.ANTI_HOVER_FLARE_MAX_ADD_MS.value,
+      R.ANTI_HOVER_FLARE_RAMP_MS_PER_S.value * flareExcessS
+    );
+  const hFlare = R.TERMINAL_FLARE_HEIGHT_M.value;
   let aUpCmd: number;
   if (heightAboveTarget > hFlare + 0.25) {
     const vDownExcessSq = Math.max(0, vDown * vDown - vTd * vTd);

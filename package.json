@@ -13,6 +13,7 @@
     "sim:mission": "tsx src/cli/run-mission.ts",
     "sim:validate": "tsx src/cli/run-validation.ts",
     "sim:montecarlo": "tsx src/cli/montecarlo.ts",
+    "docs:assumptions": "tsx scripts/generate-assumptions-tables.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

@@ -7,6 +7,7 @@ import type {
 } from '../types.js';
 import { DEG_TO_RAD, EARTH_RADIUS_EQUATORIAL_M, G0 } from '../config/constants.js';
 import { LANDING_SITES } from '../config/falcon9.js';
+import { CONSTANTS_REGISTRY as R } from '../config/registry.js';
 import {
   clamp,
   dot,
@@ -43,8 +44,8 @@ export interface AscentGuidanceInput {
   readonly throttleBucketStartTimeS?: number | null;
 }
 
-/** Lean telemetry-derived touchdown propellant margin floor (kg). */
-const CLOSED_LOOP_LEAN_FLOOR_KG = 2_500;
+/** CALIBRATED: Lean telemetry-derived touchdown propellant margin floor (kg). */
+const CLOSED_LOOP_LEAN_FLOOR_KG = R.CLOSED_LOOP_LEAN_FLOOR_KG.value;
 
 function resolveAscentRecoveryTarget(
   mission: MissionConfig,

@@ -7,6 +7,7 @@ import {
   SEA_LEVEL_TEMP_K,
   US76_R0_M,
 } from '../config/constants.js';
+import { CONSTANTS_REGISTRY as R } from '../config/registry.js';
 
 /**
  * US Standard Atmosphere 1976 (NOAA-S/T 76-1562) up to 86 km geometric altitude,
@@ -78,7 +79,7 @@ const US76_LAYERS: readonly Us76Layer[] = (() => {
   return layers;
 })();
 
-const TOP_GEOMETRIC_M = 86_000.0;
+const TOP_GEOMETRIC_M = R.US76_TOP_GEOMETRIC_M.value;
 const TOP_GEOPOTENTIAL_M =
   (US76_R0_M * TOP_GEOMETRIC_M) / (US76_R0_M + TOP_GEOMETRIC_M);
 
@@ -98,8 +99,8 @@ const DENSITY_86KM = PRESSURE_86KM_PA / (AIR_GAS_CONSTANT * TEMP_86KM_K);
  * ASSUMED exponential scale height above 86 km (approx. 5.8 km in lower thermosphere).
  * Above 200 km, atmospheric density and pressure are treated as vacuum (0).
  */
-const UPPER_SCALE_HEIGHT_M = 5_800.0;
-const VACUUM_CUTOFF_M = 200_000.0;
+const UPPER_SCALE_HEIGHT_M = R.ATMO_UPPER_SCALE_HEIGHT_M.value;
+const VACUUM_CUTOFF_M = R.ATMO_VACUUM_CUTOFF_M.value;
 
 /**
  * Sample US Standard Atmosphere 1976 at geometric altitude `altitudeM` (meters).

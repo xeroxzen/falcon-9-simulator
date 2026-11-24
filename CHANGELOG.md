@@ -2,6 +2,18 @@
 
 All notable changes to the Falcon 9 Launch & Booster Landing Simulator are documented in this file.
 
+## [1.9.1] — 2026-11-24 (Constants Registry, Auto-Generated ASSUMPTIONS Tables & Fidelity Audit — Zero Physics Changes)
+
+### Added
+- **Single-source-of-truth constants registry (`src/sim/config/registry.ts`):**
+  - Consolidated all `SOURCED`, `CALIBRATED`, `EMPIRICAL`, `ASSUMED`, and `HEURISTIC` physics/guidance constants (69 entries) with full provenance (`value`, `unit`, `label`, `category`, `sourceOrDerivation`, `calibratedOn`, `commit`, and `uncertainty`).
+  - Added `scripts/generate-assumptions-tables.ts` (`pnpm docs:assumptions`) to auto-generate the registry tables in `docs/ASSUMPTIONS.md` directly from code.
+- **Registry & label audit tests (`tests/constants-registry.test.ts`):**
+  - Verifies metadata completeness on every registry entry, checks that `docs/ASSUMPTIONS.md` matches the generated output byte-for-byte, and fails if any numeric guidance/physics constant outside `registry.ts` lacks a provenance label.
+- **Documentation & Backlog updates:**
+  - Fixed S1 dry-mass prose in `docs/ASSUMPTIONS.md` (`MAP ≈ 27.0 ± 1.9 t`, prior `25.6 t`), explicitly labeled the terminal-flare anti-hover ramp `HEURISTIC`, added `BACKLOG #15` (radar-based terminal vertical velocity estimation) & `BACKLOG #16` (Stage 1 dry-mass identification), and added a **"Model Fidelity at a Glance"** table to `README.md`.
+- **Verification:** Bit-identical Monte Carlo output vs `v1.9.0` on seed `496045` (`ASDS N=200`, `RTLS N=200`, `Iridium 8 N=50` — zero byte diff across all metrics); all 14 test files (50 tests) pass.
+
 ## [1.9.0] — 2026-11-24 (Physics-Based Predictive Entry Controller, Closed-Loop MECO & Variance-Derived Lean Margins)
 
 ### Added

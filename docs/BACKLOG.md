@@ -65,6 +65,14 @@ Known model gaps identified during Phase 2.5 validation and holdout testing, tra
     - Replaced fixed entry triggers (`52 km / 1,200 m/s` and `70 km / 1,300 m/s`) and fixed `850 m/s` cutoff with a single vehicle-level predictive Sutton-Graves heating controller (`qDotLimit = 0.030 MW/m²`, `lead = 13 s`, `throttle = 0.72`, `maxDur = 24 s`, `CALIBRATED (n=2 Block 5 flights)`), cutting `Iridium NEXT 8` Entry EA to `1.33 km / 25 m/s` and Aero EA to `2.00 km / 50 m/s`, `SAOCOM 1A` Aero EA to `2.34 km / 135 m/s`, and reproducing the ignition spread up to `NROL-76` (`53.9` vs `64.9 km`) across all 8 flights.
     - Reconstructed `M < 1.2` `Cd(M)` across all 8 flights (`1.31–1.40` B5, `1.03–1.30` B3/4 — lower than supersonic) and proved the remaining `~100 m/s` end-to-end `v_ign` excess is driven by end-to-end aero-descent mass (`44–45 t` from `27.2 t` dry mass + `7.5–9.4 t` 3-sigma MC fuel margin floor vs real `~30–33 t`); at realistic `30 t` aero mass, the model predicts `313–330 m/s` across all 8 flights. Closing the remaining mass-margin gap requires tighter closed-loop boostback/landing guidance or lower `stage1.dryMassKg`.
 
-15. **Stretch goals from original spec:**
+15. **Radar-based terminal vertical velocity estimation (replace `HEURISTIC` anti-hover flare ramp):**
+    - Currently, the landing radar altimeter aids only AGL altitude (`NAV_ALT_AID_ACQ_M = 3,000 m`), leaving vertical velocity (`v_z`) unaided at full `τ = 45 s` INS/GPS bias (`3σ = ±0.3 m/s`). When negative `v_z` bias exceeds `vTd = 0.55 m/s` in the final `2.5 m` flare, the booster can hover-hang, which is currently mitigated by a `HEURISTIC` dwell-time ramp (`ANTI_HOVER_FLARE_*` in `src/sim/config/registry.ts`).
+    - Implement a coupled radar-altimeter + accelerometer complementary/Kalman vertical state estimator (or Doppler radar velocity aiding) below `3,000 m` AGL so vertical velocity bias is physically bounded without phase-lag instability, allowing the `HEURISTIC` anti-hover ramp to be retired.
+
+16. **Stage 1 dry-mass identification (narrow `MAP ≈ 27.0 ± 1.9 t` uncertainty):**
+    - Part D MAP ascent identification leaves `F9_S1_DRY_MASS_KG` prior-dominated (`26,955 ± 1,857 kg`, `σ_post/σ_prior = 0.93`, prior `25,600 ± 2,000 kg`) because ascent telemetry alone cannot cleanly separate S1 dry mass from S1 propellant load and late-burn throttle.
+    - Jointly assimilate post-MECO booster descent telemetry (boostback acceleration `a = T/m`, entry-burn deceleration, and landing-burn deceleration across all Block 5 flights with `stage1 raw.json`) to break the ascent degeneracy and tighten S1 dry-mass uncertainty below `±0.5 t`, separating real operational touchdown reserve from dry-mass uncertainty.
+
+17. **Stretch goals from original spec:**
    - Convex-optimization (G-FOLD-style) powered descent guidance.
    - 6-DOF rigid-body rotational dynamics (inertia tensor, TVC gimbal torque, RCS cold-gas thrusters, aerodynamic center-of-pressure / center-of-mass pitching moments).

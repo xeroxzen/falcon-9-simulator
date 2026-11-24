@@ -5,6 +5,7 @@ import {
 } from '../config/falcon9.js';
 import { add, clamp, dot, norm, normalize, scale, sub } from '../math.js';
 import { DEG_TO_RAD } from '../config/constants.js';
+import { CONSTANTS_REGISTRY as R } from '../config/registry.js';
 
 export interface AeroOutput {
   readonly mach: number;
@@ -95,7 +96,7 @@ export interface BoosterAeroOutput extends AeroOutput {
  * ASSUMED simplified grid-fin + booster-body lift slope (per radian of grid-fin
  * deflection command, max +/-20 deg -> max C_L ~ 0.28, L/D ~ 0.25-0.30).
  */
-const BOOSTER_GRID_FIN_CL_PER_RAD = 0.8;
+const BOOSTER_GRID_FIN_CL_PER_RAD = R.BOOSTER_GRID_FIN_CL_PER_RAD.value;
 
 /**
  * Compute tail-first booster aerodynamic drag plus simplified grid-fin lateral lift
