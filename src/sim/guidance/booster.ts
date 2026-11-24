@@ -48,10 +48,14 @@ export interface BoosterGuidanceMemory {
  * (CALIBRATED on Block 5 Iridium NEXT 8 & SAOCOM 1A; single shared rule across
  * all recovery modes, zero per-flight or mode-specific altitude/speed thresholds).
  */
-export const ENTRY_BURN_HEATING_LIMIT_MW_M2 = 0.030;
-export const ENTRY_BURN_AERO_LEAD_S = 13.0;
-export const ENTRY_BURN_AVG_THROTTLE = 0.72;
-export const ENTRY_BURN_MAX_DURATION_S = 24.0;
+export const ENTRY_BURN_HEATING_LIMIT_MW_M2 = 0.022;
+export const ENTRY_BURN_AERO_LEAD_S = 14.0;
+/**
+ * Target 3-engine axial deceleration (g) during the throttled / 1-3-1 entry burn
+ * (reconstructed 3.4-4.2 g across all 11 telemetry flights; mass-invariant).
+ */
+export const ENTRY_BURN_TARGET_ACCEL_G = 3.6;
+export const ENTRY_BURN_MAX_DURATION_S = 26.0;
 const SUTTON_GRAVES_K = 1.7415e-4;
 const BOOSTER_BASE_RADIUS_M = 1.85;
 
@@ -366,9 +370,10 @@ export function computeBoosterGuidance(
       if (pred.peakQDotMWm2 > ENTRY_BURN_HEATING_LIMIT_MW_M2) {
         const vRatio = Math.cbrt(ENTRY_BURN_HEATING_LIMIT_MW_M2 / pred.peakQDotMWm2);
         const dvReq = Math.max(0, speedRel * (1 - vRatio));
-        const a3 =
-          (3 * vehicle.stage1.engine.thrustVacuumN * ENTRY_BURN_AVG_THROTTLE) /
-          Math.max(1, totalMassKg);
+        const a3 = Math.min(
+          (3 * vehicle.stage1.engine.thrustVacuumN) / Math.max(1, totalMassKg),
+          ENTRY_BURN_TARGET_ACCEL_G * G0
+        );
         const tBurnEst = Math.min(ENTRY_BURN_MAX_DURATION_S, dvReq / Math.max(1, a3));
         if (pred.timeToPeakS <= tBurnEst + ENTRY_BURN_AERO_LEAD_S) {
           mem.phase = 'ENTRY_BURN';
@@ -398,7 +403,7 @@ export function computeBoosterGuidance(
   if (mem.phase === 'ENTRY_BURN') {
     const burnDur =
       mem.entryBurnStartTimeS !== null ? timeS - mem.entryBurnStartTimeS : 0;
-    const landingReserve = s1PropTotal * (mission.landingMode === 'RTLS' ? 0.028 : 0.032);
+    const landingReserve = s1PropTotal * 0.020;
     const pred = getEntryPrediction();
     if (
       pred.peakQDotMWm2 <= ENTRY_BURN_HEATING_LIMIT_MW_M2 ||
@@ -408,11 +413,17 @@ export function computeBoosterGuidance(
     ) {
       mem.phase = 'AERO_DESCENT';
     } else {
+      const entryThrottle = clamp(
+        (ENTRY_BURN_TARGET_ACCEL_G * G0 * totalMassKg) /
+          Math.max(1, 3 * vehicle.stage1.engine.thrustVacuumN),
+        0.4,
+        1.0
+      );
       return {
         phase: 'ENTRY_BURN',
         targetAttitudeEci: retroDir,
         activeEngineIndices: [0, 1, 5],
-        throttle: ENTRY_BURN_AVG_THROTTLE,
+        throttle: entryThrottle,
         aeroSteerDirEci: zeroVec,
         gridFinDeflectionDeg: 0,
         landingLegsDeployed: false,

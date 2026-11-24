@@ -318,12 +318,18 @@ export function solveMissionAscentDesign(
   const coarseStep = options.coarseStepDeg ?? 0.15;
   const fineStep = options.fineStepDeg ?? 0.05;
   const maxSat = options.maxGridFinSatFraction ?? 0.15;
-  const maxHeat = options.maxEntryHeatingMWm2 ?? 0.085;
-  const minBoosterFuel =
-    options.minBoosterFuelMarginKg ??
-    (mission.landingMode === 'RTLS' || mission.droneshipDownrangeKm !== undefined
-      ? 7_500
-      : 4_000);
+  // Boostback recoveries must keep post-entry heating within ~15% of the vehicle's
+  // 0.022 MW/m^2 entry-burn thermal target (<=0.025 MW/m^2, preventing 26 s cap
+  // saturation from over-lofted -4 deg boostbacks); ballistic ASDS keeps 0.085 MW/m^2.
+  const isBoostbackCandidate =
+    mission.landingMode === 'RTLS' || mission.droneshipDownrangeKm !== undefined;
+  const maxHeat =
+    options.maxEntryHeatingMWm2 ?? (isBoostbackCandidate ? 0.025 : 0.085);
+  // Lean telemetry-derived touchdown propellant margin floor (unified across all
+  // recovery modes): real Block 5 aero-descent mass is ~31.6 t (~27.2 t dry +
+  // ~4.5-5.5 t landing burn + ~0-2 t touchdown reserve). 2,500 kg (~0.59% S1 prop)
+  // provides realistic lean operational margin without overweighting aero descent.
+  const minBoosterFuel = options.minBoosterFuelMarginKg ?? 2_500;
 
   const isFeasible = (r: MissionDesignResult): boolean =>
     r.orbitAchieved &&
@@ -356,10 +362,10 @@ export function solveMissionAscentDesign(
   const reserveCandidates =
     mission.landingMode === 'RTLS'
       ? (options.rtlsReserveCandidates ?? [
-          0.135, 0.145, 0.15, 0.155, 0.16, 0.165, 0.17,
+          0.115, 0.12, 0.125, 0.13, 0.135, 0.145, 0.155, 0.165,
         ])
       : (options.asdsBoostbackReserveCandidates ?? [
-          0.075, 0.085, 0.095, 0.105, 0.115, 0.125, 0.135, 0.145, 0.155,
+          0.075, 0.085, 0.095, 0.1, 0.105, 0.115, 0.125, 0.135, 0.145,
         ]);
   const bbPitchCandidates = options.boostbackPitchCandidates ?? [
     -4, -7, -10, -13, -16, -19, -22, -25, -28, -31, -34, -37, -40, -43, -46,

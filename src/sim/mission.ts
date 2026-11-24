@@ -52,9 +52,9 @@ import {
 import {
   computeBoosterGuidance,
   ENTRY_BURN_AERO_LEAD_S,
-  ENTRY_BURN_AVG_THROTTLE,
   ENTRY_BURN_HEATING_LIMIT_MW_M2,
   ENTRY_BURN_MAX_DURATION_S,
+  ENTRY_BURN_TARGET_ACCEL_G,
   predictBallisticEntryPeak,
   type BoosterGuidanceMemory,
 } from './guidance/booster.js';
@@ -355,9 +355,10 @@ function predictAsdsTargetCoord(
           if (pred.peakQDotMWm2 > ENTRY_BURN_HEATING_LIMIT_MW_M2) {
             const vRatio = Math.cbrt(ENTRY_BURN_HEATING_LIMIT_MW_M2 / pred.peakQDotMWm2);
             const dvReq = Math.max(0, speedRel * (1 - vRatio));
-            const a3 =
-              (3 * vehicle.stage1.engine.thrustVacuumN * ENTRY_BURN_AVG_THROTTLE) /
-              Math.max(1, totalMassKg);
+            const a3 = Math.min(
+              (3 * vehicle.stage1.engine.thrustVacuumN) / Math.max(1, totalMassKg),
+              ENTRY_BURN_TARGET_ACCEL_G * G0
+            );
             const tBurnEst = Math.min(ENTRY_BURN_MAX_DURATION_S, dvReq / Math.max(1, a3));
             if (pred.timeToPeakS <= tBurnEst + ENTRY_BURN_AERO_LEAD_S) {
               entryBurnStart = t;
@@ -378,12 +379,19 @@ function predictAsdsTargetCoord(
           pred.peakQDotMWm2 <= ENTRY_BURN_HEATING_LIMIT_MW_M2 ||
           burnDur >= ENTRY_BURN_MAX_DURATION_S ||
           geo.altitudeM <= 28_000 ||
-          dyn.propellantKg <= s1PropTotal * 0.032
+          dyn.propellantKg <= s1PropTotal * 0.020
         ) {
           entryBurnDone = true;
         } else {
           activeEngines = [0, 1, 5];
-          throttle = ENTRY_BURN_AVG_THROTTLE;
+          throttle = Math.max(
+            0.4,
+            Math.min(
+              1.0,
+              (ENTRY_BURN_TARGET_ACCEL_G * G0 * totalMassKg) /
+                Math.max(1, 3 * vehicle.stage1.engine.thrustVacuumN)
+            )
+          );
         }
       }
     }
