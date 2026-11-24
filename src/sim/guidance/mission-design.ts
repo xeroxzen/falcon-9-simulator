@@ -99,7 +99,7 @@ export interface MissionDesignOptions {
   readonly rtlsReserveCandidates?: readonly number[];
   /** Candidate close-in ASDS partial-boostback MECO reserve fractions (searched in ascending order). */
   readonly asdsBoostbackReserveCandidates?: readonly number[];
-  /** Candidate boostback thrust pitch angles relative to local horizontal (deg, negative = depressed). Default: [-4, -10, -16, -22, -28] */
+  /** Candidate boostback thrust pitch angles relative to local horizontal (deg, negative = depressed). Default: -4..-46 deg in 3 deg steps */
   readonly boostbackPitchCandidates?: readonly number[];
   /** Required nominal booster landing propellant margin (kg) for 3-sigma dispersion buffer. Default: 4,000 ASDS / 5,000 ASDS-BB / 7,500 RTLS */
   readonly minBoosterFuelMarginKg?: number;
@@ -351,7 +351,7 @@ export function solveMissionAscentDesign(
           0.075, 0.085, 0.095, 0.105, 0.115, 0.125, 0.135, 0.145, 0.155,
         ]);
   const bbPitchCandidates = options.boostbackPitchCandidates ?? [
-    -4, -10, -16, -22, -28,
+    -4, -7, -10, -13, -16, -19, -22, -25, -28, -31, -34, -37, -40, -43, -46,
   ];
   const refBbPitch = bbPitchCandidates.includes(-16)
     ? -16
